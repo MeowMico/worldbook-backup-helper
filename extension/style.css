@@ -84,6 +84,21 @@
   background: var(--SmartThemeBlurTintColor, #1f2328);
 }
 
+.wbh-side-stack {
+  display: grid;
+  grid-template-rows: minmax(180px, 42%) minmax(0, 1fr);
+}
+
+.wbh-side-section {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.wbh-side-section:first-child {
+  border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
+}
+
 .wbh-pane-head {
   min-height: 48px;
   display: flex;
@@ -155,6 +170,40 @@
   border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
 }
 
+.wbh-experiment {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
+  background: var(--black30a, rgb(0 0 0 / 12%));
+}
+
+.wbh-experiment-text {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.wbh-experiment-text strong,
+.wbh-experiment-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wbh-experiment-text small {
+  opacity: 0.72;
+}
+
+.wbh-experiment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .wbh-toolbar {
   display: grid;
   grid-template-columns: auto auto 1fr;
@@ -169,6 +218,7 @@
 
 .wbh-actions button,
 .wbh-form button,
+.wbh-experiment-actions button,
 .wbh-toolbar button,
 .wbh-mini {
   min-height: 32px;
@@ -181,10 +231,21 @@
 }
 
 .wbh-toolbar button.active,
-.wbh-form button {
+.wbh-form button,
+#wbh-start-experiment,
+#wbh-finish-experiment {
   background: var(--SmartThemeQuoteColor, #33789b);
   border-color: var(--SmartThemeQuoteColor, #33789b);
   color: #fff;
+}
+
+.wbh-actions button:disabled,
+.wbh-form button:disabled,
+.wbh-experiment-actions button:disabled,
+.wbh-toolbar button:disabled,
+.wbh-mini:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .wbh-diff-summary {
@@ -301,6 +362,18 @@
 
   .wbh-pane {
     min-height: 260px;
+  }
+
+  .wbh-side-stack {
+    grid-template-rows: minmax(180px, auto) minmax(220px, auto);
+  }
+
+  .wbh-experiment {
+    grid-template-columns: 1fr;
+  }
+
+  .wbh-experiment-actions {
+    justify-content: flex-start;
   }
 
   .wbh-main {

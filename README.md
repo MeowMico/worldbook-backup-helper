@@ -8,6 +8,7 @@ Local version workbench for SillyTavern worldbooks.
 - Creates timestamped JSON snapshots under the current user's backups directory.
 - Lets you name versions, compare a snapshot against the current worldbook, and restore a snapshot.
 - Can compare a selected snapshot against its previous snapshot.
+- Adds an experiment workflow for RP-driven edits: Start captures a baseline, Finish captures the edited result, Keep/Reject marks the attempt, and Baseline/After can restore either point.
 - Includes an optional third-party extension that adds a menu entry and creates automatic before/after snapshots around `/api/worldinfo/edit` saves.
 
 The plugin only works with worldbooks/lorebooks. It does not read character descriptions or chats.
@@ -23,6 +24,19 @@ Extensions -> Install extension -> paste this repository URL
 ```
 
 In extension-only mode, snapshots are stored in the browser's IndexedDB. This gives you an in-Tavern workbench, automatic before/after snapshots, labels, diff, and restore without installing a server plugin.
+
+## Experiment Workflow
+
+Use this when you are testing a worldbook change against a specific RP problem:
+
+1. Open `Worldbook Backups` from the extensions menu.
+2. Select the worldbook.
+3. Click `Start` and name the problem or attempt. This captures the current worldbook as the baseline.
+4. Edit the worldbook in SillyTavern as usual.
+5. Click `Finish` and write a short note. This captures the edited worldbook as the after version.
+6. Use the experiment diff to compare baseline against after, then mark the attempt as `Keep` or `Reject`.
+
+`Baseline` restores the worldbook to the version before the attempt. `After` restores the finished attempt. Manual snapshots and automatic before/after snapshots still remain available in the Versions list.
 
 ## Optional: Install As Server Plugin
 

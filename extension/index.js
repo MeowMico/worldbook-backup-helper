@@ -2,8 +2,9 @@ import { getRequestHeaders } from '/script.js';
 
 const PLUGIN_ROOT = '/api/plugins/worldbook-backup-helper';
 const DB_NAME = 'worldbook-backup-helper';
-const DB_VERSION = 1;
-const STORE_NAME = 'snapshots';
+const DB_VERSION = 2;
+const SNAPSHOT_STORE = 'snapshots';
+const EXPERIMENT_STORE = 'experiments';
 
 const app = {
   installed: false,
@@ -11,8 +12,11 @@ const app = {
   serverPluginAvailable: null,
   books: [],
   snapshots: [],
+  experiments: [],
   activeBook: null,
   activeSnapshot: null,
+  activeExperiment: null,
+  activeView: 'snapshot',
   diffMode: 'current',
 };
 
@@ -238,6 +242,20 @@ function ensureLocalWorkbench() {
             <h3 id="wbh-active-title">No worldbook selected</h3>
             <span id="wbh-active-meta">0 entries</span>
           </div>
+          <div class="wbh-experiment">
+            <div class="wbh-experiment-text">
+              <strong id="wbh-experiment-title">No experiment selected</strong>
+              <small id="wbh-experiment-meta">Ready</small>
+            </div>
+            <div class="wbh-experiment-actions">
+              <button id="wbh-start-experiment" type="button">Start</button>
+              <button id="wbh-finish-experiment" type="button">Finish</button>
+              <button id="wbh-keep-experiment" type="button">Keep</button>
+              <button id="wbh-reject-experiment" type="button">Reject</button>
+              <button id="wbh-restore-baseline" type="button">Baseline</button>
+              <button id="wbh-restore-after" type="button">After</button>
+            </div>
+          </div>
           <div class="wbh-form">
             <input id="wbh-label" type="text" placeholder="Version name, e.g. 删减了 xxx">
             <button id="wbh-snapshot" type="button">Snapshot</button>
@@ -250,12 +268,21 @@ function ensureLocalWorkbench() {
           <div id="wbh-diff-summary" class="wbh-diff-summary"></div>
           <div id="wbh-diff" class="wbh-diff">Select a snapshot</div>
         </section>
-        <section class="wbh-pane">
-          <div class="wbh-pane-head">
-            <h3>Versions</h3>
-            <span id="wbh-snapshot-count">0</span>
+        <section class="wbh-pane wbh-side-stack">
+          <div class="wbh-side-section">
+            <div class="wbh-pane-head">
+              <h3>Experiments</h3>
+              <span id="wbh-experiment-count">0</span>
+            </div>
+            <div id="wbh-experiments" class="wbh-list"></div>
           </div>
-          <div id="wbh-snapshots" class="wbh-list"></div>
+          <div class="wbh-side-section">
+            <div class="wbh-pane-head">
+              <h3>Versions</h3>
+              <span id="wbh-snapshot-count">0</span>
+            </div>
+            <div id="wbh-snapshots" class="wbh-list"></div>
+          </div>
         </section>
       </main>
     </div>
@@ -266,6 +293,12 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-refresh').addEventListener('click', refreshLocalWorkbench);
   root.querySelector('#wbh-book-search').addEventListener('input', renderBooks);
   root.querySelector('#wbh-snapshot').addEventListener('click', createManualLocalSnapshot);
+  root.querySelector('#wbh-start-experiment').addEventListener('click', startExperiment);
+  root.querySelector('#wbh-finish-experiment').addEventListener('click', finishExperiment);
+  root.querySelector('#wbh-keep-experiment').addEventListener('click', () => setExperimentStatus('kept'));
+  root.querySelector('#wbh-reject-experiment').addEventListener('click', () => setExperimentStatus('rejected'));
+  root.querySelector('#wbh-restore-baseline').addEventListener('click', () => restoreExperimentSnapshot('baseline'));
+  root.querySelector('#wbh-restore-after').addEventListener('click', () => restoreExperimentSnapshot('after'));
   root.querySelector('#wbh-mode-current').addEventListener('click', () => setDiffMode('current'));
   root.querySelector('#wbh-mode-previous').addEventListener('click', () => setDiffMode('previous'));
   root.querySelector('#wbh-restore').addEventListener('click', restoreLocalSnapshot);
@@ -302,9 +335,15 @@ async function saveWorldbook(name, data) {
 }
 
 async function loadLocalSnapshots() {
+  const activeSnapshotId = app.activeSnapshot?.id;
+  const activeExperimentId = app.activeExperiment?.id;
   app.snapshots = app.activeBook ? await getSnapshots(app.activeBook.name) : [];
-  app.activeSnapshot = app.snapshots[0] || null;
+  app.experiments = app.activeBook ? await getExperiments(app.activeBook.name) : [];
+  app.activeSnapshot = app.snapshots.find(snapshot => snapshot.id === activeSnapshotId) || app.snapshots[0] || null;
+  app.activeExperiment = app.experiments.find(experiment => experiment.id === activeExperimentId) || (app.activeView === 'experiment' ? app.experiments[0] || null : null);
+  if (!app.activeExperiment && app.activeView === 'experiment') app.activeView = 'snapshot';
   renderActiveBook();
+  renderExperiments();
   renderSnapshots();
   await renderDiff();
 }
@@ -328,6 +367,9 @@ function renderBooks() {
       button.querySelector('small').textContent = book.name;
       button.addEventListener('click', async () => {
         app.activeBook = book;
+        app.activeSnapshot = null;
+        app.activeExperiment = null;
+        app.activeView = 'snapshot';
         renderBooks();
         await loadLocalSnapshots();
       });
@@ -340,7 +382,74 @@ function renderActiveBook() {
   if (!root) return;
   root.querySelector('#wbh-active-title').textContent = app.activeBook?.title || app.activeBook?.name || 'No worldbook selected';
   root.querySelector('#wbh-active-meta').textContent = app.activeBook?.name || '0 entries';
-  root.querySelector('#wbh-restore').disabled = !app.activeBook || !app.activeSnapshot;
+  root.querySelector('#wbh-restore').disabled = !app.activeBook || app.activeView !== 'snapshot' || !app.activeSnapshot;
+  renderExperimentPanel();
+}
+
+function renderExperimentPanel() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+
+  const experiment = app.activeView === 'experiment' ? app.activeExperiment : null;
+  const title = root.querySelector('#wbh-experiment-title');
+  const meta = root.querySelector('#wbh-experiment-meta');
+  const start = root.querySelector('#wbh-start-experiment');
+  const finish = root.querySelector('#wbh-finish-experiment');
+  const keep = root.querySelector('#wbh-keep-experiment');
+  const reject = root.querySelector('#wbh-reject-experiment');
+  const baseline = root.querySelector('#wbh-restore-baseline');
+  const after = root.querySelector('#wbh-restore-after');
+
+  title.textContent = experiment?.title || 'No experiment selected';
+  meta.textContent = experiment
+    ? [
+      statusLabel(experiment.status),
+      formatDate(experiment.startedAt),
+      experiment.changeNote || '',
+    ].filter(Boolean).join(' | ')
+    : 'Ready';
+
+  start.disabled = !app.activeBook;
+  finish.disabled = !app.activeBook || !experiment;
+  finish.textContent = experiment?.afterSnapshotId ? 'Update After' : 'Finish';
+  keep.disabled = !experiment;
+  reject.disabled = !experiment;
+  baseline.disabled = !experiment?.baselineSnapshotId;
+  after.disabled = !experiment?.afterSnapshotId;
+}
+
+function renderExperiments() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+  const list = root.querySelector('#wbh-experiments');
+  root.querySelector('#wbh-experiment-count').textContent = String(app.experiments.length);
+
+  if (!app.experiments.length) {
+    const empty = document.createElement('div');
+    empty.className = 'wbh-empty';
+    empty.textContent = 'No experiments yet';
+    list.replaceChildren(empty);
+    return;
+  }
+
+  list.replaceChildren(...app.experiments.map(experiment => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `wbh-row ${app.activeView === 'experiment' && app.activeExperiment?.id === experiment.id ? 'active' : ''}`;
+    button.innerHTML = '<span></span><small></small>';
+    button.querySelector('span').textContent = experiment.title || 'Untitled experiment';
+    button.querySelector('small').textContent = `${statusLabel(experiment.status)} | ${formatDate(experiment.startedAt)}`;
+    button.addEventListener('click', async () => {
+      app.activeView = 'experiment';
+      app.activeExperiment = experiment;
+      app.activeSnapshot = await getSnapshotById(experiment.afterSnapshotId || experiment.baselineSnapshotId) || app.activeSnapshot;
+      renderActiveBook();
+      renderExperiments();
+      renderSnapshots();
+      await renderDiff();
+    });
+    return button;
+  }));
 }
 
 function renderSnapshots() {
@@ -359,7 +468,7 @@ function renderSnapshots() {
 
   list.replaceChildren(...app.snapshots.map(snapshot => {
     const row = document.createElement('div');
-    row.className = `wbh-snapshot-row ${app.activeSnapshot?.id === snapshot.id ? 'active' : ''}`;
+    row.className = `wbh-snapshot-row ${app.activeView === 'snapshot' && app.activeSnapshot?.id === snapshot.id ? 'active' : ''}`;
 
     const main = document.createElement('button');
     main.type = 'button';
@@ -368,7 +477,11 @@ function renderSnapshots() {
     main.querySelector('span').textContent = snapshot.label || 'Untitled version';
     main.querySelector('small').textContent = `${formatDate(snapshot.createdAt)} | ${snapshot.entryCount || 0} entries`;
     main.addEventListener('click', async () => {
+      app.activeView = 'snapshot';
+      app.activeExperiment = null;
       app.activeSnapshot = snapshot;
+      renderActiveBook();
+      renderExperiments();
       renderSnapshots();
       await renderDiff();
     });
@@ -400,6 +513,9 @@ async function createManualLocalSnapshot() {
     reason: 'manual',
     skipDuplicate: false,
   });
+  app.activeView = 'snapshot';
+  app.activeExperiment = null;
+  app.activeSnapshot = result.snapshot;
   root.querySelector('#wbh-label').value = '';
   setStatus(result.skipped ? 'Skipped duplicate' : 'Snapshot created');
   await loadLocalSnapshots();
@@ -433,6 +549,110 @@ async function createLocalSnapshotFromData(name, data, { label = '', reason = 'm
   return { skipped: false, snapshot };
 }
 
+async function startExperiment() {
+  if (!app.activeBook) return;
+  const title = window.prompt('Experiment name / problem', '');
+  if (title === null) return;
+
+  const cleanTitle = title.trim() || `Experiment ${formatDate(new Date().toISOString())}`;
+  setStatus('Starting experiment');
+  const baseline = await createLocalSnapshot(app.activeBook.name, {
+    label: `Baseline: ${cleanTitle}`,
+    reason: 'experiment-baseline',
+    skipDuplicate: false,
+  });
+  const now = new Date();
+  const experiment = {
+    id: `${app.activeBook.name}:experiment:${formatDateForFile(now)}:${randomId()}`,
+    bookName: app.activeBook.name,
+    title: cleanTitle,
+    status: 'testing',
+    startedAt: now.toISOString(),
+    startedAtMs: now.getTime(),
+    finishedAt: '',
+    finishedAtMs: 0,
+    baselineSnapshotId: baseline.snapshot.id,
+    afterSnapshotId: '',
+    changeNote: '',
+    resultNote: '',
+    parentExperimentId: app.activeView === 'experiment' ? app.activeExperiment?.id || '' : '',
+  };
+
+  await putExperiment(experiment);
+  app.activeView = 'experiment';
+  app.activeExperiment = experiment;
+  app.activeSnapshot = baseline.snapshot;
+  setStatus('Experiment started');
+  await loadLocalSnapshots();
+}
+
+async function finishExperiment() {
+  if (!app.activeBook || !app.activeExperiment) return;
+
+  const note = window.prompt('Change / result note', app.activeExperiment.changeNote || '');
+  if (note === null) return;
+
+  setStatus(app.activeExperiment.afterSnapshotId ? 'Updating experiment' : 'Finishing experiment');
+  const after = await createLocalSnapshot(app.activeBook.name, {
+    label: `After: ${app.activeExperiment.title}`,
+    reason: 'experiment-after',
+    skipDuplicate: false,
+  });
+  const now = new Date();
+  const updated = {
+    ...app.activeExperiment,
+    status: app.activeExperiment.status || 'testing',
+    finishedAt: now.toISOString(),
+    finishedAtMs: now.getTime(),
+    afterSnapshotId: after.snapshot.id,
+    changeNote: note.trim(),
+  };
+
+  await putExperiment(updated);
+  app.activeView = 'experiment';
+  app.activeExperiment = updated;
+  app.activeSnapshot = after.snapshot;
+  setStatus('Experiment saved');
+  await loadLocalSnapshots();
+}
+
+async function setExperimentStatus(status) {
+  if (!app.activeExperiment) return;
+  const updated = {
+    ...app.activeExperiment,
+    status,
+    decidedAt: new Date().toISOString(),
+  };
+  await putExperiment(updated);
+  app.activeExperiment = updated;
+  await loadLocalSnapshots();
+}
+
+async function restoreExperimentSnapshot(point) {
+  if (!app.activeBook || !app.activeExperiment) return;
+  const snapshotId = point === 'baseline'
+    ? app.activeExperiment.baselineSnapshotId
+    : app.activeExperiment.afterSnapshotId;
+  const snapshot = await getSnapshotById(snapshotId);
+  if (!snapshot) return;
+
+  const label = point === 'baseline' ? 'baseline' : 'after';
+  const ok = window.confirm(`Restore "${app.activeBook.name}" to ${label} of "${app.activeExperiment.title}"?`);
+  if (!ok) return;
+
+  setStatus('Restoring');
+  await createLocalSnapshot(app.activeBook.name, {
+    label: `Before restore ${formatDate(new Date().toISOString())}`,
+    reason: 'pre-restore',
+    skipDuplicate: false,
+  });
+  await saveWorldbook(app.activeBook.name, snapshot.data);
+  app.activeView = 'experiment';
+  app.activeSnapshot = snapshot;
+  await loadLocalSnapshots();
+  setStatus('Restored');
+}
+
 function setDiffMode(mode) {
   app.diffMode = mode;
   const root = document.querySelector('#wbh-workbench');
@@ -448,6 +668,11 @@ async function renderDiff() {
   renderActiveBook();
   const summary = root.querySelector('#wbh-diff-summary');
   const view = root.querySelector('#wbh-diff');
+
+  if (app.activeView === 'experiment' && app.activeExperiment) {
+    await renderExperimentDiff(summary, view);
+    return;
+  }
 
   if (!app.activeBook || !app.activeSnapshot) {
     summary.textContent = '';
@@ -473,6 +698,24 @@ async function renderDiff() {
 
   const diff = diffWorldbooks(base, target);
   summary.textContent = `+${diff.summary.added} -${diff.summary.removed} ~${diff.summary.changed} unchanged ${diff.summary.unchanged}`;
+  view.replaceChildren(...renderDiffEntries(diff.entries));
+}
+
+async function renderExperimentDiff(summary, view) {
+  const baseline = await getSnapshotById(app.activeExperiment.baselineSnapshotId);
+  if (!app.activeBook || !baseline) {
+    summary.textContent = '';
+    view.textContent = 'No baseline';
+    return;
+  }
+
+  const after = app.activeExperiment.afterSnapshotId
+    ? await getSnapshotById(app.activeExperiment.afterSnapshotId)
+    : null;
+  const target = after?.data || await loadWorldbook(app.activeBook.name);
+  const diff = diffWorldbooks(baseline.data, target);
+  const range = after ? 'Baseline -> After' : 'Baseline -> Current';
+  summary.textContent = `${range} | +${diff.summary.added} -${diff.summary.removed} ~${diff.summary.changed} unchanged ${diff.summary.unchanged}`;
   view.replaceChildren(...renderDiffEntries(diff.entries));
 }
 
@@ -562,10 +805,16 @@ function openDb() {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      if (!db.objectStoreNames.contains(SNAPSHOT_STORE)) {
+        const store = db.createObjectStore(SNAPSHOT_STORE, { keyPath: 'id' });
         store.createIndex('bookName', 'bookName', { unique: false });
         store.createIndex('createdAtMs', 'createdAtMs', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(EXPERIMENT_STORE)) {
+        const store = db.createObjectStore(EXPERIMENT_STORE, { keyPath: 'id' });
+        store.createIndex('bookName', 'bookName', { unique: false });
+        store.createIndex('startedAtMs', 'startedAtMs', { unique: false });
+        store.createIndex('status', 'status', { unique: false });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -576,8 +825,8 @@ function openDb() {
 async function getSnapshots(bookName) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
+    const tx = db.transaction(SNAPSHOT_STORE, 'readonly');
+    const store = tx.objectStore(SNAPSHOT_STORE);
     const index = store.index('bookName');
     const request = index.getAll(bookName);
     request.onsuccess = () => {
@@ -591,8 +840,48 @@ async function getSnapshots(bookName) {
 async function putSnapshot(snapshot) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put(snapshot);
+    const tx = db.transaction(SNAPSHOT_STORE, 'readwrite');
+    tx.objectStore(SNAPSHOT_STORE).put(snapshot);
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function getSnapshotById(id) {
+  if (!id) return null;
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SNAPSHOT_STORE, 'readonly');
+    const request = tx.objectStore(SNAPSHOT_STORE).get(id);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function getExperiments(bookName) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(EXPERIMENT_STORE, 'readonly');
+    const store = tx.objectStore(EXPERIMENT_STORE);
+    const index = store.index('bookName');
+    const request = index.getAll(bookName);
+    request.onsuccess = () => {
+      resolve((request.result || []).sort((left, right) => Number(right.startedAtMs || 0) - Number(left.startedAtMs || 0)));
+    };
+    request.onerror = () => reject(request.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function putExperiment(experiment) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(EXPERIMENT_STORE, 'readwrite');
+    tx.objectStore(EXPERIMENT_STORE).put(experiment);
     tx.oncomplete = () => {
       db.close();
       resolve();
@@ -725,6 +1014,18 @@ function sortValue(value) {
 
 function cleanText(value) {
   return String(value ?? '').trim();
+}
+
+function statusLabel(status) {
+  if (status === 'kept') return 'Kept';
+  if (status === 'rejected') return 'Rejected';
+  return 'Testing';
+}
+
+function randomId() {
+  return [...crypto.getRandomValues(new Uint8Array(6))]
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 function formatDate(value) {
