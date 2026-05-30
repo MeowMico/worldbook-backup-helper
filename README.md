@@ -6,6 +6,7 @@ Local version workbench for SillyTavern worldbooks.
 
 - Lists SillyTavern worldbooks for the current user.
 - Provides an in-extension workbench for editing common worldbook entry fields.
+- Automatically captures an `Origin` snapshot the first time the workbench sees each worldbook.
 - Creates timestamped JSON snapshots under the current user's backups directory.
 - Lets you name versions, compare a snapshot against the current worldbook, and restore a snapshot.
 - Can compare a selected snapshot against its previous snapshot.
@@ -38,6 +39,8 @@ The `Edit` tab reads the selected worldbook through SillyTavern's worldbook API 
 - recursion, matching, grouping, character filters, triggers, and sticky/cooldown/delay fields
 
 Click `Save` to write the edited worldbook back to SillyTavern. A before-save snapshot and after-save snapshot are created automatically. If an experiment is selected, `Save` also updates that experiment's `After` version, so you do not need to click `Finish` for edits made inside the workbench.
+
+The first time a worldbook is opened in the workbench, the current state is saved as `Origin`. `Origin` is not overwritten by later edits and can be restored from the top experiment controls.
 
 ## Experiment Workflow
 

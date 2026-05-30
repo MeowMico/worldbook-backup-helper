@@ -87,6 +87,7 @@ const app = {
   books: [],
   snapshots: [],
   experiments: [],
+  originSnapshot: null,
   activeBook: null,
   activeData: null,
   activeDataHash: '',
@@ -346,6 +347,7 @@ function ensureLocalWorkbench() {
               <button id="wbh-finish-experiment" type="button">Finish</button>
               <button id="wbh-keep-experiment" type="button">Keep</button>
               <button id="wbh-reject-experiment" type="button">Reject</button>
+              <button id="wbh-restore-origin" type="button">Origin</button>
               <button id="wbh-restore-baseline" type="button">Baseline</button>
               <button id="wbh-restore-after" type="button">After</button>
             </div>
@@ -646,6 +648,7 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-finish-experiment').addEventListener('click', finishExperiment);
   root.querySelector('#wbh-keep-experiment').addEventListener('click', () => setExperimentStatus('kept'));
   root.querySelector('#wbh-reject-experiment').addEventListener('click', () => setExperimentStatus('rejected'));
+  root.querySelector('#wbh-restore-origin').addEventListener('click', restoreOriginSnapshot);
   root.querySelector('#wbh-restore-baseline').addEventListener('click', () => restoreExperimentSnapshot('baseline'));
   root.querySelector('#wbh-restore-after').addEventListener('click', () => restoreExperimentSnapshot('after'));
   root.querySelector('#wbh-mode-current').addEventListener('click', () => setDiffMode('current'));
@@ -733,6 +736,7 @@ async function loadEditorWorldbook({ force = false } = {}) {
   const data = await loadWorldbook(app.activeBook.name);
   app.activeData = cloneValue(data);
   app.activeDataHash = await hashObject(app.activeData);
+  await ensureOriginSnapshot(app.activeBook.name, app.activeData);
   app.editorDirty = false;
   ensureActiveEntry();
   renderEditor();
@@ -743,6 +747,7 @@ async function loadLocalSnapshots() {
   const activeExperimentId = app.activeExperiment?.id;
   app.snapshots = app.activeBook ? await getSnapshots(app.activeBook.name) : [];
   app.experiments = app.activeBook ? await getExperiments(app.activeBook.name) : [];
+  app.originSnapshot = app.snapshots.find(snapshot => snapshot.reason === 'origin') || null;
   app.activeSnapshot = app.snapshots.find(snapshot => snapshot.id === activeSnapshotId) || app.snapshots[0] || null;
   app.activeExperiment = app.experiments.find(experiment => experiment.id === activeExperimentId) || (app.activeView === 'experiment' ? app.experiments[0] || null : null);
   if (!app.activeExperiment && app.activeView === 'experiment') app.activeView = 'snapshot';
@@ -819,6 +824,25 @@ function renderActiveBook() {
   renderEditorState();
 }
 
+async function ensureOriginSnapshot(name, data) {
+  const snapshots = await getSnapshots(name);
+  if (snapshots.some(snapshot => snapshot.reason === 'origin')) return;
+
+  const sourceHash = await hashObject(data);
+  const now = new Date();
+  await putSnapshot({
+    id: `${name}:origin:${formatDateForFile(now)}:${sourceHash.slice(0, 10)}`,
+    bookName: name,
+    label: `Origin: ${name}`,
+    reason: 'origin',
+    createdAt: now.toISOString(),
+    createdAtMs: now.getTime(),
+    sourceHash,
+    entryCount: countEntries(data),
+    data: cloneValue(data),
+  });
+}
+
 function renderExperimentPanel() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
@@ -830,6 +854,7 @@ function renderExperimentPanel() {
   const finish = root.querySelector('#wbh-finish-experiment');
   const keep = root.querySelector('#wbh-keep-experiment');
   const reject = root.querySelector('#wbh-reject-experiment');
+  const origin = root.querySelector('#wbh-restore-origin');
   const baseline = root.querySelector('#wbh-restore-baseline');
   const after = root.querySelector('#wbh-restore-after');
 
@@ -847,6 +872,7 @@ function renderExperimentPanel() {
   finish.textContent = experiment?.afterSnapshotId ? 'Update After' : 'Finish';
   keep.disabled = !experiment;
   reject.disabled = !experiment;
+  origin.disabled = !app.activeBook || !app.originSnapshot;
   baseline.disabled = !experiment?.baselineSnapshotId;
   after.disabled = !experiment?.afterSnapshotId;
 }
@@ -1324,6 +1350,27 @@ async function setExperimentStatus(status) {
   await putExperiment(updated);
   app.activeExperiment = updated;
   await loadLocalSnapshots();
+}
+
+async function restoreOriginSnapshot() {
+  if (!app.activeBook || !app.originSnapshot) return;
+  const ok = window.confirm(`Restore "${app.activeBook.name}" to Origin?`);
+  if (!ok) return;
+
+  setStatus('Restoring origin');
+  await createLocalSnapshot(app.activeBook.name, {
+    label: `Before restore origin ${formatDate(new Date().toISOString())}`,
+    reason: 'pre-restore',
+    skipDuplicate: false,
+  });
+  await saveWorldbook(app.activeBook.name, app.originSnapshot.data);
+  await loadEditorWorldbook({ force: true });
+  app.activeView = 'snapshot';
+  app.mainTab = 'diff';
+  app.activeExperiment = null;
+  app.activeSnapshot = app.originSnapshot;
+  await loadLocalSnapshots();
+  setStatus('Restored origin');
 }
 
 async function restoreExperimentSnapshot(point) {
