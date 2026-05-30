@@ -81,6 +81,11 @@ function installWorldbookEditInterceptor() {
     const requestInfo = normalizeRequest(input, initOptions);
     if (shouldSnapshotBeforeSave(requestInfo)) {
       await snapshotBeforeSave(requestInfo.body);
+      const response = await ORIGINAL_FETCH(input, initOptions);
+      if (response.ok) {
+        await snapshotAfterSave(requestInfo.body);
+      }
+      return response;
     }
     return ORIGINAL_FETCH(input, initOptions);
   };
@@ -122,7 +127,7 @@ async function snapshotBeforeSave(body) {
   try {
     if (await createRemoteSnapshot(name)) return;
     await createLocalSnapshot(name, {
-      label: 'Auto before save',
+      label: 'Before auto save',
       reason: 'auto',
       skipDuplicate: true,
     });
@@ -142,7 +147,54 @@ async function createRemoteSnapshot(name) {
       body: JSON.stringify({
         name,
         reason: 'auto',
-        label: 'Auto before save',
+        label: 'Before auto save',
+        skipDuplicate: true,
+      }),
+      credentials: 'include',
+    });
+    app.serverPluginAvailable = response.ok;
+    return response.ok;
+  } catch {
+    app.serverPluginAvailable = false;
+    return false;
+  }
+}
+
+async function snapshotAfterSave(body) {
+  let payload = null;
+  try {
+    payload = typeof body === 'string' ? JSON.parse(body) : null;
+  } catch {
+    payload = null;
+  }
+
+  const name = String(payload?.name || '').trim();
+  const data = payload?.data && typeof payload.data === 'object' ? payload.data : null;
+  if (!name || !data) return;
+
+  try {
+    if (await createRemoteSnapshotFromData(name, data)) return;
+    await createLocalSnapshotFromData(name, data, {
+      label: 'After auto save',
+      reason: 'auto-after',
+      skipDuplicate: true,
+    });
+  } catch (error) {
+    console.warn('[Worldbook Backup Helper] Post-save snapshot failed.', error);
+  }
+}
+
+async function createRemoteSnapshotFromData(name, data) {
+  if (app.serverPluginAvailable === false) return false;
+  try {
+    const response = await ORIGINAL_FETCH(`${PLUGIN_ROOT}/snapshots`, {
+      method: 'POST',
+      headers: getRequestHeaders(),
+      body: JSON.stringify({
+        name,
+        data,
+        reason: 'auto-after',
+        label: 'After auto save',
         skipDuplicate: true,
       }),
       credentials: 'include',
@@ -355,6 +407,10 @@ async function createManualLocalSnapshot() {
 
 async function createLocalSnapshot(name, { label = '', reason = 'manual', skipDuplicate = true } = {}) {
   const data = await loadWorldbook(name);
+  return createLocalSnapshotFromData(name, data, { label, reason, skipDuplicate });
+}
+
+async function createLocalSnapshotFromData(name, data, { label = '', reason = 'manual', skipDuplicate = true } = {}) {
   const sourceHash = await hashObject(data);
   const snapshots = await getSnapshots(name);
   if (skipDuplicate && snapshots[0]?.sourceHash === sourceHash) {

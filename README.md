@@ -8,7 +8,7 @@ Local version workbench for SillyTavern worldbooks.
 - Creates timestamped JSON snapshots under the current user's backups directory.
 - Lets you name versions, compare a snapshot against the current worldbook, and restore a snapshot.
 - Can compare a selected snapshot against its previous snapshot.
-- Includes an optional third-party extension that adds a menu entry and creates an automatic snapshot before `/api/worldinfo/edit` saves.
+- Includes an optional third-party extension that adds a menu entry and creates automatic before/after snapshots around `/api/worldinfo/edit` saves.
 
 The plugin only works with worldbooks/lorebooks. It does not read character descriptions or chats.
 
@@ -22,7 +22,7 @@ Open SillyTavern:
 Extensions -> Install extension -> paste this repository URL
 ```
 
-In extension-only mode, snapshots are stored in the browser's IndexedDB. This gives you an in-Tavern workbench, automatic pre-save snapshots, labels, diff, and restore without installing a server plugin.
+In extension-only mode, snapshots are stored in the browser's IndexedDB. This gives you an in-Tavern workbench, automatic before/after snapshots, labels, diff, and restore without installing a server plugin.
 
 ## Optional: Install As Server Plugin
 
