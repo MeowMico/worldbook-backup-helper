@@ -315,6 +315,7 @@
 }
 
 .wbh-editor-field input,
+.wbh-editor-field select,
 .wbh-editor-field textarea {
   width: 100%;
   min-width: 0;
@@ -326,10 +327,27 @@
   font: inherit;
 }
 
+.wbh-editor-field select {
+  min-height: 36px;
+}
+
 .wbh-editor-field textarea {
   resize: vertical;
   min-height: 78px;
   line-height: 1.45;
+}
+
+.wbh-editor-section {
+  display: grid;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.wbh-editor-section h4 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.25;
+  opacity: 0.84;
 }
 
 .wbh-editor-field-wide textarea {
@@ -345,6 +363,10 @@
 .wbh-editor-grid-compact {
   grid-template-columns: repeat(6, minmax(0, 1fr));
   align-items: end;
+}
+
+.wbh-editor-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .wbh-check {
@@ -419,6 +441,10 @@
   background: var(--SmartThemeQuoteColor, #33789b);
   border-color: var(--SmartThemeQuoteColor, #33789b);
   color: #fff;
+}
+
+.wbh-viewbar button.danger {
+  border-color: rgb(161 66 61 / 62%);
 }
 
 .wbh-actions button:disabled,
@@ -575,6 +601,7 @@
   }
 
   .wbh-editor-grid,
+  .wbh-editor-grid-3,
   .wbh-editor-grid-compact {
     grid-template-columns: 1fr;
   }

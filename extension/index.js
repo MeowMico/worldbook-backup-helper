@@ -7,6 +7,79 @@ const DB_VERSION = 2;
 const SNAPSHOT_STORE = 'snapshots';
 const EXPERIMENT_STORE = 'experiments';
 
+const POSITION_OPTIONS = [
+  { value: 0, label: 'Before Char Defs' },
+  { value: 1, label: 'After Char Defs' },
+  { value: 5, label: 'Before Example Messages' },
+  { value: 6, label: 'After Example Messages' },
+  { value: 2, label: 'Top of AN' },
+  { value: 3, label: 'Bottom of AN' },
+  { value: 4, label: '@ Depth' },
+];
+
+const ROLE_OPTIONS = [
+  { value: 0, label: 'System' },
+  { value: 1, label: 'User' },
+  { value: 2, label: 'Assistant' },
+];
+
+const SELECTIVE_LOGIC_OPTIONS = [
+  { value: 0, label: 'AND any' },
+  { value: 3, label: 'AND all' },
+  { value: 2, label: 'NOT any' },
+  { value: 1, label: 'NOT all' },
+];
+
+const LIST_FIELDS = new Set(['key', 'keysecondary', 'characterFilterNames', 'characterFilterTags', 'triggers']);
+const NUMBER_FIELDS = new Set(['order', 'position', 'depth', 'probability', 'selectiveLogic', 'role', 'groupWeight', 'sticky', 'cooldown', 'delay', 'scanDepth', 'delayUntilRecursion']);
+const NULLABLE_NUMBER_FIELDS = new Set(['groupWeight', 'sticky', 'cooldown', 'delay', 'scanDepth']);
+const TRI_STATE_BOOLEAN_FIELDS = new Set(['caseSensitive', 'matchWholeWords', 'useGroupScoring']);
+
+const ENTRY_DEFAULTS = {
+  key: [],
+  keysecondary: [],
+  comment: '',
+  content: '',
+  constant: false,
+  vectorized: false,
+  selective: true,
+  selectiveLogic: 0,
+  addMemo: true,
+  order: 100,
+  position: 0,
+  disable: false,
+  ignoreBudget: false,
+  excludeRecursion: false,
+  preventRecursion: false,
+  delayUntilRecursion: 0,
+  probability: 100,
+  useProbability: true,
+  depth: 4,
+  role: 0,
+  scanDepth: null,
+  caseSensitive: null,
+  matchWholeWords: null,
+  useGroupScoring: null,
+  outletName: '',
+  group: '',
+  groupOverride: false,
+  groupWeight: null,
+  automationId: '',
+  sticky: null,
+  cooldown: null,
+  delay: null,
+  characterFilterNames: [],
+  characterFilterTags: [],
+  characterFilterExclude: false,
+  triggers: [],
+  matchPersonaDescription: false,
+  matchCharacterDescription: false,
+  matchCharacterPersonality: false,
+  matchCharacterDepthPrompt: false,
+  matchScenario: false,
+  matchCreatorNotes: false,
+};
+
 const app = {
   installed: false,
   snapshotInFlight: false,
@@ -283,6 +356,9 @@ function ensureLocalWorkbench() {
               <button id="wbh-tab-diff" type="button">Diff</button>
             </div>
             <div class="wbh-editor-actions">
+              <button id="wbh-entry-new" type="button">New</button>
+              <button id="wbh-entry-duplicate" type="button" disabled>Duplicate</button>
+              <button id="wbh-entry-delete" type="button" class="danger" disabled>Delete</button>
               <button id="wbh-editor-reload" type="button">Reload</button>
               <button id="wbh-editor-save" type="button" disabled>Save</button>
             </div>
@@ -305,41 +381,216 @@ function ensureLocalWorkbench() {
                 <span>Content</span>
                 <textarea id="wbh-entry-content" data-wbh-field="content" rows="12"></textarea>
               </label>
-              <div class="wbh-editor-grid">
-                <label class="wbh-editor-field">
-                  <span>Keys</span>
-                  <textarea id="wbh-entry-key" data-wbh-field="key" rows="3"></textarea>
-                </label>
-                <label class="wbh-editor-field">
-                  <span>Secondary</span>
-                  <textarea id="wbh-entry-keysecondary" data-wbh-field="keysecondary" rows="3"></textarea>
-                </label>
+              <div class="wbh-editor-section">
+                <h4>Activation</h4>
+                <div class="wbh-editor-grid">
+                  <label class="wbh-editor-field">
+                    <span>Keys</span>
+                    <textarea id="wbh-entry-key" data-wbh-field="key" rows="3"></textarea>
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Secondary</span>
+                    <textarea id="wbh-entry-keysecondary" data-wbh-field="keysecondary" rows="3"></textarea>
+                  </label>
+                </div>
+                <div class="wbh-editor-grid wbh-editor-grid-compact">
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="constant">
+                    <span>Constant</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="disable">
+                    <span>Disabled</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="selective">
+                    <span>Selective</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="vectorized">
+                    <span>Vectorized</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="useProbability">
+                    <span>Use Probability</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="ignoreBudget">
+                    <span>Ignore Budget</span>
+                  </label>
+                </div>
               </div>
-              <div class="wbh-editor-grid wbh-editor-grid-compact">
-                <label class="wbh-check">
-                  <input id="wbh-entry-constant" type="checkbox" data-wbh-field="constant">
-                  <span>Constant</span>
-                </label>
-                <label class="wbh-check">
-                  <input id="wbh-entry-disable" type="checkbox" data-wbh-field="disable">
-                  <span>Disabled</span>
-                </label>
-                <label class="wbh-editor-field">
-                  <span>Order</span>
-                  <input id="wbh-entry-order" type="number" data-wbh-field="order">
-                </label>
-                <label class="wbh-editor-field">
-                  <span>Depth</span>
-                  <input id="wbh-entry-depth" type="number" data-wbh-field="depth">
-                </label>
-                <label class="wbh-editor-field">
-                  <span>Position</span>
-                  <input id="wbh-entry-position" type="number" data-wbh-field="position">
-                </label>
-                <label class="wbh-editor-field">
-                  <span>Probability</span>
-                  <input id="wbh-entry-probability" type="number" data-wbh-field="probability">
-                </label>
+              <div class="wbh-editor-section">
+                <h4>Insertion</h4>
+                <div class="wbh-editor-grid wbh-editor-grid-3">
+                  <label class="wbh-editor-field">
+                    <span>Position</span>
+                    <select data-wbh-field="position" data-wbh-type="number">
+                      ${POSITION_OPTIONS.map(option => `<option value="${option.value}">${option.label}</option>`).join('')}
+                    </select>
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Role</span>
+                    <select data-wbh-field="role" data-wbh-type="number">
+                      ${ROLE_OPTIONS.map(option => `<option value="${option.value}">${option.label}</option>`).join('')}
+                    </select>
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Depth</span>
+                    <input type="number" data-wbh-field="depth">
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Order</span>
+                    <input type="number" data-wbh-field="order">
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Probability</span>
+                    <input type="number" data-wbh-field="probability" min="0" max="100">
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Scan Depth</span>
+                    <input type="number" data-wbh-field="scanDepth">
+                  </label>
+                </div>
+              </div>
+              <div class="wbh-editor-section">
+                <h4>Logic</h4>
+                <div class="wbh-editor-grid wbh-editor-grid-3">
+                  <label class="wbh-editor-field">
+                    <span>Selective Logic</span>
+                    <select data-wbh-field="selectiveLogic" data-wbh-type="number">
+                      ${SELECTIVE_LOGIC_OPTIONS.map(option => `<option value="${option.value}">${option.label}</option>`).join('')}
+                    </select>
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Case Sensitive</span>
+                    <select data-wbh-field="caseSensitive" data-wbh-type="tri-state">
+                      <option value="">Global</option>
+                      <option value="true">On</option>
+                      <option value="false">Off</option>
+                    </select>
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Whole Words</span>
+                    <select data-wbh-field="matchWholeWords" data-wbh-type="tri-state">
+                      <option value="">Global</option>
+                      <option value="true">On</option>
+                      <option value="false">Off</option>
+                    </select>
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Group</span>
+                    <input type="text" data-wbh-field="group">
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Group Weight</span>
+                    <input type="number" data-wbh-field="groupWeight">
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Group Scoring</span>
+                    <select data-wbh-field="useGroupScoring" data-wbh-type="tri-state">
+                      <option value="">Global</option>
+                      <option value="true">On</option>
+                      <option value="false">Off</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="wbh-editor-grid wbh-editor-grid-compact">
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="groupOverride">
+                    <span>Group Override</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="excludeRecursion">
+                    <span>Exclude Recursion</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="preventRecursion">
+                    <span>Prevent Recursion</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="delayUntilRecursion">
+                    <span>Delay Until Recursion</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="addMemo">
+                    <span>Add Memo</span>
+                  </label>
+                </div>
+              </div>
+              <div class="wbh-editor-section">
+                <h4>Timing and Filters</h4>
+                <div class="wbh-editor-grid wbh-editor-grid-3">
+                  <label class="wbh-editor-field">
+                    <span>Sticky</span>
+                    <input type="number" data-wbh-field="sticky">
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Cooldown</span>
+                    <input type="number" data-wbh-field="cooldown">
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Delay</span>
+                    <input type="number" data-wbh-field="delay">
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Automation ID</span>
+                    <input type="text" data-wbh-field="automationId">
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Outlet Name</span>
+                    <input type="text" data-wbh-field="outletName">
+                  </label>
+                </div>
+                <div class="wbh-editor-grid">
+                  <label class="wbh-editor-field">
+                    <span>Character Names</span>
+                    <textarea data-wbh-field="characterFilterNames" rows="3"></textarea>
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span>Character Tags</span>
+                    <textarea data-wbh-field="characterFilterTags" rows="3"></textarea>
+                  </label>
+                </div>
+                <div class="wbh-editor-grid">
+                  <label class="wbh-editor-field">
+                    <span>Triggers</span>
+                    <textarea data-wbh-field="triggers" rows="3"></textarea>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="characterFilterExclude">
+                    <span>Exclude Character Filter</span>
+                  </label>
+                </div>
+              </div>
+              <div class="wbh-editor-section">
+                <h4>Match Sources</h4>
+                <div class="wbh-editor-grid wbh-editor-grid-compact">
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="matchPersonaDescription">
+                    <span>Persona</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="matchCharacterDescription">
+                    <span>Description</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="matchCharacterPersonality">
+                    <span>Personality</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="matchCharacterDepthPrompt">
+                    <span>Depth Prompt</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="matchScenario">
+                    <span>Scenario</span>
+                  </label>
+                  <label class="wbh-check">
+                    <input type="checkbox" data-wbh-field="matchCreatorNotes">
+                    <span>Creator Notes</span>
+                  </label>
+                </div>
               </div>
             </section>
           </div>
@@ -385,6 +636,9 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-entry-search').addEventListener('input', renderEntryList);
   root.querySelector('#wbh-tab-edit').addEventListener('click', () => setMainTab('edit'));
   root.querySelector('#wbh-tab-diff').addEventListener('click', () => setMainTab('diff'));
+  root.querySelector('#wbh-entry-new').addEventListener('click', createEntry);
+  root.querySelector('#wbh-entry-duplicate').addEventListener('click', duplicateEntry);
+  root.querySelector('#wbh-entry-delete').addEventListener('click', deleteEntry);
   root.querySelector('#wbh-editor-reload').addEventListener('click', reloadEditorWorldbook);
   root.querySelector('#wbh-editor-save').addEventListener('click', saveEditorWorldbook);
   root.querySelector('#wbh-snapshot').addEventListener('click', createManualLocalSnapshot);
@@ -654,6 +908,9 @@ function renderEditorState() {
   root.querySelector('#wbh-diff-view').classList.toggle('hidden', app.mainTab !== 'diff');
   root.querySelector('#wbh-editor-save').disabled = !app.activeBook || !app.activeData || !app.editorDirty;
   root.querySelector('#wbh-editor-reload').disabled = !app.activeBook;
+  root.querySelector('#wbh-entry-new').disabled = !app.activeBook || !app.activeData;
+  root.querySelector('#wbh-entry-duplicate').disabled = !getActiveEntryRecord();
+  root.querySelector('#wbh-entry-delete').disabled = !getActiveEntryRecord();
 }
 
 function renderEntryList() {
@@ -726,31 +983,25 @@ function renderEntryEditor() {
 }
 
 function setEditorInputValues(inputs, entry) {
-  inputs.comment.value = stringField(entry.comment);
-  inputs.content.value = stringField(entry.content);
-  inputs.key.value = listField(entry.key);
-  inputs.keysecondary.value = listField(entry.keysecondary);
-  inputs.constant.checked = Boolean(entry.constant);
-  inputs.disable.checked = Boolean(entry.disable);
-  inputs.order.value = numberField(entry.order);
-  inputs.depth.value = numberField(entry.depth);
-  inputs.position.value = numberField(entry.position);
-  inputs.probability.value = numberField(entry.probability);
+  for (const input of inputs) {
+    const field = input.dataset.wbhField;
+    const value = entry[field];
+    if (input.type === 'checkbox') {
+      input.checked = Boolean(value);
+    } else if (LIST_FIELDS.has(field)) {
+      input.value = listField(value);
+    } else if (TRI_STATE_BOOLEAN_FIELDS.has(field)) {
+      input.value = value === null || value === undefined ? '' : String(Boolean(value));
+    } else if (NUMBER_FIELDS.has(field)) {
+      input.value = numberField(value);
+    } else {
+      input.value = stringField(value);
+    }
+  }
 }
 
 function getEditorInputs(root) {
-  return {
-    comment: root.querySelector('#wbh-entry-comment'),
-    content: root.querySelector('#wbh-entry-content'),
-    key: root.querySelector('#wbh-entry-key'),
-    keysecondary: root.querySelector('#wbh-entry-keysecondary'),
-    constant: root.querySelector('#wbh-entry-constant'),
-    disable: root.querySelector('#wbh-entry-disable'),
-    order: root.querySelector('#wbh-entry-order'),
-    depth: root.querySelector('#wbh-entry-depth'),
-    position: root.querySelector('#wbh-entry-position'),
-    probability: root.querySelector('#wbh-entry-probability'),
-  };
+  return [...root.querySelectorAll('.wbh-entry-editor [data-wbh-field]')];
 }
 
 function updateActiveEntryFromEditor(input) {
@@ -760,24 +1011,65 @@ function updateActiveEntryFromEditor(input) {
   const field = input.dataset.wbhField;
   if (!field) return;
 
-  if (input.type === 'checkbox') {
-    record.entry[field] = input.checked;
-  } else if (field === 'key' || field === 'keysecondary') {
-    record.entry[field] = parseListField(input.value);
-  } else if (['order', 'depth', 'position', 'probability'].includes(field)) {
-    if (input.value === '') {
-      delete record.entry[field];
-    } else {
-      record.entry[field] = Number(input.value);
-    }
-  } else {
-    record.entry[field] = input.value;
-  }
+  record.entry[field] = readEditorInputValue(input);
 
   setEditorDirty(true);
   if (field === 'comment') {
     document.querySelector('#wbh-entry-title').textContent = entryTitle(record.entry);
   }
+}
+
+function readEditorInputValue(input) {
+  const field = input.dataset.wbhField;
+  if (input.type === 'checkbox') return input.checked;
+  if (LIST_FIELDS.has(field)) return parseListField(input.value);
+  if (TRI_STATE_BOOLEAN_FIELDS.has(field)) {
+    if (input.value === '') return null;
+    return input.value === 'true';
+  }
+  if (NUMBER_FIELDS.has(field)) {
+    if (input.value === '') return NULLABLE_NUMBER_FIELDS.has(field) ? null : 0;
+    return Number(input.value);
+  }
+  return input.value;
+}
+
+function createEntry() {
+  if (!app.activeData) return;
+  const uid = getFreeEntryUid(app.activeData);
+  const entry = createEntryTemplate(uid, 'New entry');
+  insertEntry(app.activeData, entry);
+  app.activeEntryId = String(uid);
+  setEditorDirty(true);
+  renderEditor();
+}
+
+function duplicateEntry() {
+  const record = getActiveEntryRecord();
+  if (!app.activeData || !record) return;
+
+  const uid = getFreeEntryUid(app.activeData);
+  const entry = {
+    ...cloneValue(record.entry),
+    uid,
+    comment: `Copy of ${entryTitle(record.entry)}`,
+  };
+  insertEntry(app.activeData, entry);
+  app.activeEntryId = String(uid);
+  setEditorDirty(true);
+  renderEditor();
+}
+
+function deleteEntry() {
+  const record = getActiveEntryRecord();
+  if (!app.activeData || !record) return;
+  const ok = window.confirm(`Delete "${entryTitle(record.entry)}"?`);
+  if (!ok) return;
+
+  removeEntry(app.activeData, record);
+  ensureActiveEntry();
+  setEditorDirty(true);
+  renderEditor();
 }
 
 function setEditorDirty(dirty) {
@@ -1398,6 +1690,43 @@ function getEntryRecords(data) {
   }));
 }
 
+function insertEntry(data, entry) {
+  if (!data.entries || typeof data.entries !== 'object') data.entries = {};
+  if (Array.isArray(data.entries)) {
+    data.entries.push(entry);
+    return;
+  }
+  data.entries[String(entry.uid)] = entry;
+}
+
+function removeEntry(data, record) {
+  if (!data?.entries || typeof data.entries !== 'object') return;
+  if (Array.isArray(data.entries)) {
+    data.entries.splice(record.storageKey, 1);
+    return;
+  }
+  delete data.entries[record.storageKey];
+}
+
+function createEntryTemplate(uid, comment = '') {
+  return {
+    uid,
+    ...cloneValue(ENTRY_DEFAULTS),
+    comment,
+  };
+}
+
+function getFreeEntryUid(data) {
+  const used = new Set(getEntryRecords(data).flatMap(record => [
+    String(record.id),
+    String(record.entry?.uid ?? ''),
+  ]));
+
+  let uid = 0;
+  while (used.has(String(uid))) uid++;
+  return uid;
+}
+
 function getSortedEntryRecords(data) {
   return getEntryRecords(data).sort((left, right) => {
     const orderDiff = numericSort(left.entry?.order) - numericSort(right.entry?.order);
@@ -1429,9 +1758,18 @@ function entryMeta(entry) {
   const parts = [];
   if (entry?.constant) parts.push('constant');
   if (entry?.disable) parts.push('disabled');
+  if (entry?.position !== undefined) parts.push(positionLabel(entry.position));
+  if (Number(entry?.position) === 4) parts.push(`${roleLabel(entry.role)} depth ${entry?.depth ?? 0}`);
   if (entry?.order !== undefined) parts.push(`order ${entry.order}`);
-  if (entry?.depth !== undefined) parts.push(`depth ${entry.depth}`);
   return parts.join(' | ') || 'entry';
+}
+
+function positionLabel(value) {
+  return POSITION_OPTIONS.find(option => option.value === Number(value))?.label || `position ${value}`;
+}
+
+function roleLabel(value) {
+  return ROLE_OPTIONS.find(option => option.value === Number(value))?.label || 'System';
 }
 
 function numericSort(value) {

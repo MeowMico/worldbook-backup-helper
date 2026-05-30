@@ -28,13 +28,14 @@ In extension-only mode, snapshots are stored in the browser's IndexedDB. This gi
 
 ## Workbench Editing
 
-The `Edit` tab reads the selected worldbook through SillyTavern's worldbook API and lets you edit common entry fields directly in the extension:
+The `Edit` tab reads the selected worldbook through SillyTavern's worldbook API and lets you create, duplicate, delete, and edit entries directly in the extension:
 
 - title/comment
 - content
 - primary and secondary keys
-- constant, disabled
-- order, depth, position, probability
+- constant, disabled, selective, vectorized
+- position, role, depth, order, probability
+- recursion, matching, grouping, character filters, triggers, and sticky/cooldown/delay fields
 
 Click `Save` to write the edited worldbook back to SillyTavern. A before-save snapshot and after-save snapshot are created automatically. If an experiment is selected, `Save` also updates that experiment's `After` version, so you do not need to click `Finish` for edits made inside the workbench.
 
