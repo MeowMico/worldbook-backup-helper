@@ -91,6 +91,7 @@ const app = {
   activeBook: null,
   activeData: null,
   activeDataHash: '',
+  editorSourceLabel: '',
   activeEntryId: null,
   activeSnapshot: null,
   activeExperiment: null,
@@ -274,6 +275,7 @@ async function syncWorkbenchFromSavedWorldbook(name, data) {
   if (app.activeBook?.name !== name || app.editorDirty) return;
   app.activeData = cloneValue(data);
   app.activeDataHash = await hashObject(app.activeData);
+  app.editorSourceLabel = 'Current';
   ensureActiveEntry();
   renderEditor();
 }
@@ -729,6 +731,7 @@ async function loadEditorWorldbook({ force = false } = {}) {
   if (!app.activeBook) {
     app.activeData = null;
     app.activeDataHash = '';
+    app.editorSourceLabel = '';
     app.activeEntryId = null;
     app.editorDirty = false;
     renderEditor();
@@ -743,6 +746,7 @@ async function loadEditorWorldbook({ force = false } = {}) {
   const data = await loadWorldbook(app.activeBook.name);
   app.activeData = cloneValue(data);
   app.activeDataHash = await hashObject(app.activeData);
+  app.editorSourceLabel = 'Current';
   await ensureOriginSnapshot(app.activeBook.name, app.activeData);
   app.editorDirty = false;
   ensureActiveEntry();
@@ -826,7 +830,8 @@ function renderActiveBook() {
   root.querySelector('#wbh-active-title').textContent = app.activeBook?.title || app.activeBook?.name || 'No worldbook selected';
   const entryCount = app.activeData ? countEntries(app.activeData) : 0;
   const dirty = app.editorDirty ? ' | unsaved' : '';
-  root.querySelector('#wbh-active-meta').textContent = app.activeBook ? `${entryCount} entries${dirty}` : '0 entries';
+  const source = app.editorSourceLabel && app.editorSourceLabel !== 'Current' ? ` | loaded: ${app.editorSourceLabel}` : '';
+  root.querySelector('#wbh-active-meta').textContent = app.activeBook ? `${entryCount} entries${dirty}${source}` : '0 entries';
   root.querySelector('#wbh-restore').disabled = !app.activeBook || app.activeView !== 'snapshot' || !app.activeSnapshot;
   renderExperimentPanel();
   renderEditorState();
@@ -906,16 +911,7 @@ function renderOriginSnapshot() {
   button.querySelector('span').textContent = app.originSnapshot.label || 'Origin';
   button.querySelector('small').textContent = `${formatDate(app.originSnapshot.createdAt)} | ${app.originSnapshot.entryCount || 0} entries`;
   button.addEventListener('click', async () => {
-    app.activeView = 'snapshot';
-    app.mainTab = 'diff';
-    app.activeExperiment = null;
-    app.activeSnapshot = app.originSnapshot;
-    renderActiveBook();
-    renderOriginSnapshot();
-    renderExperiments();
-    renderSnapshots();
-    await renderDiff();
-    setStatus(`Viewing origin: ${app.originSnapshot.label || app.activeBook?.name || 'Origin'}`);
+    await loadSnapshotIntoEditor(app.originSnapshot, 'Origin');
   });
   list.replaceChildren(button);
 }
@@ -955,6 +951,27 @@ function renderExperiments() {
     });
     return button;
   }));
+}
+
+async function loadSnapshotIntoEditor(snapshot, sourceName = 'Version') {
+  if (!app.activeBook || !snapshot) return;
+  if (!await confirmDiscardEditorChanges()) return;
+
+  app.activeData = cloneValue(snapshot.data);
+  app.activeDataHash = await hashObject(app.activeData);
+  app.editorSourceLabel = snapshot.label || sourceName;
+  app.editorDirty = false;
+  app.activeEntryId = null;
+  ensureActiveEntry();
+  app.activeView = 'snapshot';
+  app.mainTab = 'edit';
+  app.activeExperiment = null;
+  app.activeSnapshot = snapshot;
+  renderEditor();
+  renderOriginSnapshot();
+  renderExperiments();
+  renderSnapshots();
+  setStatus(`Loaded ${sourceName.toLowerCase()} for editing: ${snapshot.label || formatDate(snapshot.createdAt)}`);
 }
 
 function setMainTab(tab) {
@@ -1168,6 +1185,7 @@ async function saveEditorWorldbook() {
   const saved = await loadWorldbook(name);
   app.activeData = cloneValue(saved);
   app.activeDataHash = await hashObject(app.activeData);
+  app.editorSourceLabel = 'Current';
   app.editorDirty = false;
   ensureActiveEntry();
 
@@ -1238,16 +1256,7 @@ function renderSnapshots() {
     main.querySelector('span').textContent = snapshot.label || 'Untitled version';
     main.querySelector('small').textContent = `${formatDate(snapshot.createdAt)} | ${snapshot.entryCount || 0} entries`;
     main.addEventListener('click', async () => {
-      app.activeView = 'snapshot';
-      app.mainTab = 'diff';
-      app.activeExperiment = null;
-      app.activeSnapshot = snapshot;
-      renderActiveBook();
-      renderOriginSnapshot();
-      renderExperiments();
-      renderSnapshots();
-      await renderDiff();
-      setStatus(`Viewing version: ${snapshot.label || formatDate(snapshot.createdAt)}`);
+      await loadSnapshotIntoEditor(snapshot, 'Version');
     });
 
     const rename = document.createElement('button');

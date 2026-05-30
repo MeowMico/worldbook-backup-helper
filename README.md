@@ -42,6 +42,8 @@ Click `Save` to write the edited worldbook back to SillyTavern. A before-save sn
 
 The first time a worldbook is opened in the workbench, the current state is saved as `Origin`. `Origin` is not overwritten by later edits and can be restored from the top experiment controls.
 
+Clicking `Origin` or any item in `Versions` loads that saved worldbook state into the editor. You can edit it like a draft; clicking `Save` writes it back to SillyTavern and creates a new version.
+
 ## Experiment Workflow
 
 Use this when you are testing a worldbook change against a specific RP problem:
