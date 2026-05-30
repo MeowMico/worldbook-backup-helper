@@ -874,12 +874,14 @@ function renderExperiments() {
     button.querySelector('small').textContent = `${statusLabel(experiment.status)} | ${formatDate(experiment.startedAt)}`;
     button.addEventListener('click', async () => {
       app.activeView = 'experiment';
+      app.mainTab = 'diff';
       app.activeExperiment = experiment;
       app.activeSnapshot = await getSnapshotById(experiment.afterSnapshotId || experiment.baselineSnapshotId) || app.activeSnapshot;
       renderActiveBook();
       renderExperiments();
       renderSnapshots();
       await renderDiff();
+      setStatus(`Viewing experiment: ${experiment.title || 'Untitled experiment'}`);
     });
     return button;
   }));
@@ -1166,12 +1168,14 @@ function renderSnapshots() {
     main.querySelector('small').textContent = `${formatDate(snapshot.createdAt)} | ${snapshot.entryCount || 0} entries`;
     main.addEventListener('click', async () => {
       app.activeView = 'snapshot';
+      app.mainTab = 'diff';
       app.activeExperiment = null;
       app.activeSnapshot = snapshot;
       renderActiveBook();
       renderExperiments();
       renderSnapshots();
       await renderDiff();
+      setStatus(`Viewing version: ${snapshot.label || formatDate(snapshot.createdAt)}`);
     });
 
     const rename = document.createElement('button');
