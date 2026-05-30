@@ -90,7 +90,7 @@
 
 .wbh-side-stack {
   display: grid;
-  grid-template-rows: minmax(180px, 42%) minmax(0, 1fr);
+  grid-template-rows: minmax(106px, auto) minmax(170px, 36%) minmax(0, 1fr);
 }
 
 .wbh-side-section {
@@ -99,7 +99,7 @@
   flex-direction: column;
 }
 
-.wbh-side-section:first-child {
+.wbh-side-section:not(:last-child) {
   border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
 }
 
@@ -576,7 +576,7 @@
   }
 
   .wbh-side-stack {
-    grid-template-rows: minmax(180px, auto) minmax(220px, auto);
+    grid-template-rows: minmax(106px, auto) minmax(180px, auto) minmax(220px, auto);
   }
 
   .wbh-experiment {

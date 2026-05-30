@@ -611,6 +611,13 @@ function ensureLocalWorkbench() {
           </div>
         </section>
         <section class="wbh-pane wbh-side-stack">
+          <div class="wbh-side-section wbh-origin-section">
+            <div class="wbh-pane-head">
+              <h3>Origin</h3>
+              <span id="wbh-origin-count">0</span>
+            </div>
+            <div id="wbh-origin" class="wbh-list"></div>
+          </div>
           <div class="wbh-side-section">
             <div class="wbh-pane-head">
               <h3>Experiments</h3>
@@ -752,6 +759,7 @@ async function loadLocalSnapshots() {
   app.activeExperiment = app.experiments.find(experiment => experiment.id === activeExperimentId) || (app.activeView === 'experiment' ? app.experiments[0] || null : null);
   if (!app.activeExperiment && app.activeView === 'experiment') app.activeView = 'snapshot';
   renderActiveBook();
+  renderOriginSnapshot();
   renderExperiments();
   renderSnapshots();
   await renderDiff();
@@ -877,6 +885,41 @@ function renderExperimentPanel() {
   after.disabled = !experiment?.afterSnapshotId;
 }
 
+function renderOriginSnapshot() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+  const list = root.querySelector('#wbh-origin');
+  root.querySelector('#wbh-origin-count').textContent = app.originSnapshot ? '1' : '0';
+
+  if (!app.originSnapshot) {
+    const empty = document.createElement('div');
+    empty.className = 'wbh-empty';
+    empty.textContent = 'No origin yet';
+    list.replaceChildren(empty);
+    return;
+  }
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `wbh-row ${app.activeView === 'snapshot' && app.activeSnapshot?.id === app.originSnapshot.id ? 'active' : ''}`;
+  button.innerHTML = '<span></span><small></small>';
+  button.querySelector('span').textContent = app.originSnapshot.label || 'Origin';
+  button.querySelector('small').textContent = `${formatDate(app.originSnapshot.createdAt)} | ${app.originSnapshot.entryCount || 0} entries`;
+  button.addEventListener('click', async () => {
+    app.activeView = 'snapshot';
+    app.mainTab = 'diff';
+    app.activeExperiment = null;
+    app.activeSnapshot = app.originSnapshot;
+    renderActiveBook();
+    renderOriginSnapshot();
+    renderExperiments();
+    renderSnapshots();
+    await renderDiff();
+    setStatus(`Viewing origin: ${app.originSnapshot.label || app.activeBook?.name || 'Origin'}`);
+  });
+  list.replaceChildren(button);
+}
+
 function renderExperiments() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
@@ -904,6 +947,7 @@ function renderExperiments() {
       app.activeExperiment = experiment;
       app.activeSnapshot = await getSnapshotById(experiment.afterSnapshotId || experiment.baselineSnapshotId) || app.activeSnapshot;
       renderActiveBook();
+      renderOriginSnapshot();
       renderExperiments();
       renderSnapshots();
       await renderDiff();
@@ -1172,9 +1216,10 @@ function renderSnapshots() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
   const list = root.querySelector('#wbh-snapshots');
-  root.querySelector('#wbh-snapshot-count').textContent = String(app.snapshots.length);
+  const visibleSnapshots = app.snapshots.filter(snapshot => snapshot.reason !== 'origin');
+  root.querySelector('#wbh-snapshot-count').textContent = String(visibleSnapshots.length);
 
-  if (!app.snapshots.length) {
+  if (!visibleSnapshots.length) {
     const empty = document.createElement('div');
     empty.className = 'wbh-empty';
     empty.textContent = 'No versions yet';
@@ -1182,7 +1227,7 @@ function renderSnapshots() {
     return;
   }
 
-  list.replaceChildren(...app.snapshots.map(snapshot => {
+  list.replaceChildren(...visibleSnapshots.map(snapshot => {
     const row = document.createElement('div');
     row.className = `wbh-snapshot-row ${app.activeView === 'snapshot' && app.activeSnapshot?.id === snapshot.id ? 'active' : ''}`;
 
@@ -1198,6 +1243,7 @@ function renderSnapshots() {
       app.activeExperiment = null;
       app.activeSnapshot = snapshot;
       renderActiveBook();
+      renderOriginSnapshot();
       renderExperiments();
       renderSnapshots();
       await renderDiff();
