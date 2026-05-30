@@ -1,4 +1,5 @@
 import { getRequestHeaders } from '/script.js';
+import { saveWorldInfo } from '/scripts/world-info.js';
 
 const PLUGIN_ROOT = '/api/plugins/worldbook-backup-helper';
 const DB_NAME = 'worldbook-backup-helper';
@@ -189,9 +190,18 @@ async function snapshotAfterSave(body) {
       reason: 'auto-after',
       skipDuplicate: true,
     });
+    await syncWorkbenchFromSavedWorldbook(name, data);
   } catch (error) {
     console.warn('[Worldbook Backup Helper] Post-save snapshot failed.', error);
   }
+}
+
+async function syncWorkbenchFromSavedWorldbook(name, data) {
+  if (app.activeBook?.name !== name || app.editorDirty) return;
+  app.activeData = cloneValue(data);
+  app.activeDataHash = await hashObject(app.activeData);
+  ensureActiveEntry();
+  renderEditor();
 }
 
 async function createRemoteSnapshotFromData(name, data) {
@@ -423,7 +433,32 @@ async function loadWorldbook(name) {
 }
 
 async function saveWorldbook(name, data) {
-  return stPost('/api/worldinfo/edit', { name, data });
+  app.snapshotInFlight = true;
+  try {
+    await saveWorldInfo(name, cloneValue(data), true);
+    await refreshNativeWorldInfoEditor(name);
+  } finally {
+    app.snapshotInFlight = false;
+  }
+}
+
+async function refreshNativeWorldInfoEditor(name) {
+  try {
+    const select = document.querySelector('#world_editor_select');
+    if (!select) return;
+
+    const selected = select.selectedOptions?.[0];
+    const selectedName = selected?.textContent?.trim();
+    if (!selectedName || selectedName !== name) return;
+
+    if (typeof window.$ === 'function') {
+      window.$(select).trigger('change');
+    } else {
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  } catch (error) {
+    console.warn('[Worldbook Backup Helper] Native worldbook editor refresh failed.', error);
+  }
 }
 
 async function loadEditorWorldbook({ force = false } = {}) {
