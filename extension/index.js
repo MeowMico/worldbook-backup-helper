@@ -14,9 +14,14 @@ const app = {
   snapshots: [],
   experiments: [],
   activeBook: null,
+  activeData: null,
+  activeDataHash: '',
+  activeEntryId: null,
   activeSnapshot: null,
   activeExperiment: null,
   activeView: 'snapshot',
+  mainTab: 'edit',
+  editorDirty: false,
   diffMode: 'current',
 };
 
@@ -256,17 +261,85 @@ function ensureLocalWorkbench() {
               <button id="wbh-restore-after" type="button">After</button>
             </div>
           </div>
-          <div class="wbh-form">
-            <input id="wbh-label" type="text" placeholder="Version name, e.g. 删减了 xxx">
-            <button id="wbh-snapshot" type="button">Snapshot</button>
+          <div class="wbh-viewbar">
+            <div class="wbh-tabs">
+              <button id="wbh-tab-edit" type="button" class="active">Edit</button>
+              <button id="wbh-tab-diff" type="button">Diff</button>
+            </div>
+            <div class="wbh-editor-actions">
+              <button id="wbh-editor-reload" type="button">Reload</button>
+              <button id="wbh-editor-save" type="button" disabled>Save</button>
+            </div>
           </div>
-          <div class="wbh-toolbar">
-            <button id="wbh-mode-current" type="button" class="active">Current</button>
-            <button id="wbh-mode-previous" type="button">Previous</button>
-            <button id="wbh-restore" type="button" disabled>Restore</button>
+          <div id="wbh-editor-view" class="wbh-editor-view">
+            <aside class="wbh-entry-pane">
+              <input id="wbh-entry-search" type="search" placeholder="Search entries">
+              <div id="wbh-entries" class="wbh-list"></div>
+            </aside>
+            <section class="wbh-entry-editor">
+              <div class="wbh-entry-title">
+                <h3 id="wbh-entry-title">No entry selected</h3>
+                <span id="wbh-entry-meta"></span>
+              </div>
+              <label class="wbh-editor-field">
+                <span>Title</span>
+                <input id="wbh-entry-comment" type="text" data-wbh-field="comment">
+              </label>
+              <label class="wbh-editor-field wbh-editor-field-wide">
+                <span>Content</span>
+                <textarea id="wbh-entry-content" data-wbh-field="content" rows="12"></textarea>
+              </label>
+              <div class="wbh-editor-grid">
+                <label class="wbh-editor-field">
+                  <span>Keys</span>
+                  <textarea id="wbh-entry-key" data-wbh-field="key" rows="3"></textarea>
+                </label>
+                <label class="wbh-editor-field">
+                  <span>Secondary</span>
+                  <textarea id="wbh-entry-keysecondary" data-wbh-field="keysecondary" rows="3"></textarea>
+                </label>
+              </div>
+              <div class="wbh-editor-grid wbh-editor-grid-compact">
+                <label class="wbh-check">
+                  <input id="wbh-entry-constant" type="checkbox" data-wbh-field="constant">
+                  <span>Constant</span>
+                </label>
+                <label class="wbh-check">
+                  <input id="wbh-entry-disable" type="checkbox" data-wbh-field="disable">
+                  <span>Disabled</span>
+                </label>
+                <label class="wbh-editor-field">
+                  <span>Order</span>
+                  <input id="wbh-entry-order" type="number" data-wbh-field="order">
+                </label>
+                <label class="wbh-editor-field">
+                  <span>Depth</span>
+                  <input id="wbh-entry-depth" type="number" data-wbh-field="depth">
+                </label>
+                <label class="wbh-editor-field">
+                  <span>Position</span>
+                  <input id="wbh-entry-position" type="number" data-wbh-field="position">
+                </label>
+                <label class="wbh-editor-field">
+                  <span>Probability</span>
+                  <input id="wbh-entry-probability" type="number" data-wbh-field="probability">
+                </label>
+              </div>
+            </section>
           </div>
-          <div id="wbh-diff-summary" class="wbh-diff-summary"></div>
-          <div id="wbh-diff" class="wbh-diff">Select a snapshot</div>
+          <div id="wbh-diff-view" class="wbh-diff-view hidden">
+            <div class="wbh-form">
+              <input id="wbh-label" type="text" placeholder="Version name, e.g. 删减了 xxx">
+              <button id="wbh-snapshot" type="button">Snapshot</button>
+            </div>
+            <div class="wbh-toolbar">
+              <button id="wbh-mode-current" type="button" class="active">Current</button>
+              <button id="wbh-mode-previous" type="button">Previous</button>
+              <button id="wbh-restore" type="button" disabled>Restore</button>
+            </div>
+            <div id="wbh-diff-summary" class="wbh-diff-summary"></div>
+            <div id="wbh-diff" class="wbh-diff">Select a snapshot</div>
+          </div>
         </section>
         <section class="wbh-pane wbh-side-stack">
           <div class="wbh-side-section">
@@ -292,6 +365,11 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-close').addEventListener('click', () => root.classList.remove('open'));
   root.querySelector('#wbh-refresh').addEventListener('click', refreshLocalWorkbench);
   root.querySelector('#wbh-book-search').addEventListener('input', renderBooks);
+  root.querySelector('#wbh-entry-search').addEventListener('input', renderEntryList);
+  root.querySelector('#wbh-tab-edit').addEventListener('click', () => setMainTab('edit'));
+  root.querySelector('#wbh-tab-diff').addEventListener('click', () => setMainTab('diff'));
+  root.querySelector('#wbh-editor-reload').addEventListener('click', reloadEditorWorldbook);
+  root.querySelector('#wbh-editor-save').addEventListener('click', saveEditorWorldbook);
   root.querySelector('#wbh-snapshot').addEventListener('click', createManualLocalSnapshot);
   root.querySelector('#wbh-start-experiment').addEventListener('click', startExperiment);
   root.querySelector('#wbh-finish-experiment').addEventListener('click', finishExperiment);
@@ -302,14 +380,20 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-mode-current').addEventListener('click', () => setDiffMode('current'));
   root.querySelector('#wbh-mode-previous').addEventListener('click', () => setDiffMode('previous'));
   root.querySelector('#wbh-restore').addEventListener('click', restoreLocalSnapshot);
+  root.querySelectorAll('[data-wbh-field]').forEach(input => {
+    const eventName = input.type === 'checkbox' ? 'change' : 'input';
+    input.addEventListener(eventName, () => updateActiveEntryFromEditor(input));
+  });
 }
 
 async function refreshLocalWorkbench() {
+  if (!await confirmDiscardEditorChanges()) return;
   setStatus('Refreshing');
   app.books = await listWorldbooks();
   app.activeBook = app.activeBook
     ? app.books.find(book => book.name === app.activeBook.name) || app.books[0] || null
     : app.books[0] || null;
+  await loadEditorWorldbook({ force: true });
   renderBooks();
   await loadLocalSnapshots();
   setStatus('Ready');
@@ -332,6 +416,29 @@ async function loadWorldbook(name) {
 
 async function saveWorldbook(name, data) {
   return stPost('/api/worldinfo/edit', { name, data });
+}
+
+async function loadEditorWorldbook({ force = false } = {}) {
+  if (!app.activeBook) {
+    app.activeData = null;
+    app.activeDataHash = '';
+    app.activeEntryId = null;
+    app.editorDirty = false;
+    renderEditor();
+    return;
+  }
+
+  if (!force && app.activeData) {
+    renderEditor();
+    return;
+  }
+
+  const data = await loadWorldbook(app.activeBook.name);
+  app.activeData = cloneValue(data);
+  app.activeDataHash = await hashObject(app.activeData);
+  app.editorDirty = false;
+  ensureActiveEntry();
+  renderEditor();
 }
 
 async function loadLocalSnapshots() {
@@ -366,10 +473,16 @@ function renderBooks() {
       button.querySelector('span').textContent = book.title || book.name;
       button.querySelector('small').textContent = book.name;
       button.addEventListener('click', async () => {
+        if (!await confirmDiscardEditorChanges()) return;
         app.activeBook = book;
+        app.activeData = null;
+        app.activeDataHash = '';
+        app.activeEntryId = null;
+        app.editorDirty = false;
         app.activeSnapshot = null;
         app.activeExperiment = null;
         app.activeView = 'snapshot';
+        await loadEditorWorldbook({ force: true });
         renderBooks();
         await loadLocalSnapshots();
       });
@@ -381,9 +494,12 @@ function renderActiveBook() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
   root.querySelector('#wbh-active-title').textContent = app.activeBook?.title || app.activeBook?.name || 'No worldbook selected';
-  root.querySelector('#wbh-active-meta').textContent = app.activeBook?.name || '0 entries';
+  const entryCount = app.activeData ? countEntries(app.activeData) : 0;
+  const dirty = app.editorDirty ? ' | unsaved' : '';
+  root.querySelector('#wbh-active-meta').textContent = app.activeBook ? `${entryCount} entries${dirty}` : '0 entries';
   root.querySelector('#wbh-restore').disabled = !app.activeBook || app.activeView !== 'snapshot' || !app.activeSnapshot;
   renderExperimentPanel();
+  renderEditorState();
 }
 
 function renderExperimentPanel() {
@@ -450,6 +566,223 @@ function renderExperiments() {
     });
     return button;
   }));
+}
+
+function setMainTab(tab) {
+  app.mainTab = tab;
+  renderEditorState();
+  if (tab === 'diff') void renderDiff();
+}
+
+function renderEditor() {
+  renderActiveBook();
+  renderEditorState();
+  renderEntryList();
+  renderEntryEditor();
+}
+
+function renderEditorState() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+
+  root.querySelector('#wbh-tab-edit').classList.toggle('active', app.mainTab === 'edit');
+  root.querySelector('#wbh-tab-diff').classList.toggle('active', app.mainTab === 'diff');
+  root.querySelector('#wbh-editor-view').classList.toggle('hidden', app.mainTab !== 'edit');
+  root.querySelector('#wbh-diff-view').classList.toggle('hidden', app.mainTab !== 'diff');
+  root.querySelector('#wbh-editor-save').disabled = !app.activeBook || !app.activeData || !app.editorDirty;
+  root.querySelector('#wbh-editor-reload').disabled = !app.activeBook;
+}
+
+function renderEntryList() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+  const list = root.querySelector('#wbh-entries');
+  const search = root.querySelector('#wbh-entry-search').value.trim().toLowerCase();
+  const entries = getSortedEntryRecords(app.activeData)
+    .filter(record => {
+      if (!search) return true;
+      return [
+        entryTitle(record.entry),
+        record.entry?.content,
+        record.entry?.key,
+        record.entry?.keysecondary,
+      ].map(comparableField).join('\n').toLowerCase().includes(search);
+    });
+
+  if (!app.activeData) {
+    const empty = document.createElement('div');
+    empty.className = 'wbh-empty';
+    empty.textContent = 'No worldbook loaded';
+    list.replaceChildren(empty);
+    return;
+  }
+
+  if (!entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'wbh-empty';
+    empty.textContent = 'No entries';
+    list.replaceChildren(empty);
+    return;
+  }
+
+  list.replaceChildren(...entries.map(record => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `wbh-row ${app.activeEntryId === record.id ? 'active' : ''}`;
+    button.innerHTML = '<span></span><small></small>';
+    button.querySelector('span').textContent = entryTitle(record.entry);
+    button.querySelector('small').textContent = entryMeta(record.entry);
+    button.addEventListener('click', () => {
+      app.activeEntryId = record.id;
+      renderEntryList();
+      renderEntryEditor();
+    });
+    return button;
+  }));
+}
+
+function renderEntryEditor() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+  const record = getActiveEntryRecord();
+  const inputs = getEditorInputs(root);
+  const disabled = !record;
+
+  root.querySelector('#wbh-entry-title').textContent = record ? entryTitle(record.entry) : 'No entry selected';
+  root.querySelector('#wbh-entry-meta').textContent = record ? entryMeta(record.entry) : '';
+  Object.values(inputs).forEach(input => {
+    input.disabled = disabled;
+  });
+
+  if (!record) {
+    setEditorInputValues(inputs, {});
+    return;
+  }
+
+  setEditorInputValues(inputs, record.entry);
+}
+
+function setEditorInputValues(inputs, entry) {
+  inputs.comment.value = stringField(entry.comment);
+  inputs.content.value = stringField(entry.content);
+  inputs.key.value = listField(entry.key);
+  inputs.keysecondary.value = listField(entry.keysecondary);
+  inputs.constant.checked = Boolean(entry.constant);
+  inputs.disable.checked = Boolean(entry.disable);
+  inputs.order.value = numberField(entry.order);
+  inputs.depth.value = numberField(entry.depth);
+  inputs.position.value = numberField(entry.position);
+  inputs.probability.value = numberField(entry.probability);
+}
+
+function getEditorInputs(root) {
+  return {
+    comment: root.querySelector('#wbh-entry-comment'),
+    content: root.querySelector('#wbh-entry-content'),
+    key: root.querySelector('#wbh-entry-key'),
+    keysecondary: root.querySelector('#wbh-entry-keysecondary'),
+    constant: root.querySelector('#wbh-entry-constant'),
+    disable: root.querySelector('#wbh-entry-disable'),
+    order: root.querySelector('#wbh-entry-order'),
+    depth: root.querySelector('#wbh-entry-depth'),
+    position: root.querySelector('#wbh-entry-position'),
+    probability: root.querySelector('#wbh-entry-probability'),
+  };
+}
+
+function updateActiveEntryFromEditor(input) {
+  const record = getActiveEntryRecord();
+  if (!record) return;
+
+  const field = input.dataset.wbhField;
+  if (!field) return;
+
+  if (input.type === 'checkbox') {
+    record.entry[field] = input.checked;
+  } else if (field === 'key' || field === 'keysecondary') {
+    record.entry[field] = parseListField(input.value);
+  } else if (['order', 'depth', 'position', 'probability'].includes(field)) {
+    if (input.value === '') {
+      delete record.entry[field];
+    } else {
+      record.entry[field] = Number(input.value);
+    }
+  } else {
+    record.entry[field] = input.value;
+  }
+
+  setEditorDirty(true);
+  if (field === 'comment') {
+    document.querySelector('#wbh-entry-title').textContent = entryTitle(record.entry);
+  }
+}
+
+function setEditorDirty(dirty) {
+  app.editorDirty = dirty;
+  renderActiveBook();
+  renderEntryList();
+  if (dirty) setStatus('Unsaved edits');
+}
+
+async function saveEditorWorldbook() {
+  if (!app.activeBook || !app.activeData || !app.editorDirty) return;
+
+  setStatus('Saving worldbook');
+  const name = app.activeBook.name;
+  const title = app.activeExperiment?.title || 'Workbench edit';
+  const before = await loadWorldbook(name);
+  await createLocalSnapshotFromData(name, before, {
+    label: `Before save: ${title}`,
+    reason: 'editor-before',
+    skipDuplicate: true,
+  });
+
+  await saveWorldbook(name, app.activeData);
+  const saved = await loadWorldbook(name);
+  app.activeData = cloneValue(saved);
+  app.activeDataHash = await hashObject(app.activeData);
+  app.editorDirty = false;
+  ensureActiveEntry();
+
+  const after = await createLocalSnapshotFromData(name, app.activeData, {
+    label: `After save: ${title}`,
+    reason: 'editor-after',
+    skipDuplicate: false,
+  });
+
+  app.activeSnapshot = after.snapshot;
+  if (app.activeExperiment) {
+    const now = new Date();
+    app.activeExperiment = {
+      ...app.activeExperiment,
+      status: app.activeExperiment.status || 'testing',
+      finishedAt: now.toISOString(),
+      finishedAtMs: now.getTime(),
+      afterSnapshotId: after.snapshot.id,
+      changeNote: app.activeExperiment.changeNote || 'Saved from workbench',
+    };
+    await putExperiment(app.activeExperiment);
+    app.activeView = 'experiment';
+  } else {
+    app.activeView = 'snapshot';
+  }
+
+  await loadLocalSnapshots();
+  renderEditor();
+  setStatus('Saved');
+}
+
+async function reloadEditorWorldbook() {
+  if (!await confirmDiscardEditorChanges()) return;
+  setStatus('Reloading worldbook');
+  await loadEditorWorldbook({ force: true });
+  await loadLocalSnapshots();
+  setStatus('Ready');
+}
+
+async function confirmDiscardEditorChanges() {
+  if (!app.editorDirty) return true;
+  return window.confirm('Discard unsaved workbench edits?');
 }
 
 function renderSnapshots() {
@@ -580,6 +913,7 @@ async function startExperiment() {
 
   await putExperiment(experiment);
   app.activeView = 'experiment';
+  app.mainTab = 'edit';
   app.activeExperiment = experiment;
   app.activeSnapshot = baseline.snapshot;
   setStatus('Experiment started');
@@ -588,6 +922,11 @@ async function startExperiment() {
 
 async function finishExperiment() {
   if (!app.activeBook || !app.activeExperiment) return;
+  if (app.editorDirty) {
+    const saveFirst = window.confirm('Save workbench edits and update this experiment?');
+    if (saveFirst) await saveEditorWorldbook();
+    return;
+  }
 
   const note = window.prompt('Change / result note', app.activeExperiment.changeNote || '');
   if (note === null) return;
@@ -647,6 +986,7 @@ async function restoreExperimentSnapshot(point) {
     skipDuplicate: false,
   });
   await saveWorldbook(app.activeBook.name, snapshot.data);
+  await loadEditorWorldbook({ force: true });
   app.activeView = 'experiment';
   app.activeSnapshot = snapshot;
   await loadLocalSnapshots();
@@ -779,6 +1119,7 @@ async function restoreLocalSnapshot() {
     skipDuplicate: false,
   });
   await saveWorldbook(app.activeBook.name, app.activeSnapshot.data);
+  await loadEditorWorldbook({ force: true });
   await loadLocalSnapshots();
   setStatus('Restored');
 }
@@ -975,14 +1316,101 @@ function normalizeEntries(entries) {
   return entries;
 }
 
+function getEntryRecords(data) {
+  const entries = data?.entries;
+  if (!entries || typeof entries !== 'object') return [];
+  if (Array.isArray(entries)) {
+    return entries.map((entry, index) => ({
+      id: String(entry?.uid ?? entry?.id ?? index),
+      storageKey: index,
+      index,
+      entry,
+    }));
+  }
+  return Object.entries(entries).map(([key, entry], index) => ({
+    id: String(key),
+    storageKey: key,
+    index,
+    entry,
+  }));
+}
+
+function getSortedEntryRecords(data) {
+  return getEntryRecords(data).sort((left, right) => {
+    const orderDiff = numericSort(left.entry?.order) - numericSort(right.entry?.order);
+    if (orderDiff) return orderDiff;
+    return left.index - right.index;
+  });
+}
+
+function getActiveEntryRecord() {
+  return getEntryRecords(app.activeData).find(record => record.id === app.activeEntryId) || null;
+}
+
+function ensureActiveEntry() {
+  const records = getSortedEntryRecords(app.activeData);
+  if (!records.length) {
+    app.activeEntryId = null;
+    return;
+  }
+  if (!records.some(record => record.id === app.activeEntryId)) {
+    app.activeEntryId = records[0].id;
+  }
+}
+
 function entryTitle(entry) {
   return cleanText(entry?.comment) || cleanText(entry?.name) || cleanText(entry?.uid) || '(untitled)';
+}
+
+function entryMeta(entry) {
+  const parts = [];
+  if (entry?.constant) parts.push('constant');
+  if (entry?.disable) parts.push('disabled');
+  if (entry?.order !== undefined) parts.push(`order ${entry.order}`);
+  if (entry?.depth !== undefined) parts.push(`depth ${entry.depth}`);
+  return parts.join(' | ') || 'entry';
+}
+
+function numericSort(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : Number.MAX_SAFE_INTEGER;
 }
 
 function comparableField(value) {
   if (Array.isArray(value)) return JSON.stringify(value);
   if (value && typeof value === 'object') return stableStringify(value);
   return value === undefined || value === null ? '' : String(value);
+}
+
+function stringField(value) {
+  return value === undefined || value === null ? '' : String(value);
+}
+
+function numberField(value) {
+  return value === undefined || value === null || Number.isNaN(Number(value)) ? '' : String(value);
+}
+
+function listField(value) {
+  if (Array.isArray(value)) return value.join('\n');
+  if (value === undefined || value === null || value === '') return '';
+  return String(value);
+}
+
+function parseListField(value) {
+  const text = String(value || '').trim();
+  if (!text) return [];
+  if (text.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed.map(item => String(item));
+    } catch {
+      return [text];
+    }
+  }
+  return text
+    .split(/[\n,]/)
+    .map(item => item.trim())
+    .filter(Boolean);
 }
 
 function countEntries(data) {
@@ -999,6 +1427,11 @@ async function hashObject(value) {
 
 function stableStringify(value) {
   return JSON.stringify(sortValue(value));
+}
+
+function cloneValue(value) {
+  if (typeof structuredClone === 'function') return structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
 }
 
 function sortValue(value) {
