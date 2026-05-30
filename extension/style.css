@@ -76,6 +76,10 @@
   gap: 1px;
 }
 
+.wbh-grid.books-collapsed {
+  grid-template-columns: 44px minmax(420px, 1fr) minmax(250px, 330px);
+}
+
 .wbh-pane {
   min-width: 0;
   min-height: 0;
@@ -111,6 +115,43 @@
 
 .wbh-pane-head h3 {
   font-size: 14px;
+}
+
+.wbh-book-head {
+  gap: 8px;
+}
+
+.wbh-book-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex: 1;
+}
+
+.wbh-book-title h3,
+.wbh-book-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wbh-book-content {
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.wbh-book-pane.collapsed .wbh-book-title,
+.wbh-book-pane.collapsed .wbh-book-content {
+  display: none;
+}
+
+.wbh-book-pane.collapsed .wbh-book-head {
+  justify-content: center;
+  padding: 8px 4px;
 }
 
 #wbh-book-search,
@@ -358,6 +399,7 @@
 .wbh-experiment-actions button,
 .wbh-viewbar button,
 .wbh-toolbar button,
+.wbh-icon-button,
 .wbh-mini {
   min-height: 32px;
   border: 1px solid var(--SmartThemeBorderColor, #444);
@@ -384,6 +426,7 @@
 .wbh-experiment-actions button:disabled,
 .wbh-viewbar button:disabled,
 .wbh-toolbar button:disabled,
+.wbh-icon-button:disabled,
 .wbh-mini:disabled {
   cursor: default;
   opacity: 0.45;
@@ -493,7 +536,8 @@
 }
 
 @media (max-width: 900px) {
-  .wbh-grid {
+  .wbh-grid,
+  .wbh-grid.books-collapsed {
     grid-template-columns: 1fr;
   }
 

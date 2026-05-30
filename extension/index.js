@@ -22,6 +22,7 @@ const app = {
   activeView: 'snapshot',
   mainTab: 'edit',
   editorDirty: false,
+  booksCollapsed: readBooleanSetting('wbh-books-collapsed'),
   diffMode: 'current',
 };
 
@@ -234,13 +235,18 @@ function ensureLocalWorkbench() {
         </div>
       </header>
       <main class="wbh-grid">
-        <section class="wbh-pane">
-          <div class="wbh-pane-head">
-            <h3>Worldbooks</h3>
-            <span id="wbh-book-count">0</span>
+        <section id="wbh-book-pane" class="wbh-pane wbh-book-pane">
+          <div class="wbh-pane-head wbh-book-head">
+            <div class="wbh-book-title">
+              <h3>Worldbooks</h3>
+              <span id="wbh-book-count">0</span>
+            </div>
+            <button id="wbh-toggle-books" class="wbh-icon-button" type="button" title="Hide worldbooks" aria-label="Hide worldbooks">&lt;</button>
           </div>
-          <input id="wbh-book-search" type="search" placeholder="Search">
-          <div id="wbh-books" class="wbh-list"></div>
+          <div class="wbh-book-content">
+            <input id="wbh-book-search" type="search" placeholder="Search">
+            <div id="wbh-books" class="wbh-list"></div>
+          </div>
         </section>
         <section class="wbh-pane wbh-main">
           <div class="wbh-pane-head">
@@ -364,6 +370,7 @@ function ensureLocalWorkbench() {
 
   root.querySelector('#wbh-close').addEventListener('click', () => root.classList.remove('open'));
   root.querySelector('#wbh-refresh').addEventListener('click', refreshLocalWorkbench);
+  root.querySelector('#wbh-toggle-books').addEventListener('click', toggleBooksPane);
   root.querySelector('#wbh-book-search').addEventListener('input', renderBooks);
   root.querySelector('#wbh-entry-search').addEventListener('input', renderEntryList);
   root.querySelector('#wbh-tab-edit').addEventListener('click', () => setMainTab('edit'));
@@ -384,6 +391,7 @@ function ensureLocalWorkbench() {
     const eventName = input.type === 'checkbox' ? 'change' : 'input';
     input.addEventListener(eventName, () => updateActiveEntryFromEditor(input));
   });
+  renderBooksPane();
 }
 
 async function refreshLocalWorkbench() {
@@ -488,6 +496,26 @@ function renderBooks() {
       });
       return button;
     }));
+}
+
+function toggleBooksPane() {
+  app.booksCollapsed = !app.booksCollapsed;
+  writeBooleanSetting('wbh-books-collapsed', app.booksCollapsed);
+  renderBooksPane();
+}
+
+function renderBooksPane() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+
+  const grid = root.querySelector('.wbh-grid');
+  const pane = root.querySelector('#wbh-book-pane');
+  const toggle = root.querySelector('#wbh-toggle-books');
+  grid.classList.toggle('books-collapsed', app.booksCollapsed);
+  pane.classList.toggle('collapsed', app.booksCollapsed);
+  toggle.textContent = app.booksCollapsed ? '>' : '<';
+  toggle.title = app.booksCollapsed ? 'Show worldbooks' : 'Hide worldbooks';
+  toggle.setAttribute('aria-label', toggle.title);
 }
 
 function renderActiveBook() {
@@ -1459,6 +1487,22 @@ function randomId() {
   return [...crypto.getRandomValues(new Uint8Array(6))]
     .map(byte => byte.toString(16).padStart(2, '0'))
     .join('');
+}
+
+function readBooleanSetting(key) {
+  try {
+    return localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeBooleanSetting(key, value) {
+  try {
+    localStorage.setItem(key, value ? '1' : '0');
+  } catch {
+    // The toggle is cosmetic; ignore storage failures.
+  }
 }
 
 function formatDate(value) {
