@@ -1,0 +1,17 @@
+{
+  "name": "worldbook-backup-helper",
+  "version": "0.1.0",
+  "description": "SillyTavern worldbook snapshot workbench with local timestamped backups.",
+  "main": "index.js",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "check": "node --check index.js"
+  },
+  "keywords": [
+    "sillytavern",
+    "worldbook",
+    "lorebook",
+    "backup"
+  ]
+}

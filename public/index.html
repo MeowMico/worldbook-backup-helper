@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Worldbook Backup Helper</title>
+    <link rel="stylesheet" href="/api/plugins/worldbook-backup-helper/static/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>Worldbook Backup Helper</h1>
+          <p id="statusLine">Loading</p>
+        </div>
+        <div class="topbar-actions">
+          <button id="refreshButton" type="button">Refresh</button>
+          <button id="snapshotButton" type="button" class="primary">Snapshot</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="pane pane-books">
+          <div class="pane-head">
+            <h2>Worldbooks</h2>
+            <span id="bookCount" class="counter">0</span>
+          </div>
+          <label class="search-box">
+            <span>Search</span>
+            <input id="bookSearch" type="search" autocomplete="off">
+          </label>
+          <div id="bookList" class="list"></div>
+        </aside>
+
+        <section class="pane pane-main">
+          <div class="pane-head">
+            <h2 id="activeTitle">No worldbook selected</h2>
+            <span id="activeMeta" class="counter">0 entries</span>
+          </div>
+
+          <div class="snapshot-form">
+            <label>
+              <span>Version name</span>
+              <input id="snapshotLabel" type="text" placeholder="删减了 xxx">
+            </label>
+            <label>
+              <span>Note</span>
+              <input id="snapshotNote" type="text" placeholder="optional">
+            </label>
+          </div>
+
+          <div class="diff-toolbar">
+            <div class="segmented" role="tablist" aria-label="Diff mode">
+              <button id="compareCurrentButton" type="button" class="active">Current</button>
+              <button id="comparePreviousButton" type="button">Previous</button>
+            </div>
+            <button id="restoreButton" type="button" class="danger" disabled>Restore</button>
+          </div>
+
+          <div id="diffSummary" class="diff-summary"></div>
+          <div id="diffView" class="diff-view empty">Select a snapshot</div>
+        </section>
+
+        <aside class="pane pane-snapshots">
+          <div class="pane-head">
+            <h2>Versions</h2>
+            <span id="snapshotCount" class="counter">0</span>
+          </div>
+          <div id="snapshotList" class="list"></div>
+        </aside>
+      </main>
+    </div>
+
+    <dialog id="labelDialog">
+      <form method="dialog" class="dialog-body">
+        <h2>Rename Version</h2>
+        <label>
+          <span>Version name</span>
+          <input id="dialogLabel" type="text">
+        </label>
+        <label>
+          <span>Note</span>
+          <input id="dialogNote" type="text">
+        </label>
+        <menu>
+          <button value="cancel" type="submit">Cancel</button>
+          <button id="saveLabelButton" value="save" type="submit" class="primary">Save</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script type="module" src="/api/plugins/worldbook-backup-helper/static/app.js"></script>
+  </body>
+</html>
