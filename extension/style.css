@@ -514,7 +514,7 @@
 
 .wbh-history-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
 }
 

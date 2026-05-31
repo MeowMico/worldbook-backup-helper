@@ -1756,6 +1756,13 @@ function renderSnapshots() {
     restore.textContent = 'Restore';
     restore.addEventListener('click', async () => restoreSnapshot(snapshot, snapshot.label || 'version'));
 
+    const promote = document.createElement('button');
+    promote.type = 'button';
+    promote.className = 'wbh-mini';
+    promote.textContent = 'Exp';
+    promote.title = 'Create experiment from this version';
+    promote.addEventListener('click', async () => createExperimentFromSnapshot(snapshot));
+
     const rename = document.createElement('button');
     rename.type = 'button';
     rename.className = 'wbh-mini';
@@ -1768,9 +1775,46 @@ function renderSnapshots() {
       await loadLocalSnapshots();
     });
 
-    row.append(main, restore, rename);
+    row.append(main, restore, promote, rename);
     return row;
   }));
+}
+
+async function createExperimentFromSnapshot(snapshot) {
+  if (!app.activeBook || !snapshot) return;
+
+  const defaultTitle = snapshot.label
+    ? snapshot.label.replace(/^(After save:|After:|Manual snapshot)\s*/i, '').trim()
+    : '';
+  const title = window.prompt('Experiment name / problem', defaultTitle || `Experiment ${formatDate(snapshot.createdAt)}`);
+  if (title === null) return;
+
+  const baseline = getPreviousSnapshot(snapshot) || app.originSnapshot || snapshot;
+  const now = new Date();
+  const cleanTitle = title.trim() || `Experiment ${formatDate(now.toISOString())}`;
+  const experiment = {
+    id: `${app.activeBook.name}:experiment:${formatDateForFile(now)}:${randomId()}`,
+    bookName: app.activeBook.name,
+    title: cleanTitle,
+    status: 'testing',
+    startedAt: baseline.createdAt || snapshot.createdAt || now.toISOString(),
+    startedAtMs: Number(baseline.createdAtMs || snapshot.createdAtMs || now.getTime()),
+    finishedAt: snapshot.createdAt || now.toISOString(),
+    finishedAtMs: Number(snapshot.createdAtMs || now.getTime()),
+    baselineSnapshotId: baseline.id,
+    afterSnapshotId: snapshot.id,
+    changeNote: snapshot.label ? `From version: ${snapshot.label}` : 'Created from saved version',
+    resultNote: '',
+    parentExperimentId: '',
+  };
+
+  await putExperiment(experiment);
+  app.activeView = 'experiment';
+  app.mainTab = 'diff';
+  app.activeExperiment = experiment;
+  app.activeSnapshot = snapshot;
+  await loadLocalSnapshots();
+  setStatus('Experiment created from version');
 }
 
 async function createManualLocalSnapshot() {

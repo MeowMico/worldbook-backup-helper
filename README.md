@@ -48,6 +48,8 @@ Clicking `Origin` or any item in `Versions` loads that saved worldbook state int
 
 Click `Restore` beside `Origin` or a version to roll the live SillyTavern worldbook back to that saved state. A before-restore version is created first.
 
+Click `Exp` beside a version to turn that saved version into an experiment after the fact. The previous version is used as the baseline when available.
+
 The `Diff` tab shows a full preview of the selected state. Changed entries are marked and changed text lines stay highlighted; unchanged entries still show their content instead of an empty `No changes` panel.
 
 ## Experiment Workflow
