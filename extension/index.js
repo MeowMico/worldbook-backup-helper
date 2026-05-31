@@ -34,6 +34,7 @@ const LIST_FIELDS = new Set(['key', 'keysecondary', 'characterFilterNames', 'cha
 const NUMBER_FIELDS = new Set(['order', 'position', 'depth', 'probability', 'selectiveLogic', 'role', 'groupWeight', 'sticky', 'cooldown', 'delay', 'scanDepth', 'delayUntilRecursion']);
 const NULLABLE_NUMBER_FIELDS = new Set(['groupWeight', 'sticky', 'cooldown', 'delay', 'scanDepth']);
 const TRI_STATE_BOOLEAN_FIELDS = new Set(['caseSensitive', 'matchWholeWords', 'useGroupScoring']);
+const FIND_FIELDS = ['comment', 'content', 'key', 'keysecondary', 'group', 'automationId', 'outletName', 'characterFilterNames', 'characterFilterTags', 'triggers'];
 
 const ENTRY_DEFAULTS = {
   key: [],
@@ -98,6 +99,10 @@ const app = {
   activeView: 'snapshot',
   mainTab: 'edit',
   editorDirty: false,
+  findQuery: '',
+  replaceText: '',
+  findMatches: [],
+  activeFindIndex: -1,
   booksCollapsed: readBooleanSetting('wbh-books-collapsed'),
   diffMode: 'current',
 };
@@ -370,7 +375,23 @@ function ensureLocalWorkbench() {
           </div>
           <div id="wbh-editor-view" class="wbh-editor-view">
             <aside class="wbh-entry-pane">
-              <input id="wbh-entry-search" type="search" placeholder="Search entries">
+              <div class="wbh-findbar">
+                <div class="wbh-find-row">
+                  <input id="wbh-entry-search" type="search" placeholder="Find in entries">
+                  <span id="wbh-find-count">0/0</span>
+                </div>
+                <div class="wbh-find-row wbh-find-actions">
+                  <button id="wbh-find-prev" type="button">Prev</button>
+                  <button id="wbh-find-next" type="button">Next</button>
+                </div>
+                <div class="wbh-find-row">
+                  <input id="wbh-replace-text" type="text" placeholder="Replace">
+                </div>
+                <div class="wbh-find-row wbh-find-actions">
+                  <button id="wbh-replace-one" type="button">Replace</button>
+                  <button id="wbh-replace-all" type="button">All</button>
+                </div>
+              </div>
               <div id="wbh-entries" class="wbh-list"></div>
             </aside>
             <section class="wbh-entry-editor">
@@ -645,7 +666,13 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-refresh').addEventListener('click', refreshLocalWorkbench);
   root.querySelector('#wbh-toggle-books').addEventListener('click', toggleBooksPane);
   root.querySelector('#wbh-book-search').addEventListener('input', renderBooks);
-  root.querySelector('#wbh-entry-search').addEventListener('input', renderEntryList);
+  root.querySelector('#wbh-entry-search').addEventListener('input', handleFindInput);
+  root.querySelector('#wbh-entry-search').addEventListener('keydown', handleFindKeydown);
+  root.querySelector('#wbh-replace-text').addEventListener('input', handleReplaceInput);
+  root.querySelector('#wbh-find-prev').addEventListener('click', () => navigateFind(-1));
+  root.querySelector('#wbh-find-next').addEventListener('click', () => navigateFind(1));
+  root.querySelector('#wbh-replace-one').addEventListener('click', replaceCurrentFindMatch);
+  root.querySelector('#wbh-replace-all').addEventListener('click', replaceAllFindMatches);
   root.querySelector('#wbh-tab-edit').addEventListener('click', () => setMainTab('edit'));
   root.querySelector('#wbh-tab-diff').addEventListener('click', () => setMainTab('diff'));
   root.querySelector('#wbh-entry-new').addEventListener('click', createEntry);
@@ -1001,22 +1028,37 @@ function renderEditorState() {
   root.querySelector('#wbh-entry-new').disabled = !app.activeBook || !app.activeData;
   root.querySelector('#wbh-entry-duplicate').disabled = !getActiveEntryRecord();
   root.querySelector('#wbh-entry-delete').disabled = !getActiveEntryRecord();
+  renderFindControls();
+}
+
+function handleFindInput() {
+  refreshFindMatches({ resetIndex: true });
+  renderEntryList();
+  renderFindControls();
+}
+
+function handleFindKeydown(event) {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  navigateFind(event.shiftKey ? -1 : 1);
+}
+
+function handleReplaceInput() {
+  const root = document.querySelector('#wbh-workbench');
+  app.replaceText = root?.querySelector('#wbh-replace-text')?.value || '';
 }
 
 function renderEntryList() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
   const list = root.querySelector('#wbh-entries');
-  const search = root.querySelector('#wbh-entry-search').value.trim().toLowerCase();
+  refreshFindMatches();
+  const search = app.findQuery.trim();
+  const matchesByEntry = getFindCountsByEntry();
   const entries = getSortedEntryRecords(app.activeData)
     .filter(record => {
       if (!search) return true;
-      return [
-        entryTitle(record.entry),
-        record.entry?.content,
-        record.entry?.key,
-        record.entry?.keysecondary,
-      ].map(comparableField).join('\n').toLowerCase().includes(search);
+      return matchesByEntry.has(record.id);
     });
 
   if (!app.activeData) {
@@ -1024,6 +1066,7 @@ function renderEntryList() {
     empty.className = 'wbh-empty';
     empty.textContent = 'No worldbook loaded';
     list.replaceChildren(empty);
+    renderFindControls();
     return;
   }
 
@@ -1032,23 +1075,32 @@ function renderEntryList() {
     empty.className = 'wbh-empty';
     empty.textContent = 'No entries';
     list.replaceChildren(empty);
+    renderFindControls();
     return;
   }
 
+  const activeMatch = getActiveFindMatch();
   list.replaceChildren(...entries.map(record => {
+    const matchCount = matchesByEntry.get(record.id) || 0;
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `wbh-row ${app.activeEntryId === record.id ? 'active' : ''}`;
+    button.className = `wbh-row ${app.activeEntryId === record.id ? 'active' : ''} ${activeMatch?.entryId === record.id ? 'find-active' : ''}`;
     button.innerHTML = '<span></span><small></small>';
     button.querySelector('span').textContent = entryTitle(record.entry);
-    button.querySelector('small').textContent = entryMeta(record.entry);
+    button.querySelector('small').textContent = matchCount
+      ? `${matchCount} ${matchCount === 1 ? 'match' : 'matches'} | ${entryMeta(record.entry)}`
+      : entryMeta(record.entry);
     button.addEventListener('click', () => {
       app.activeEntryId = record.id;
+      const firstMatch = app.findMatches.findIndex(match => match.entryId === record.id);
+      if (firstMatch >= 0) app.activeFindIndex = firstMatch;
       renderEntryList();
       renderEntryEditor();
+      if (firstMatch >= 0) queueFocusActiveFindMatch();
     });
     return button;
   }));
+  renderFindControls();
 }
 
 function renderEntryEditor() {
@@ -1066,10 +1118,239 @@ function renderEntryEditor() {
 
   if (!record) {
     setEditorInputValues(inputs, {});
+    renderFindControls();
     return;
   }
 
   setEditorInputValues(inputs, record.entry);
+  renderFindControls();
+}
+
+function refreshFindMatches({ resetIndex = false } = {}) {
+  const root = document.querySelector('#wbh-workbench');
+  const previousMatch = getActiveFindMatch();
+  const query = root?.querySelector('#wbh-entry-search')?.value ?? app.findQuery ?? '';
+  const queryChanged = query !== app.findQuery;
+  app.findQuery = query;
+  app.findMatches = app.activeData && app.findQuery.trim()
+    ? collectFindMatches(app.findQuery.trim())
+    : [];
+
+  if (!app.findMatches.length) {
+    app.activeFindIndex = -1;
+    return;
+  }
+
+  if (resetIndex || queryChanged) {
+    const activeEntryIndex = app.activeEntryId
+      ? app.findMatches.findIndex(match => match.entryId === app.activeEntryId)
+      : -1;
+    app.activeFindIndex = activeEntryIndex >= 0 ? activeEntryIndex : 0;
+    return;
+  }
+
+  if (previousMatch) {
+    const sameIndex = app.findMatches.findIndex(match => sameFindMatch(match, previousMatch));
+    if (sameIndex >= 0) {
+      app.activeFindIndex = sameIndex;
+      return;
+    }
+  }
+
+  if (app.activeFindIndex < 0) {
+    app.activeFindIndex = 0;
+  } else if (app.activeFindIndex >= app.findMatches.length) {
+    app.activeFindIndex = app.findMatches.length - 1;
+  }
+}
+
+function collectFindMatches(query) {
+  const needle = query.toLowerCase();
+  if (!needle) return [];
+
+  const matches = [];
+  for (const record of getSortedEntryRecords(app.activeData)) {
+    for (const field of FIND_FIELDS) {
+      const value = findFieldText(record.entry, field);
+      const haystack = value.toLowerCase();
+      let start = haystack.indexOf(needle);
+      while (start >= 0) {
+        matches.push({
+          entryId: record.id,
+          field,
+          start,
+          end: start + query.length,
+        });
+        start = haystack.indexOf(needle, start + Math.max(needle.length, 1));
+      }
+    }
+  }
+  return matches;
+}
+
+function getFindCountsByEntry() {
+  const counts = new Map();
+  for (const match of app.findMatches) {
+    counts.set(match.entryId, (counts.get(match.entryId) || 0) + 1);
+  }
+  return counts;
+}
+
+function renderFindControls() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+
+  const total = app.findMatches.length;
+  const count = root.querySelector('#wbh-find-count');
+  const hasQuery = Boolean(app.findQuery.trim());
+  count.textContent = hasQuery ? `${total ? app.activeFindIndex + 1 : 0}/${total}` : '0/0';
+  root.querySelector('#wbh-find-prev').disabled = !total;
+  root.querySelector('#wbh-find-next').disabled = !total;
+  root.querySelector('#wbh-replace-one').disabled = !total;
+  root.querySelector('#wbh-replace-all').disabled = !total;
+}
+
+function navigateFind(direction) {
+  refreshFindMatches();
+  if (!app.findMatches.length) {
+    renderEntryList();
+    renderFindControls();
+    setStatus(app.findQuery.trim() ? 'No matches' : 'Ready');
+    return;
+  }
+
+  const total = app.findMatches.length;
+  if (app.activeFindIndex < 0) {
+    app.activeFindIndex = direction < 0 ? total - 1 : 0;
+  } else {
+    app.activeFindIndex = (app.activeFindIndex + direction + total) % total;
+  }
+
+  openActiveFindMatch();
+}
+
+function openActiveFindMatch() {
+  const match = getActiveFindMatch();
+  if (!match) return;
+
+  app.activeEntryId = match.entryId;
+  app.mainTab = 'edit';
+  renderEditor();
+  queueFocusActiveFindMatch();
+  setStatus(`${app.activeFindIndex + 1}/${app.findMatches.length} matches`);
+}
+
+function queueFocusActiveFindMatch() {
+  const match = getActiveFindMatch();
+  if (!match) return;
+  window.requestAnimationFrame(() => focusFindMatch(match));
+}
+
+function focusFindMatch(match) {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+  const input = root.querySelector(`[data-wbh-field="${match.field}"]`);
+  if (!input || typeof input.setSelectionRange !== 'function') return;
+
+  input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  input.focus();
+  input.setSelectionRange(match.start, match.end);
+  scrollTextControlToPosition(input, match.start);
+}
+
+function scrollTextControlToPosition(input, start) {
+  if (input.tagName !== 'TEXTAREA') return;
+  const before = input.value.slice(0, start);
+  const line = before.split(/\r?\n/).length - 1;
+  const lineHeight = Number.parseFloat(window.getComputedStyle(input).lineHeight) || 20;
+  input.scrollTop = Math.max(0, (line * lineHeight) - (input.clientHeight / 2));
+}
+
+function replaceCurrentFindMatch() {
+  const root = document.querySelector('#wbh-workbench');
+  app.replaceText = root?.querySelector('#wbh-replace-text')?.value || '';
+  refreshFindMatches();
+
+  const match = getActiveFindMatch();
+  const record = match ? getEntryRecordById(match.entryId) : null;
+  if (!match || !record) {
+    setStatus('No match to replace');
+    return;
+  }
+
+  replaceMatchInRecord(record, match, app.replaceText);
+  app.activeEntryId = match.entryId;
+  app.editorDirty = true;
+  const nextIndex = app.activeFindIndex;
+  app.findMatches = collectFindMatches(app.findQuery.trim());
+  app.activeFindIndex = app.findMatches.length ? Math.min(nextIndex, app.findMatches.length - 1) : -1;
+  renderEditor();
+  queueFocusActiveFindMatch();
+  setStatus('Replaced match');
+}
+
+function replaceAllFindMatches() {
+  const root = document.querySelector('#wbh-workbench');
+  app.replaceText = root?.querySelector('#wbh-replace-text')?.value || '';
+  refreshFindMatches();
+
+  const total = app.findMatches.length;
+  if (!total) {
+    setStatus('No matches to replace');
+    return;
+  }
+
+  const ok = window.confirm(`Replace ${total} ${total === 1 ? 'match' : 'matches'}?`);
+  if (!ok) return;
+
+  const grouped = new Map();
+  for (const match of app.findMatches) {
+    const key = `${match.entryId}\u0000${match.field}`;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(match);
+  }
+
+  for (const matches of grouped.values()) {
+    const first = matches[0];
+    const record = getEntryRecordById(first.entryId);
+    if (!record) continue;
+    const sorted = [...matches].sort((left, right) => right.start - left.start);
+    for (const match of sorted) {
+      replaceMatchInRecord(record, match, app.replaceText);
+    }
+  }
+
+  app.editorDirty = true;
+  app.findMatches = collectFindMatches(app.findQuery.trim());
+  app.activeFindIndex = app.findMatches.length ? 0 : -1;
+  renderEditor();
+  queueFocusActiveFindMatch();
+  setStatus(`Replaced ${total} ${total === 1 ? 'match' : 'matches'}`);
+}
+
+function replaceMatchInRecord(record, match, replacement) {
+  const value = findFieldText(record.entry, match.field);
+  const nextValue = `${value.slice(0, match.start)}${replacement}${value.slice(match.end)}`;
+  writeFindFieldText(record.entry, match.field, nextValue);
+}
+
+function getActiveFindMatch() {
+  return app.activeFindIndex >= 0 ? app.findMatches[app.activeFindIndex] || null : null;
+}
+
+function sameFindMatch(left, right) {
+  return left.entryId === right.entryId
+    && left.field === right.field
+    && left.start === right.start
+    && left.end === right.end;
+}
+
+function findFieldText(entry, field) {
+  return LIST_FIELDS.has(field) ? listField(entry?.[field]) : stringField(entry?.[field]);
+}
+
+function writeFindFieldText(entry, field, value) {
+  entry[field] = LIST_FIELDS.has(field) ? parseListField(value) : value;
 }
 
 function setEditorInputValues(inputs, entry) {
@@ -1892,6 +2173,10 @@ function getSortedEntryRecords(data) {
 
 function getActiveEntryRecord() {
   return getEntryRecords(app.activeData).find(record => record.id === app.activeEntryId) || null;
+}
+
+function getEntryRecordById(id) {
+  return getEntryRecords(app.activeData).find(record => record.id === id) || null;
 }
 
 function ensureActiveEntry() {

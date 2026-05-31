@@ -201,6 +201,10 @@
   box-shadow: inset 3px 0 0 var(--SmartThemeQuoteColor, #7ab2d3);
 }
 
+.wbh-row.find-active {
+  box-shadow: inset 3px 0 0 var(--SmartThemeQuoteColor, #7ab2d3);
+}
+
 .wbh-row span,
 .wbh-row small {
   overflow: hidden;
@@ -263,15 +267,41 @@
   border-right: 1px solid var(--SmartThemeBorderColor, #444);
 }
 
-#wbh-entry-search {
-  width: calc(100% - 24px);
+.wbh-findbar {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
+}
+
+.wbh-find-row {
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+#wbh-entry-search,
+#wbh-replace-text {
+  min-width: 0;
+  flex: 1;
   min-height: 34px;
-  margin: 10px 12px;
   border: 1px solid var(--SmartThemeBorderColor, #444);
   border-radius: 6px;
   padding: 6px 8px;
   background: var(--black30a, rgb(0 0 0 / 18%));
   color: inherit;
+}
+
+#wbh-find-count {
+  min-width: 46px;
+  text-align: right;
+  font-size: 12px;
+  opacity: 0.72;
+}
+
+.wbh-find-actions button {
+  flex: 1;
 }
 
 .wbh-entry-editor {
@@ -420,6 +450,7 @@
 .wbh-form button,
 .wbh-experiment-actions button,
 .wbh-viewbar button,
+.wbh-findbar button,
 .wbh-toolbar button,
 .wbh-icon-button,
 .wbh-mini {
@@ -451,6 +482,7 @@
 .wbh-form button:disabled,
 .wbh-experiment-actions button:disabled,
 .wbh-viewbar button:disabled,
+.wbh-findbar button:disabled,
 .wbh-toolbar button:disabled,
 .wbh-icon-button:disabled,
 .wbh-mini:disabled {
