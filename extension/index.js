@@ -216,6 +216,9 @@ const app = {
   pendingInputHistoryKey: '',
   diffChangeIndex: -1,
   booksCollapsed: readBooleanSetting('wbh-books-collapsed'),
+  historyCollapsed: readBooleanSetting('wbh-history-collapsed'),
+  findCollapsed: readBooleanSetting('wbh-find-collapsed'),
+  writerMode: readBooleanSetting('wbh-writer-mode'),
   diffMode: 'current',
 };
 
@@ -477,6 +480,10 @@ function ensureLocalWorkbench() {
               <button id="wbh-tab-edit" type="button" class="active">Edit</button>
               <button id="wbh-tab-diff" type="button">Diff</button>
             </div>
+            <div class="wbh-view-options">
+              <button id="wbh-toggle-writer" type="button" title="Focus the editor and tuck away side history">Writer</button>
+              <button id="wbh-toggle-history" type="button" title="Show or hide the history sidebar">History</button>
+            </div>
             <div class="wbh-editor-actions">
               <button id="wbh-editor-undo" type="button" disabled>Undo</button>
               <button id="wbh-editor-redo" type="button" disabled>Redo</button>
@@ -489,6 +496,10 @@ function ensureLocalWorkbench() {
           </div>
           <div id="wbh-editor-view" class="wbh-editor-view">
             <aside class="wbh-entry-pane">
+              <div class="wbh-entry-pane-head">
+                <strong>Entries</strong>
+                <button id="wbh-toggle-find" type="button" title="Show or hide find and replace">Find</button>
+              </div>
               <div class="wbh-findbar">
                 <div class="wbh-find-row">
                   <input id="wbh-entry-search" type="search" placeholder="Find in entries">
@@ -513,15 +524,15 @@ function ensureLocalWorkbench() {
                 <h3 id="wbh-entry-title">No entry selected</h3>
                 <span id="wbh-entry-meta"></span>
               </div>
-              <label class="wbh-editor-field">
+              <label class="wbh-editor-field wbh-title-field">
                 <span>Title</span>
                 <input id="wbh-entry-comment" type="text" data-wbh-field="comment">
               </label>
-              <label class="wbh-editor-field wbh-editor-field-wide">
+              <label class="wbh-editor-field wbh-editor-field-wide wbh-content-field">
                 <span>Content</span>
                 <textarea id="wbh-entry-content" data-wbh-field="content" rows="12"></textarea>
               </label>
-              <div class="wbh-editor-section">
+              <div class="wbh-editor-section wbh-activation-section">
                 <h4>Activation</h4>
                 <div class="wbh-editor-grid">
                   <label class="wbh-editor-field">
@@ -560,7 +571,7 @@ function ensureLocalWorkbench() {
                   </label>
                 </div>
               </div>
-              <div class="wbh-editor-section">
+              <div class="wbh-editor-section wbh-insertion-section">
                 <h4>Insertion</h4>
                 <div class="wbh-editor-grid wbh-editor-grid-3">
                   <label class="wbh-editor-field">
@@ -594,7 +605,7 @@ function ensureLocalWorkbench() {
                   </label>
                 </div>
               </div>
-              <div class="wbh-editor-section">
+              <div class="wbh-editor-section wbh-logic-section">
                 <h4>Logic</h4>
                 <div class="wbh-editor-grid wbh-editor-grid-3">
                   <label class="wbh-editor-field">
@@ -659,7 +670,7 @@ function ensureLocalWorkbench() {
                   </label>
                 </div>
               </div>
-              <div class="wbh-editor-section">
+              <div class="wbh-editor-section wbh-timing-section">
                 <h4>Timing and Filters</h4>
                 <div class="wbh-editor-grid wbh-editor-grid-3">
                   <label class="wbh-editor-field">
@@ -704,7 +715,7 @@ function ensureLocalWorkbench() {
                   </label>
                 </div>
               </div>
-              <div class="wbh-editor-section">
+              <div class="wbh-editor-section wbh-match-section">
                 <h4>Match Sources</h4>
                 <div class="wbh-editor-grid wbh-editor-grid-compact">
                   <label class="wbh-check">
@@ -783,6 +794,9 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-close').addEventListener('click', () => root.classList.remove('open'));
   root.querySelector('#wbh-refresh').addEventListener('click', refreshLocalWorkbench);
   root.querySelector('#wbh-toggle-books').addEventListener('click', toggleBooksPane);
+  root.querySelector('#wbh-toggle-writer').addEventListener('click', toggleWriterMode);
+  root.querySelector('#wbh-toggle-history').addEventListener('click', toggleHistoryPane);
+  root.querySelector('#wbh-toggle-find').addEventListener('click', toggleFindPane);
   root.querySelector('#wbh-book-search').addEventListener('input', renderBooks);
   root.querySelector('#wbh-experiment-search').addEventListener('input', renderExperiments);
   root.querySelector('#wbh-entry-search').addEventListener('input', handleFindInput);
@@ -820,6 +834,7 @@ function ensureLocalWorkbench() {
     input.addEventListener(eventName, () => updateActiveEntryFromEditor(input));
   });
   renderBooksPane();
+  renderLayoutMode();
 }
 
 async function refreshLocalWorkbench() {
@@ -965,6 +980,26 @@ function toggleBooksPane() {
   renderBooksPane();
 }
 
+function toggleWriterMode() {
+  app.writerMode = !app.writerMode;
+  if (app.writerMode) app.historyCollapsed = true;
+  writeBooleanSetting('wbh-writer-mode', app.writerMode);
+  writeBooleanSetting('wbh-history-collapsed', app.historyCollapsed);
+  renderLayoutMode();
+}
+
+function toggleHistoryPane() {
+  app.historyCollapsed = !app.historyCollapsed;
+  writeBooleanSetting('wbh-history-collapsed', app.historyCollapsed);
+  renderLayoutMode();
+}
+
+function toggleFindPane() {
+  app.findCollapsed = !app.findCollapsed;
+  writeBooleanSetting('wbh-find-collapsed', app.findCollapsed);
+  renderLayoutMode();
+}
+
 function renderBooksPane() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
@@ -977,6 +1012,37 @@ function renderBooksPane() {
   toggle.textContent = app.booksCollapsed ? '>' : '<';
   toggle.title = app.booksCollapsed ? 'Show worldbooks' : 'Hide worldbooks';
   toggle.setAttribute('aria-label', toggle.title);
+  renderLayoutMode();
+}
+
+function renderLayoutMode() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+
+  const grid = root.querySelector('.wbh-grid');
+  const entryPane = root.querySelector('.wbh-entry-pane');
+  const writer = root.querySelector('#wbh-toggle-writer');
+  const history = root.querySelector('#wbh-toggle-history');
+  const find = root.querySelector('#wbh-toggle-find');
+
+  root.classList.toggle('writer-mode', app.writerMode);
+  grid?.classList.toggle('history-collapsed', app.historyCollapsed);
+  entryPane?.classList.toggle('find-collapsed', app.findCollapsed);
+
+  if (writer) {
+    writer.classList.toggle('active', app.writerMode);
+    writer.setAttribute('aria-pressed', String(app.writerMode));
+  }
+  if (history) {
+    history.classList.toggle('active', !app.historyCollapsed);
+    history.textContent = app.historyCollapsed ? 'Show history' : 'Hide history';
+    history.setAttribute('aria-pressed', String(!app.historyCollapsed));
+  }
+  if (find) {
+    find.classList.toggle('active', !app.findCollapsed);
+    find.textContent = app.findCollapsed ? 'Find' : 'Hide find';
+    find.setAttribute('aria-pressed', String(!app.findCollapsed));
+  }
 }
 
 function renderActiveBook() {
@@ -1285,6 +1351,7 @@ function renderEditorState() {
   root.querySelector('#wbh-entry-new').disabled = !app.activeBook || !app.activeData;
   root.querySelector('#wbh-entry-duplicate').disabled = !getActiveEntryRecord();
   root.querySelector('#wbh-entry-delete').disabled = !getActiveEntryRecord();
+  renderLayoutMode();
   renderFindControls();
   updateDiffChangeControls();
 }
