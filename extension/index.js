@@ -971,9 +971,12 @@ function renderExperiments() {
   }
 
   list.replaceChildren(...app.experiments.map(experiment => {
+    const row = document.createElement('div');
+    row.className = `wbh-history-row ${app.activeView === 'experiment' && app.activeExperiment?.id === experiment.id ? 'active' : ''}`;
+
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `wbh-row ${app.activeView === 'experiment' && app.activeExperiment?.id === experiment.id ? 'active' : ''}`;
+    button.className = 'wbh-row';
     button.innerHTML = '<span></span><small></small>';
     button.querySelector('span').textContent = experiment.title || 'Untitled experiment';
     button.querySelector('small').textContent = `${statusLabel(experiment.status)} | ${formatDate(experiment.startedAt)}`;
@@ -989,8 +992,31 @@ function renderExperiments() {
       await renderDiff();
       setStatus(`Viewing experiment: ${experiment.title || 'Untitled experiment'}`);
     });
-    return button;
+
+    const rename = document.createElement('button');
+    rename.type = 'button';
+    rename.className = 'wbh-mini';
+    rename.textContent = 'Name';
+    rename.addEventListener('click', async () => renameExperiment(experiment));
+
+    row.append(button, rename);
+    return row;
   }));
+}
+
+async function renameExperiment(experiment) {
+  if (!experiment) return;
+  const title = window.prompt('Experiment name / problem', experiment.title || '');
+  if (title === null) return;
+
+  const updated = {
+    ...experiment,
+    title: title.trim() || 'Untitled experiment',
+  };
+  await putExperiment(updated);
+  if (app.activeExperiment?.id === updated.id) app.activeExperiment = updated;
+  await loadLocalSnapshots();
+  setStatus('Experiment renamed');
 }
 
 async function loadSnapshotIntoEditor(snapshot, sourceName = 'Version') {
@@ -1645,7 +1671,7 @@ function renderSnapshots() {
 
   list.replaceChildren(...visibleSnapshots.map(snapshot => {
     const row = document.createElement('div');
-    row.className = `wbh-snapshot-row ${app.activeView === 'snapshot' && app.activeSnapshot?.id === snapshot.id ? 'active' : ''}`;
+    row.className = `wbh-history-row ${app.activeView === 'snapshot' && app.activeSnapshot?.id === snapshot.id ? 'active' : ''}`;
 
     const main = document.createElement('button');
     main.type = 'button';

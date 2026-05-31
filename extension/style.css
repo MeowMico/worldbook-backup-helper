@@ -196,7 +196,7 @@
 }
 
 .wbh-row.active,
-.wbh-snapshot-row.active {
+.wbh-history-row.active {
   background: var(--white10a, rgb(255 255 255 / 8%));
   box-shadow: inset 3px 0 0 var(--SmartThemeQuoteColor, #7ab2d3);
 }
@@ -510,13 +510,13 @@
   padding: 14px;
 }
 
-.wbh-snapshot-row {
+.wbh-history-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
 }
 
-.wbh-snapshot-row .wbh-row {
+.wbh-history-row .wbh-row {
   border-bottom: 0;
 }
 
