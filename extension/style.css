@@ -245,6 +245,11 @@
   gap: 8px;
 }
 
+.wbh-editor-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .wbh-editor-view {
   min-height: 0;
   flex: 1;

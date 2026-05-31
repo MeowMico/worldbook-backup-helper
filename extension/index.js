@@ -35,6 +35,7 @@ const NUMBER_FIELDS = new Set(['order', 'position', 'depth', 'probability', 'sel
 const NULLABLE_NUMBER_FIELDS = new Set(['groupWeight', 'sticky', 'cooldown', 'delay', 'scanDepth']);
 const TRI_STATE_BOOLEAN_FIELDS = new Set(['caseSensitive', 'matchWholeWords', 'useGroupScoring']);
 const FIND_FIELDS = ['comment', 'content', 'key', 'keysecondary', 'group', 'automationId', 'outletName', 'characterFilterNames', 'characterFilterTags', 'triggers'];
+const MAX_UNDO_STEPS = 80;
 
 const ENTRY_DEFAULTS = {
   key: [],
@@ -103,6 +104,9 @@ const app = {
   replaceText: '',
   findMatches: [],
   activeFindIndex: -1,
+  undoStack: [],
+  redoStack: [],
+  pendingInputHistoryKey: '',
   booksCollapsed: readBooleanSetting('wbh-books-collapsed'),
   diffMode: 'current',
 };
@@ -366,6 +370,8 @@ function ensureLocalWorkbench() {
               <button id="wbh-tab-diff" type="button">Diff</button>
             </div>
             <div class="wbh-editor-actions">
+              <button id="wbh-editor-undo" type="button" disabled>Undo</button>
+              <button id="wbh-editor-redo" type="button" disabled>Redo</button>
               <button id="wbh-entry-new" type="button">New</button>
               <button id="wbh-entry-duplicate" type="button" disabled>Duplicate</button>
               <button id="wbh-entry-delete" type="button" class="danger" disabled>Delete</button>
@@ -675,6 +681,8 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-replace-all').addEventListener('click', replaceAllFindMatches);
   root.querySelector('#wbh-tab-edit').addEventListener('click', () => setMainTab('edit'));
   root.querySelector('#wbh-tab-diff').addEventListener('click', () => setMainTab('diff'));
+  root.querySelector('#wbh-editor-undo').addEventListener('click', undoEditorChange);
+  root.querySelector('#wbh-editor-redo').addEventListener('click', redoEditorChange);
   root.querySelector('#wbh-entry-new').addEventListener('click', createEntry);
   root.querySelector('#wbh-entry-duplicate').addEventListener('click', duplicateEntry);
   root.querySelector('#wbh-entry-delete').addEventListener('click', deleteEntry);
@@ -693,6 +701,7 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-restore').addEventListener('click', restoreLocalSnapshot);
   root.querySelectorAll('[data-wbh-field]').forEach(input => {
     const eventName = input.type === 'checkbox' ? 'change' : 'input';
+    input.addEventListener('blur', finishInputHistory);
     input.addEventListener(eventName, () => updateActiveEntryFromEditor(input));
   });
   renderBooksPane();
@@ -762,6 +771,7 @@ async function loadEditorWorldbook({ force = false } = {}) {
     app.editorSourceLabel = '';
     app.activeEntryId = null;
     app.editorDirty = false;
+    resetEditorHistory({ render: false });
     renderEditor();
     return;
   }
@@ -777,6 +787,7 @@ async function loadEditorWorldbook({ force = false } = {}) {
   app.editorSourceLabel = 'Current';
   await ensureOriginSnapshot(app.activeBook.name, app.activeData);
   app.editorDirty = false;
+  resetEditorHistory({ render: false });
   ensureActiveEntry();
   renderEditor();
 }
@@ -821,6 +832,7 @@ function renderBooks() {
         app.activeDataHash = '';
         app.activeEntryId = null;
         app.editorDirty = false;
+        resetEditorHistory({ render: false });
         app.activeSnapshot = null;
         app.activeExperiment = null;
         app.activeView = 'snapshot';
@@ -989,6 +1001,7 @@ async function loadSnapshotIntoEditor(snapshot, sourceName = 'Version') {
   app.activeDataHash = await hashObject(app.activeData);
   app.editorSourceLabel = snapshot.label || sourceName;
   app.editorDirty = false;
+  resetEditorHistory({ render: false });
   app.activeEntryId = null;
   ensureActiveEntry();
   app.activeView = 'snapshot';
@@ -1023,6 +1036,8 @@ function renderEditorState() {
   root.querySelector('#wbh-tab-diff').classList.toggle('active', app.mainTab === 'diff');
   root.querySelector('#wbh-editor-view').classList.toggle('hidden', app.mainTab !== 'edit');
   root.querySelector('#wbh-diff-view').classList.toggle('hidden', app.mainTab !== 'diff');
+  root.querySelector('#wbh-editor-undo').disabled = !app.activeData || !app.undoStack.length;
+  root.querySelector('#wbh-editor-redo').disabled = !app.activeData || !app.redoStack.length;
   root.querySelector('#wbh-editor-save').disabled = !app.activeBook || !app.activeData || !app.editorDirty;
   root.querySelector('#wbh-editor-reload').disabled = !app.activeBook;
   root.querySelector('#wbh-entry-new').disabled = !app.activeBook || !app.activeData;
@@ -1278,9 +1293,10 @@ function replaceCurrentFindMatch() {
     return;
   }
 
+  captureUndoState('Replace match');
   replaceMatchInRecord(record, match, app.replaceText);
   app.activeEntryId = match.entryId;
-  app.editorDirty = true;
+  setEditorDirty(true);
   const nextIndex = app.activeFindIndex;
   app.findMatches = collectFindMatches(app.findQuery.trim());
   app.activeFindIndex = app.findMatches.length ? Math.min(nextIndex, app.findMatches.length - 1) : -1;
@@ -1303,6 +1319,7 @@ function replaceAllFindMatches() {
   const ok = window.confirm(`Replace ${total} ${total === 1 ? 'match' : 'matches'}?`);
   if (!ok) return;
 
+  captureUndoState('Replace all');
   const grouped = new Map();
   for (const match of app.findMatches) {
     const key = `${match.entryId}\u0000${match.field}`;
@@ -1320,7 +1337,7 @@ function replaceAllFindMatches() {
     }
   }
 
-  app.editorDirty = true;
+  setEditorDirty(true);
   app.findMatches = collectFindMatches(app.findQuery.trim());
   app.activeFindIndex = app.findMatches.length ? 0 : -1;
   renderEditor();
@@ -1353,6 +1370,12 @@ function writeFindFieldText(entry, field, value) {
   entry[field] = LIST_FIELDS.has(field) ? parseListField(value) : value;
 }
 
+function fieldLabel(field) {
+  return field
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/^\w/, letter => letter.toUpperCase());
+}
+
 function setEditorInputValues(inputs, entry) {
   for (const input of inputs) {
     const field = input.dataset.wbhField;
@@ -1375,6 +1398,21 @@ function getEditorInputs(root) {
   return [...root.querySelectorAll('.wbh-entry-editor [data-wbh-field]')];
 }
 
+function beginInputHistory(input) {
+  const record = getActiveEntryRecord();
+  if (!record || !app.activeData) return;
+  const field = input.dataset.wbhField;
+  if (!field) return;
+  const key = `${record.id}:${field}`;
+  if (app.pendingInputHistoryKey === key) return;
+  captureUndoState(`Edit ${fieldLabel(field)}`);
+  app.pendingInputHistoryKey = key;
+}
+
+function finishInputHistory() {
+  app.pendingInputHistoryKey = '';
+}
+
 function updateActiveEntryFromEditor(input) {
   const record = getActiveEntryRecord();
   if (!record) return;
@@ -1382,7 +1420,11 @@ function updateActiveEntryFromEditor(input) {
   const field = input.dataset.wbhField;
   if (!field) return;
 
-  record.entry[field] = readEditorInputValue(input);
+  const nextValue = readEditorInputValue(input);
+  if (comparableField(record.entry[field]) === comparableField(nextValue)) return;
+
+  beginInputHistory(input);
+  record.entry[field] = nextValue;
 
   setEditorDirty(true);
   if (field === 'comment') {
@@ -1407,6 +1449,8 @@ function readEditorInputValue(input) {
 
 function createEntry() {
   if (!app.activeData) return;
+  finishInputHistory();
+  captureUndoState('New entry');
   const uid = getFreeEntryUid(app.activeData);
   const entry = createEntryTemplate(uid, 'New entry');
   insertEntry(app.activeData, entry);
@@ -1419,6 +1463,8 @@ function duplicateEntry() {
   const record = getActiveEntryRecord();
   if (!app.activeData || !record) return;
 
+  finishInputHistory();
+  captureUndoState('Duplicate entry');
   const uid = getFreeEntryUid(app.activeData);
   const entry = {
     ...cloneValue(record.entry),
@@ -1437,6 +1483,8 @@ function deleteEntry() {
   const ok = window.confirm(`Delete "${entryTitle(record.entry)}"?`);
   if (!ok) return;
 
+  finishInputHistory();
+  captureUndoState('Delete entry');
   removeEntry(app.activeData, record);
   ensureActiveEntry();
   setEditorDirty(true);
@@ -1448,6 +1496,73 @@ function setEditorDirty(dirty) {
   renderActiveBook();
   renderEntryList();
   if (dirty) setStatus('Unsaved edits');
+}
+
+function captureUndoState(label = 'Edit') {
+  if (!app.activeData) return;
+  app.undoStack.push({
+    label,
+    data: cloneValue(app.activeData),
+    activeEntryId: app.activeEntryId,
+    editorDirty: app.editorDirty,
+    editorSourceLabel: app.editorSourceLabel,
+    activeFindIndex: app.activeFindIndex,
+  });
+  if (app.undoStack.length > MAX_UNDO_STEPS) app.undoStack.shift();
+  app.redoStack = [];
+  renderEditorState();
+}
+
+function resetEditorHistory({ render = true } = {}) {
+  app.undoStack = [];
+  app.redoStack = [];
+  app.pendingInputHistoryKey = '';
+  if (render) renderEditorState();
+}
+
+function undoEditorChange() {
+  finishInputHistory();
+  if (!app.undoStack.length || !app.activeData) return;
+
+  const previous = app.undoStack.pop();
+  const current = createHistoryState(previous.label);
+  app.redoStack.push(current);
+  restoreHistoryState(previous);
+  setStatus(`Undo: ${previous.label}`);
+}
+
+function redoEditorChange() {
+  finishInputHistory();
+  if (!app.redoStack.length || !app.activeData) return;
+
+  const next = app.redoStack.pop();
+  const current = createHistoryState(next.label);
+  app.undoStack.push(current);
+  restoreHistoryState(next);
+  setStatus(`Redo: ${next.label}`);
+}
+
+function createHistoryState(label) {
+  return {
+    label,
+    data: cloneValue(app.activeData),
+    activeEntryId: app.activeEntryId,
+    editorDirty: app.editorDirty,
+    editorSourceLabel: app.editorSourceLabel,
+    activeFindIndex: app.activeFindIndex,
+  };
+}
+
+function restoreHistoryState(state) {
+  app.activeData = cloneValue(state.data);
+  app.activeEntryId = state.activeEntryId;
+  app.editorDirty = state.editorDirty;
+  app.editorSourceLabel = state.editorSourceLabel;
+  app.activeFindIndex = state.activeFindIndex;
+  ensureActiveEntry();
+  refreshFindMatches();
+  renderEditor();
+  queueFocusActiveFindMatch();
 }
 
 async function saveEditorWorldbook() {
@@ -1469,6 +1584,7 @@ async function saveEditorWorldbook() {
   app.activeDataHash = await hashObject(app.activeData);
   app.editorSourceLabel = 'Current';
   app.editorDirty = false;
+  resetEditorHistory({ render: false });
   ensureActiveEntry();
 
   const after = await createLocalSnapshotFromData(name, app.activeData, {

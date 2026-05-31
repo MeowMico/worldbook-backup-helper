@@ -6,6 +6,7 @@ Local version workbench for SillyTavern worldbooks.
 
 - Lists SillyTavern worldbooks for the current user.
 - Provides an in-extension workbench for editing common worldbook entry fields.
+- Supports local Undo / Redo while editing in the workbench.
 - Finds exact keywords inside entries, jumps between matches, selects the text in-place, and supports replace / replace all.
 - Automatically captures an `Origin` snapshot the first time the workbench sees each worldbook.
 - Creates timestamped JSON snapshots under the current user's backups directory.
