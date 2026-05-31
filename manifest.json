@@ -6,7 +6,7 @@
   "js": "extension/index.js",
   "css": "extension/style.css",
   "author": "",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "homePage": "https://github.com/MeowMico/worldbook-backup-helper",
   "auto_update": true
 }

@@ -512,7 +512,7 @@
 
 .wbh-history-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
 }
 
@@ -522,7 +522,7 @@
 
 .wbh-mini {
   align-self: center;
-  margin-right: 8px;
+  margin-right: 6px;
   font-size: 12px;
 }
 

@@ -944,16 +944,27 @@ function renderOriginSnapshot() {
     return;
   }
 
+  const row = document.createElement('div');
+  row.className = `wbh-history-row ${app.activeView === 'snapshot' && app.activeSnapshot?.id === app.originSnapshot.id ? 'active' : ''}`;
+
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = `wbh-row ${app.activeView === 'snapshot' && app.activeSnapshot?.id === app.originSnapshot.id ? 'active' : ''}`;
+  button.className = 'wbh-row';
   button.innerHTML = '<span></span><small></small>';
   button.querySelector('span').textContent = app.originSnapshot.label || 'Origin';
   button.querySelector('small').textContent = `${formatDate(app.originSnapshot.createdAt)} | ${app.originSnapshot.entryCount || 0} entries`;
   button.addEventListener('click', async () => {
     await loadSnapshotIntoEditor(app.originSnapshot, 'Origin');
   });
-  list.replaceChildren(button);
+
+  const restore = document.createElement('button');
+  restore.type = 'button';
+  restore.className = 'wbh-mini';
+  restore.textContent = 'Restore';
+  restore.addEventListener('click', async () => restoreSnapshot(app.originSnapshot, 'Origin'));
+
+  row.append(button, restore);
+  list.replaceChildren(row);
 }
 
 function renderExperiments() {
@@ -1683,6 +1694,12 @@ function renderSnapshots() {
       await loadSnapshotIntoEditor(snapshot, 'Version');
     });
 
+    const restore = document.createElement('button');
+    restore.type = 'button';
+    restore.className = 'wbh-mini';
+    restore.textContent = 'Restore';
+    restore.addEventListener('click', async () => restoreSnapshot(snapshot, snapshot.label || 'version'));
+
     const rename = document.createElement('button');
     rename.type = 'button';
     rename.className = 'wbh-mini';
@@ -1695,7 +1712,7 @@ function renderSnapshots() {
       await loadLocalSnapshots();
     });
 
-    row.append(main, rename);
+    row.append(main, restore, rename);
     return row;
   }));
 }
@@ -1833,23 +1850,7 @@ async function setExperimentStatus(status) {
 
 async function restoreOriginSnapshot() {
   if (!app.activeBook || !app.originSnapshot) return;
-  const ok = window.confirm(`Restore "${app.activeBook.name}" to Origin?`);
-  if (!ok) return;
-
-  setStatus('Restoring origin');
-  await createLocalSnapshot(app.activeBook.name, {
-    label: `Before restore origin ${formatDate(new Date().toISOString())}`,
-    reason: 'pre-restore',
-    skipDuplicate: false,
-  });
-  await saveWorldbook(app.activeBook.name, app.originSnapshot.data);
-  await loadEditorWorldbook({ force: true });
-  app.activeView = 'snapshot';
-  app.mainTab = 'diff';
-  app.activeExperiment = null;
-  app.activeSnapshot = app.originSnapshot;
-  await loadLocalSnapshots();
-  setStatus('Restored origin');
+  await restoreSnapshot(app.originSnapshot, 'Origin');
 }
 
 async function restoreExperimentSnapshot(point) {
@@ -2041,20 +2042,29 @@ function renderDiffLines(lines) {
 }
 
 async function restoreLocalSnapshot() {
-  if (!app.activeBook || !app.activeSnapshot) return;
-  const ok = window.confirm(`Restore "${app.activeBook.name}" to "${app.activeSnapshot.label || app.activeSnapshot.createdAt}"?`);
+  await restoreSnapshot(app.activeSnapshot, app.activeSnapshot?.label || 'version');
+}
+
+async function restoreSnapshot(snapshot, label = 'version') {
+  if (!app.activeBook || !snapshot) return;
+  const restoreLabel = label || snapshot.label || snapshot.createdAt || 'version';
+  const ok = window.confirm(`Restore "${app.activeBook.name}" to "${restoreLabel}"?`);
   if (!ok) return;
 
   setStatus('Restoring');
   await createLocalSnapshot(app.activeBook.name, {
-    label: `Before restore ${formatDate(new Date().toISOString())}`,
+    label: `Before restore to ${restoreLabel} ${formatDate(new Date().toISOString())}`,
     reason: 'pre-restore',
     skipDuplicate: false,
   });
-  await saveWorldbook(app.activeBook.name, app.activeSnapshot.data);
+  await saveWorldbook(app.activeBook.name, snapshot.data);
   await loadEditorWorldbook({ force: true });
+  app.activeView = 'snapshot';
+  app.mainTab = 'edit';
+  app.activeExperiment = null;
+  app.activeSnapshot = snapshot;
   await loadLocalSnapshots();
-  setStatus('Restored');
+  setStatus(`Restored ${restoreLabel}`);
 }
 
 function getPreviousSnapshot(snapshot) {
