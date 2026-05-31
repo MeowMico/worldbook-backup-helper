@@ -57,7 +57,7 @@ const ENTRY_DEFAULTS = {
   probability: 100,
   useProbability: true,
   depth: 4,
-  role: 0,
+  role: null,
   scanDepth: null,
   caseSensitive: null,
   matchWholeWords: null,
@@ -464,6 +464,7 @@ function ensureLocalWorkbench() {
                   <label class="wbh-editor-field">
                     <span>Role</span>
                     <select data-wbh-field="role" data-wbh-type="number">
+                      <option value=""></option>
                       ${ROLE_OPTIONS.map(option => `<option value="${option.value}">${option.label}</option>`).join('')}
                     </select>
                   </label>
@@ -1485,6 +1486,35 @@ function setEditorInputValues(inputs, entry) {
       input.value = stringField(value);
     }
   }
+  updateRoleControl(entry);
+}
+
+function updateRoleControl(entry) {
+  const root = document.querySelector('#wbh-workbench');
+  const role = root?.querySelector('[data-wbh-field="role"]');
+  if (!role) return;
+
+  const atDepth = Number(entry?.position) === 4;
+  role.disabled = !atDepth;
+  role.title = atDepth ? '' : 'Role is only used for @ Depth entries';
+  if (!atDepth) {
+    role.value = '';
+  } else if (role.value === '') {
+    role.value = String(entry?.role ?? 0);
+  }
+}
+
+function normalizeEntryRole(entry) {
+  if (!entry) return;
+  if (Number(entry.position) === 4) {
+    if (entry.role === undefined || entry.role === null || entry.role === '') entry.role = 0;
+    return;
+  }
+  delete entry.role;
+}
+
+function normalizeWorldbookRoles(data) {
+  getEntryRecords(data).forEach(record => normalizeEntryRole(record.entry));
 }
 
 function getEditorInputs(root) {
@@ -1518,11 +1548,14 @@ function updateActiveEntryFromEditor(input) {
 
   beginInputHistory(input);
   record.entry[field] = nextValue;
+  normalizeEntryRole(record.entry);
 
   setEditorDirty(true);
   if (field === 'comment') {
     document.querySelector('#wbh-entry-title').textContent = entryTitle(record.entry);
   }
+  document.querySelector('#wbh-entry-meta').textContent = entryMeta(record.entry);
+  if (field === 'position') updateRoleControl(record.entry);
 }
 
 function readEditorInputValue(input) {
@@ -1534,6 +1567,7 @@ function readEditorInputValue(input) {
     return input.value === 'true';
   }
   if (NUMBER_FIELDS.has(field)) {
+    if (field === 'role' && input.value === '') return null;
     if (input.value === '') return NULLABLE_NUMBER_FIELDS.has(field) ? null : 0;
     return Number(input.value);
   }
@@ -1671,6 +1705,7 @@ async function saveEditorWorldbook() {
     skipDuplicate: true,
   });
 
+  normalizeWorldbookRoles(app.activeData);
   await saveWorldbook(name, app.activeData);
   const saved = await loadWorldbook(name);
   app.activeData = cloneValue(saved);
