@@ -514,6 +514,17 @@
   background: rgb(155 124 37 / 32%);
 }
 
+.wbh-diff-entry.unchanged h4 {
+  background: rgb(255 255 255 / 5%);
+}
+
+.wbh-preview-meta {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
+  font-size: 12px;
+  opacity: 0.72;
+}
+
 .wbh-field {
   display: grid;
   gap: 7px;

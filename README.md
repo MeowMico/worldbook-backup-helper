@@ -44,6 +44,8 @@ The first time a worldbook is opened in the workbench, the current state is save
 
 Clicking `Origin` or any item in `Versions` loads that saved worldbook state into the editor. You can edit it like a draft; clicking `Save` writes it back to SillyTavern and creates a new version.
 
+The `Diff` tab shows a full preview of the selected state. Changed entries are marked and changed text lines stay highlighted; unchanged entries still show their content instead of an empty `No changes` panel.
+
 ## Experiment Workflow
 
 Use this when you are testing a worldbook change against a specific RP problem:

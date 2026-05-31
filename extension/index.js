@@ -273,6 +273,7 @@ async function snapshotAfterSave(body) {
 
 async function syncWorkbenchFromSavedWorldbook(name, data) {
   if (app.activeBook?.name !== name || app.editorDirty) return;
+  if (app.editorSourceLabel && app.editorSourceLabel !== 'Current') return;
   app.activeData = cloneValue(data);
   app.activeDataHash = await hashObject(app.activeData);
   app.editorSourceLabel = 'Current';
@@ -1499,7 +1500,7 @@ async function renderDiff() {
 
   const diff = diffWorldbooks(base, target);
   summary.textContent = `+${diff.summary.added} -${diff.summary.removed} ~${diff.summary.changed} unchanged ${diff.summary.unchanged}`;
-  view.replaceChildren(...renderDiffEntries(diff.entries));
+  view.replaceChildren(...renderDiffPreview(base, target, diff));
 }
 
 async function renderExperimentDiff(summary, view) {
@@ -1517,55 +1518,103 @@ async function renderExperimentDiff(summary, view) {
   const diff = diffWorldbooks(baseline.data, target);
   const range = after ? 'Baseline -> After' : 'Baseline -> Current';
   summary.textContent = `${range} | +${diff.summary.added} -${diff.summary.removed} ~${diff.summary.changed} unchanged ${diff.summary.unchanged}`;
-  view.replaceChildren(...renderDiffEntries(diff.entries));
+  view.replaceChildren(...renderDiffPreview(baseline.data, target, diff));
 }
 
-function renderDiffEntries(entries) {
-  if (!entries.length) {
+function renderDiffPreview(base, target, diff) {
+  const baseEntries = normalizeEntries(base?.entries);
+  const targetEntries = normalizeEntries(target?.entries);
+  const diffById = new Map((diff?.entries || []).map(entry => [entry.id, entry]));
+  const ids = [...new Set([
+    ...Object.keys(targetEntries),
+    ...[...diffById.values()].filter(entry => entry.status === 'removed').map(entry => entry.id),
+  ])].sort((left, right) => entryTitle(targetEntries[left] || baseEntries[left]).localeCompare(entryTitle(targetEntries[right] || baseEntries[right])));
+
+  if (!ids.length) {
     const empty = document.createElement('div');
     empty.className = 'wbh-empty';
-    empty.textContent = 'No changes';
+    empty.textContent = 'No entries';
     return [empty];
   }
 
-  return entries.map(entry => {
+  return ids.map(id => {
+    const diffEntry = diffById.get(id);
+    const status = diffEntry?.status || 'unchanged';
+    const entry = targetEntries[id] || baseEntries[id] || {};
     const section = document.createElement('section');
-    section.className = `wbh-diff-entry ${entry.status}`;
+    section.className = `wbh-diff-entry ${status}`;
     const title = document.createElement('h4');
-    title.textContent = `${entry.status.toUpperCase()} ${entry.title}`;
+    title.textContent = `${status === 'unchanged' ? 'ENTRY' : status.toUpperCase()} ${entryTitle(entry)}`;
     section.append(title);
 
-    for (const field of entry.fields || []) {
-      const block = document.createElement('div');
-      block.className = 'wbh-field';
-      const name = document.createElement('strong');
-      name.textContent = field.name;
-      block.append(name);
+    const meta = document.createElement('div');
+    meta.className = 'wbh-preview-meta';
+    meta.textContent = entryMeta(entry);
+    section.append(meta);
 
-      if (field.lines?.length) {
-        const pre = document.createElement('pre');
-        for (const line of field.lines) {
-          const row = document.createElement('span');
-          row.className = line.type;
-          row.textContent = `${line.type === 'added' ? '+ ' : line.type === 'removed' ? '- ' : '  '}${line.text}\n`;
-          pre.append(row);
-        }
-        block.append(pre);
-      } else {
-        const grid = document.createElement('div');
-        grid.className = 'wbh-field-grid';
-        const before = document.createElement('pre');
-        const after = document.createElement('pre');
-        before.textContent = field.before;
-        after.textContent = field.after;
-        grid.append(before, after);
-        block.append(grid);
-      }
-
-      section.append(block);
-    }
+    const fields = diffEntry?.fields || [];
+    fields.filter(field => field.name !== 'content').forEach(field => section.append(renderDiffField(field)));
+    section.append(renderPreviewContentField(entry, fields.find(field => field.name === 'content'), status));
     return section;
   });
+}
+
+function renderDiffField(field) {
+  const block = document.createElement('div');
+  block.className = 'wbh-field';
+  const name = document.createElement('strong');
+  name.textContent = field.name;
+  block.append(name);
+
+  if (field.lines?.length) {
+    block.append(renderDiffLines(field.lines));
+  } else {
+    const grid = document.createElement('div');
+    grid.className = 'wbh-field-grid';
+    const before = document.createElement('pre');
+    const after = document.createElement('pre');
+    before.textContent = field.before;
+    after.textContent = field.after;
+    grid.append(before, after);
+    block.append(grid);
+  }
+
+  return block;
+}
+
+function renderPreviewContentField(entry, contentDiff, status) {
+  const block = document.createElement('div');
+  block.className = 'wbh-field';
+  const name = document.createElement('strong');
+  name.textContent = 'content';
+  block.append(name);
+
+  if (contentDiff?.lines?.length) {
+    block.append(renderDiffLines(contentDiff.lines));
+  } else if (status === 'added' || status === 'removed') {
+    const lines = String(entry?.content || '').split(/\r?\n/).map(text => ({
+      type: status === 'added' ? 'added' : 'removed',
+      text,
+    }));
+    block.append(renderDiffLines(lines));
+  } else {
+    const pre = document.createElement('pre');
+    pre.textContent = entry?.content || '';
+    block.append(pre);
+  }
+
+  return block;
+}
+
+function renderDiffLines(lines) {
+  const pre = document.createElement('pre');
+  for (const line of lines) {
+    const row = document.createElement('span');
+    row.className = line.type;
+    row.textContent = `${line.type === 'added' ? '+ ' : line.type === 'removed' ? '- ' : '  '}${line.text}\n`;
+    pre.append(row);
+  }
+  return pre;
 }
 
 async function restoreLocalSnapshot() {
