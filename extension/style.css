@@ -442,15 +442,15 @@
 }
 
 .wbh-toolbar {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
 }
 
 .wbh-toolbar #wbh-restore {
-  justify-self: end;
+  margin-left: auto;
 }
 
 .wbh-actions button,
@@ -551,6 +551,11 @@
 
 .wbh-diff-entry.changed h4 {
   background: rgb(155 124 37 / 32%);
+}
+
+.wbh-diff-entry.change-active {
+  outline: 2px solid var(--SmartThemeQuoteColor, #7ab2d3);
+  outline-offset: -2px;
 }
 
 .wbh-diff-entry.unchanged h4 {

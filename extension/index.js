@@ -107,6 +107,7 @@ const app = {
   undoStack: [],
   redoStack: [],
   pendingInputHistoryKey: '',
+  diffChangeIndex: -1,
   booksCollapsed: readBooleanSetting('wbh-books-collapsed'),
   diffMode: 'current',
 };
@@ -635,6 +636,8 @@ function ensureLocalWorkbench() {
             <div class="wbh-toolbar">
               <button id="wbh-mode-current" type="button" class="active">Current</button>
               <button id="wbh-mode-previous" type="button">Previous</button>
+              <button id="wbh-change-prev" type="button" disabled>Prev change</button>
+              <button id="wbh-change-next" type="button" disabled>Next change</button>
               <button id="wbh-restore" type="button" disabled>Restore</button>
             </div>
             <div id="wbh-diff-summary" class="wbh-diff-summary"></div>
@@ -701,6 +704,8 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-restore-after').addEventListener('click', () => restoreExperimentSnapshot('after'));
   root.querySelector('#wbh-mode-current').addEventListener('click', () => setDiffMode('current'));
   root.querySelector('#wbh-mode-previous').addEventListener('click', () => setDiffMode('previous'));
+  root.querySelector('#wbh-change-prev').addEventListener('click', () => navigateDiffChange(-1));
+  root.querySelector('#wbh-change-next').addEventListener('click', () => navigateDiffChange(1));
   root.querySelector('#wbh-restore').addEventListener('click', restoreLocalSnapshot);
   root.querySelectorAll('[data-wbh-field]').forEach(input => {
     const eventName = input.type === 'checkbox' ? 'change' : 'input';
@@ -1017,7 +1022,7 @@ function renderExperiments() {
       renderOriginSnapshot();
       renderExperiments();
       renderSnapshots();
-      await renderDiff();
+      await renderDiff({ focusChange: true });
       setStatus(`Viewing experiment: ${experiment.title || 'Untitled experiment'}`);
     });
 
@@ -1127,13 +1132,19 @@ async function loadSnapshotIntoEditor(snapshot, sourceName = 'Version') {
   app.activeEntryId = null;
   ensureActiveEntry();
   app.activeView = 'snapshot';
-  app.mainTab = 'edit';
+  const showChanges = sourceName === 'Version';
+  app.mainTab = showChanges ? 'diff' : 'edit';
+  if (showChanges) {
+    app.diffMode = 'previous';
+    app.diffChangeIndex = -1;
+  }
   app.activeExperiment = null;
   app.activeSnapshot = snapshot;
   renderEditor();
   renderOriginSnapshot();
   renderExperiments();
   renderSnapshots();
+  if (showChanges) await renderDiff({ focusChange: true });
   setStatus(`Loaded ${sourceName.toLowerCase()} for editing: ${snapshot.label || formatDate(snapshot.createdAt)}`);
 }
 
@@ -1156,6 +1167,8 @@ function renderEditorState() {
 
   root.querySelector('#wbh-tab-edit').classList.toggle('active', app.mainTab === 'edit');
   root.querySelector('#wbh-tab-diff').classList.toggle('active', app.mainTab === 'diff');
+  root.querySelector('#wbh-mode-current').classList.toggle('active', app.diffMode === 'current');
+  root.querySelector('#wbh-mode-previous').classList.toggle('active', app.diffMode === 'previous');
   root.querySelector('#wbh-editor-view').classList.toggle('hidden', app.mainTab !== 'edit');
   root.querySelector('#wbh-diff-view').classList.toggle('hidden', app.mainTab !== 'diff');
   root.querySelector('#wbh-editor-undo').disabled = !app.activeData || !app.undoStack.length;
@@ -1166,6 +1179,7 @@ function renderEditorState() {
   root.querySelector('#wbh-entry-duplicate').disabled = !getActiveEntryRecord();
   root.querySelector('#wbh-entry-delete').disabled = !getActiveEntryRecord();
   renderFindControls();
+  updateDiffChangeControls();
 }
 
 function handleFindInput() {
@@ -2044,13 +2058,14 @@ async function restoreExperimentSnapshot(point) {
 
 function setDiffMode(mode) {
   app.diffMode = mode;
+  app.diffChangeIndex = -1;
   const root = document.querySelector('#wbh-workbench');
   root.querySelector('#wbh-mode-current').classList.toggle('active', mode === 'current');
   root.querySelector('#wbh-mode-previous').classList.toggle('active', mode === 'previous');
-  void renderDiff();
+  void renderDiff({ focusChange: true });
 }
 
-async function renderDiff() {
+async function renderDiff({ focusChange = false } = {}) {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
 
@@ -2067,6 +2082,7 @@ async function renderDiff() {
     summary.textContent = '';
     view.className = 'wbh-diff';
     view.textContent = 'Select a snapshot';
+    updateDiffChangeControls();
     return;
   }
 
@@ -2079,6 +2095,7 @@ async function renderDiff() {
     if (!previous) {
       summary.textContent = '';
       view.textContent = 'No previous version';
+      updateDiffChangeControls();
       return;
     }
     base = previous.data;
@@ -2088,6 +2105,8 @@ async function renderDiff() {
   const diff = diffWorldbooks(base, target);
   summary.textContent = `+${diff.summary.added} -${diff.summary.removed} ~${diff.summary.changed} unchanged ${diff.summary.unchanged}`;
   view.replaceChildren(...renderDiffPreview(base, target, diff));
+  updateDiffChangeControls();
+  if (focusChange) queueFocusDiffChange(0);
 }
 
 async function renderExperimentDiff(summary, view) {
@@ -2095,6 +2114,7 @@ async function renderExperimentDiff(summary, view) {
   if (!app.activeBook || !baseline) {
     summary.textContent = '';
     view.textContent = 'No baseline';
+    updateDiffChangeControls();
     return;
   }
 
@@ -2106,6 +2126,54 @@ async function renderExperimentDiff(summary, view) {
   const range = after ? 'Baseline -> After' : 'Baseline -> Current';
   summary.textContent = `${range} | +${diff.summary.added} -${diff.summary.removed} ~${diff.summary.changed} unchanged ${diff.summary.unchanged}`;
   view.replaceChildren(...renderDiffPreview(baseline.data, target, diff));
+  updateDiffChangeControls();
+}
+
+function navigateDiffChange(direction) {
+  const changes = getDiffChangeElements();
+  if (!changes.length) {
+    updateDiffChangeControls();
+    return;
+  }
+
+  const next = app.diffChangeIndex < 0
+    ? (direction < 0 ? changes.length - 1 : 0)
+    : (app.diffChangeIndex + direction + changes.length) % changes.length;
+  focusDiffChange(next);
+}
+
+function queueFocusDiffChange(index = 0) {
+  window.requestAnimationFrame(() => focusDiffChange(index));
+}
+
+function focusDiffChange(index = 0) {
+  const changes = getDiffChangeElements();
+  if (!changes.length) {
+    app.diffChangeIndex = -1;
+    updateDiffChangeControls();
+    return;
+  }
+
+  app.diffChangeIndex = Math.min(Math.max(index, 0), changes.length - 1);
+  changes.forEach(element => element.classList.remove('change-active'));
+  const active = changes[app.diffChangeIndex];
+  active.classList.add('change-active');
+  active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  updateDiffChangeControls();
+  setStatus(`${app.diffChangeIndex + 1}/${changes.length} changed entries`);
+}
+
+function updateDiffChangeControls() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+  const changes = getDiffChangeElements();
+  root.querySelector('#wbh-change-prev').disabled = !changes.length;
+  root.querySelector('#wbh-change-next').disabled = !changes.length;
+  if (!changes.length) app.diffChangeIndex = -1;
+}
+
+function getDiffChangeElements() {
+  return [...document.querySelectorAll('#wbh-diff [data-wbh-change="true"]')];
 }
 
 function renderDiffPreview(base, target, diff) {
@@ -2130,6 +2198,7 @@ function renderDiffPreview(base, target, diff) {
     const entry = targetEntries[id] || baseEntries[id] || {};
     const section = document.createElement('section');
     section.className = `wbh-diff-entry ${status}`;
+    if (status !== 'unchanged') section.dataset.wbhChange = 'true';
     const title = document.createElement('h4');
     title.textContent = `${status === 'unchanged' ? 'ENTRY' : status.toUpperCase()} ${entryTitle(entry)}`;
     section.append(title);

@@ -51,6 +51,8 @@ Click `Restore` beside `Origin` or a version to roll the live SillyTavern worldb
 
 Click `Exp` beside a version to turn that saved version into an experiment after the fact. The previous version is used as the baseline when available.
 
+Clicking a version opens its `Previous` diff and jumps to the first changed entry. Use `Prev change` / `Next change` to move through changed entries.
+
 The `Diff` tab shows a full preview of the selected state. Changed entries are marked and changed text lines stay highlighted; unchanged entries still show their content instead of an empty `No changes` panel.
 
 ## Experiment Workflow
