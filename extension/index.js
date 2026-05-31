@@ -653,6 +653,7 @@ function ensureLocalWorkbench() {
               <h3>Experiments</h3>
               <span id="wbh-experiment-count">0</span>
             </div>
+            <input id="wbh-experiment-search" type="search" placeholder="Search experiments">
             <div id="wbh-experiments" class="wbh-list"></div>
           </div>
           <div class="wbh-side-section">
@@ -672,6 +673,7 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-refresh').addEventListener('click', refreshLocalWorkbench);
   root.querySelector('#wbh-toggle-books').addEventListener('click', toggleBooksPane);
   root.querySelector('#wbh-book-search').addEventListener('input', renderBooks);
+  root.querySelector('#wbh-experiment-search').addEventListener('input', renderExperiments);
   root.querySelector('#wbh-entry-search').addEventListener('input', handleFindInput);
   root.querySelector('#wbh-entry-search').addEventListener('keydown', handleFindKeydown);
   root.querySelector('#wbh-replace-text').addEventListener('input', handleReplaceInput);
@@ -971,7 +973,13 @@ function renderExperiments() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
   const list = root.querySelector('#wbh-experiments');
-  root.querySelector('#wbh-experiment-count').textContent = String(app.experiments.length);
+  const search = root.querySelector('#wbh-experiment-search').value.trim().toLowerCase();
+  const visibleExperiments = search
+    ? app.experiments.filter(experiment => experimentSearchText(experiment).toLowerCase().includes(search))
+    : app.experiments;
+  root.querySelector('#wbh-experiment-count').textContent = search
+    ? `${visibleExperiments.length}/${app.experiments.length}`
+    : String(app.experiments.length);
 
   if (!app.experiments.length) {
     const empty = document.createElement('div');
@@ -981,7 +989,15 @@ function renderExperiments() {
     return;
   }
 
-  list.replaceChildren(...app.experiments.map(experiment => {
+  if (!visibleExperiments.length) {
+    const empty = document.createElement('div');
+    empty.className = 'wbh-empty';
+    empty.textContent = 'No matching experiments';
+    list.replaceChildren(empty);
+    return;
+  }
+
+  list.replaceChildren(...visibleExperiments.map(experiment => {
     const row = document.createElement('div');
     row.className = `wbh-history-row ${app.activeView === 'experiment' && app.activeExperiment?.id === experiment.id ? 'active' : ''}`;
 
@@ -990,7 +1006,7 @@ function renderExperiments() {
     button.className = 'wbh-row';
     button.innerHTML = '<span></span><small></small>';
     button.querySelector('span').textContent = experiment.title || 'Untitled experiment';
-    button.querySelector('small').textContent = `${statusLabel(experiment.status)} | ${formatDate(experiment.startedAt)}`;
+    button.querySelector('small').textContent = experimentMeta(experiment);
     button.addEventListener('click', async () => {
       app.activeView = 'experiment';
       app.mainTab = 'diff';
@@ -1010,9 +1026,34 @@ function renderExperiments() {
     rename.textContent = 'Name';
     rename.addEventListener('click', async () => renameExperiment(experiment));
 
-    row.append(button, rename);
+    const note = document.createElement('button');
+    note.type = 'button';
+    note.className = 'wbh-mini';
+    note.textContent = 'Note';
+    note.addEventListener('click', async () => editExperimentNote(experiment));
+
+    row.append(button, note, rename);
     return row;
   }));
+}
+
+function experimentMeta(experiment) {
+  const parts = [statusLabel(experiment.status), formatDate(experiment.startedAt)];
+  if (experiment.changeNote) parts.push(`change: ${experiment.changeNote}`);
+  if (experiment.resultNote) parts.push(`note: ${experiment.resultNote}`);
+  return parts.join(' | ');
+}
+
+function experimentSearchText(experiment) {
+  return [
+    experiment.title,
+    statusLabel(experiment.status),
+    experiment.status,
+    experiment.changeNote,
+    experiment.resultNote,
+    experiment.startedAt,
+    experiment.finishedAt,
+  ].map(comparableField).join('\n');
 }
 
 async function renameExperiment(experiment) {
@@ -1028,6 +1069,21 @@ async function renameExperiment(experiment) {
   if (app.activeExperiment?.id === updated.id) app.activeExperiment = updated;
   await loadLocalSnapshots();
   setStatus('Experiment renamed');
+}
+
+async function editExperimentNote(experiment) {
+  if (!experiment) return;
+  const note = window.prompt('Experiment note', experiment.resultNote || experiment.changeNote || '');
+  if (note === null) return;
+
+  const updated = {
+    ...experiment,
+    resultNote: note.trim(),
+  };
+  await putExperiment(updated);
+  if (app.activeExperiment?.id === updated.id) app.activeExperiment = updated;
+  await loadLocalSnapshots();
+  setStatus('Experiment note saved');
 }
 
 async function loadSnapshotIntoEditor(snapshot, sourceName = 'Version') {

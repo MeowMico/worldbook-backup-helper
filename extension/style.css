@@ -155,6 +155,7 @@
 }
 
 #wbh-book-search,
+#wbh-experiment-search,
 #wbh-label {
   width: 100%;
   min-height: 34px;
@@ -165,7 +166,8 @@
   color: inherit;
 }
 
-#wbh-book-search {
+#wbh-book-search,
+#wbh-experiment-search {
   margin: 10px 12px;
   width: calc(100% - 24px);
 }
