@@ -464,7 +464,6 @@ function ensureLocalWorkbench() {
             <div class="wbh-experiment-text">
               <strong id="wbh-experiment-title">No experiment selected</strong>
               <small id="wbh-experiment-meta">Ready</small>
-              <div id="wbh-experiment-note" class="wbh-experiment-note hidden"></div>
             </div>
             <div class="wbh-experiment-actions">
               <button id="wbh-start-experiment" type="button">Start</button>
@@ -749,7 +748,8 @@ function ensureLocalWorkbench() {
           </div>
           <div id="wbh-diff-view" class="wbh-diff-view hidden">
             <div class="wbh-form">
-              <input id="wbh-label" type="text" placeholder="Version name, e.g. 删减了 xxx">
+              <textarea id="wbh-experiment-note-input" rows="2" placeholder="Experiment note, e.g. 这个版本不太适配 Gemini，下次用 Claude 试试"></textarea>
+              <button id="wbh-save-experiment-note" type="button">Save note</button>
               <button id="wbh-snapshot" type="button">Snapshot</button>
             </div>
             <div class="wbh-toolbar">
@@ -816,6 +816,12 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-entry-delete').addEventListener('click', deleteEntry);
   root.querySelector('#wbh-editor-reload').addEventListener('click', reloadEditorWorldbook);
   root.querySelector('#wbh-editor-save').addEventListener('click', saveEditorWorldbook);
+  root.querySelector('#wbh-save-experiment-note').addEventListener('click', saveActiveExperimentNote);
+  root.querySelector('#wbh-experiment-note-input').addEventListener('keydown', event => {
+    if (event.key !== 'Enter' || (!event.metaKey && !event.ctrlKey)) return;
+    event.preventDefault();
+    void saveActiveExperimentNote();
+  });
   root.querySelector('#wbh-snapshot').addEventListener('click', createManualLocalSnapshot);
   root.querySelector('#wbh-start-experiment').addEventListener('click', startExperiment);
   root.querySelector('#wbh-finish-experiment').addEventListener('click', finishExperiment);
@@ -1085,7 +1091,8 @@ function renderExperimentPanel() {
   const experiment = app.activeView === 'experiment' ? app.activeExperiment : null;
   const title = root.querySelector('#wbh-experiment-title');
   const meta = root.querySelector('#wbh-experiment-meta');
-  const note = root.querySelector('#wbh-experiment-note');
+  const noteInput = root.querySelector('#wbh-experiment-note-input');
+  const saveNote = root.querySelector('#wbh-save-experiment-note');
   const start = root.querySelector('#wbh-start-experiment');
   const finish = root.querySelector('#wbh-finish-experiment');
   const keep = root.querySelector('#wbh-keep-experiment');
@@ -1102,7 +1109,14 @@ function renderExperimentPanel() {
       experiment.changeNote || '',
     ].filter(Boolean).join(' | ')
     : 'Ready';
-  renderExperimentNote(note, experiment);
+  if (noteInput) {
+    noteInput.disabled = !experiment;
+    noteInput.placeholder = experiment
+      ? 'Experiment note, e.g. 这个版本不太适配 Gemini，下次用 Claude 试试'
+      : 'Select an experiment to write a note';
+    if (document.activeElement !== noteInput) noteInput.value = experiment?.resultNote || '';
+  }
+  if (saveNote) saveNote.disabled = !experiment;
 
   start.disabled = !app.activeBook;
   finish.disabled = !app.activeBook || !experiment;
@@ -1112,28 +1126,6 @@ function renderExperimentPanel() {
   origin.disabled = !app.activeBook || !app.originSnapshot;
   baseline.disabled = !experiment?.baselineSnapshotId;
   after.disabled = !experiment?.afterSnapshotId;
-}
-
-function renderExperimentNote(container, experiment) {
-  if (!container) return;
-  container.replaceChildren();
-  const notes = experiment
-    ? [
-      ['Note', experiment.resultNote],
-      ['Change', experiment.changeNote],
-    ].filter(([, value]) => cleanText(value))
-    : [];
-
-  container.classList.toggle('hidden', !notes.length);
-  notes.forEach(([label, value]) => {
-    const row = document.createElement('div');
-    const strong = document.createElement('strong');
-    const span = document.createElement('span');
-    strong.textContent = label;
-    span.textContent = value;
-    row.append(strong, span);
-    container.append(row);
-  });
 }
 
 function renderOriginSnapshot() {
@@ -1290,6 +1282,22 @@ async function editExperimentNote(experiment) {
   const updated = {
     ...experiment,
     resultNote: note.trim(),
+  };
+  await putExperiment(updated);
+  if (app.activeExperiment?.id === updated.id) app.activeExperiment = updated;
+  await loadLocalSnapshots();
+  setStatus('Experiment note saved');
+}
+
+async function saveActiveExperimentNote() {
+  const root = document.querySelector('#wbh-workbench');
+  const experiment = app.activeView === 'experiment' ? app.activeExperiment : null;
+  if (!root || !experiment) return;
+
+  const note = root.querySelector('#wbh-experiment-note-input')?.value.trim() || '';
+  const updated = {
+    ...experiment,
+    resultNote: note,
   };
   await putExperiment(updated);
   if (app.activeExperiment?.id === updated.id) app.activeExperiment = updated;
@@ -2095,18 +2103,18 @@ async function createExperimentFromSnapshot(snapshot) {
 
 async function createManualLocalSnapshot() {
   if (!app.activeBook) return;
-  const root = document.querySelector('#wbh-workbench');
-  const label = root.querySelector('#wbh-label').value.trim();
   setStatus('Creating snapshot');
+  const label = app.activeExperiment?.title
+    ? `Manual snapshot: ${app.activeExperiment.title}`
+    : 'Manual snapshot';
   const result = await createLocalSnapshot(app.activeBook.name, {
-    label: label || 'Manual snapshot',
+    label,
     reason: 'manual',
     skipDuplicate: false,
   });
   app.activeView = 'snapshot';
   app.activeExperiment = null;
   app.activeSnapshot = result.snapshot;
-  root.querySelector('#wbh-label').value = '';
   setStatus(result.skipped ? 'Skipped duplicate' : 'Snapshot created');
   await loadLocalSnapshots();
 }

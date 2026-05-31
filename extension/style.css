@@ -214,7 +214,7 @@
 
 #wbh-book-search,
 #wbh-experiment-search,
-#wbh-label {
+#wbh-experiment-note-input {
   width: 100%;
   min-height: 34px;
   border: 1px solid var(--wbh-border);
@@ -222,6 +222,7 @@
   padding: 6px 8px;
   background: var(--wbh-surface-0);
   color: inherit;
+  font: inherit;
 }
 
 #wbh-book-search,
@@ -274,10 +275,16 @@
 
 .wbh-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
+  align-items: stretch;
   padding: 10px 12px;
   border-bottom: 1px solid var(--wbh-border);
+}
+
+#wbh-experiment-note-input {
+  resize: vertical;
+  line-height: 1.4;
 }
 
 .wbh-experiment {
@@ -507,7 +514,7 @@
 .wbh-editor-field textarea:focus,
 #wbh-book-search:focus,
 #wbh-experiment-search:focus,
-#wbh-label:focus,
+#wbh-experiment-note-input:focus,
 #wbh-entry-search:focus,
 #wbh-replace-text:focus {
   outline: 2px solid var(--wbh-focus);
@@ -606,38 +613,6 @@
 
 .wbh-experiment-text small {
   color: var(--wbh-muted);
-}
-
-.wbh-experiment-note {
-  display: grid;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.wbh-experiment-note div {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  border: 1px solid var(--wbh-border);
-  border-radius: 6px;
-  padding: 7px 8px;
-  background: var(--wbh-accent-soft);
-}
-
-.wbh-experiment-note strong {
-  color: var(--wbh-accent);
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.wbh-experiment-note span {
-  min-width: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  color: var(--wbh-text);
-  font-size: 12px;
-  line-height: 1.35;
 }
 
 .wbh-experiment-actions {
@@ -901,6 +876,11 @@
     align-items: flex-start;
     flex-direction: column;
     justify-content: flex-start;
+  }
+
+  .wbh-form {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .wbh-editor-view {
