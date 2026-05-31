@@ -569,6 +569,29 @@
   opacity: 0.72;
 }
 
+.wbh-change-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--SmartThemeBorderColor, #444);
+  background: rgb(255 255 255 / 3%);
+}
+
+.wbh-change-pill {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid rgb(219 151 59 / 48%);
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: rgb(219 151 59 / 12%);
+  color: var(--SmartThemeBodyColor, #ddd);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .wbh-field {
   display: grid;
   gap: 7px;

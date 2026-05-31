@@ -36,6 +36,113 @@ const NULLABLE_NUMBER_FIELDS = new Set(['groupWeight', 'sticky', 'cooldown', 'de
 const TRI_STATE_BOOLEAN_FIELDS = new Set(['caseSensitive', 'matchWholeWords', 'useGroupScoring']);
 const FIND_FIELDS = ['comment', 'content', 'key', 'keysecondary', 'group', 'automationId', 'outletName', 'characterFilterNames', 'characterFilterTags', 'triggers'];
 const MAX_UNDO_STEPS = 80;
+const DIFF_ENTRY_FIELDS = [
+  'comment',
+  'content',
+  'key',
+  'keysecondary',
+  'constant',
+  'disable',
+  'selective',
+  'vectorized',
+  'useProbability',
+  'ignoreBudget',
+  'position',
+  'role',
+  'depth',
+  'order',
+  'probability',
+  'scanDepth',
+  'selectiveLogic',
+  'caseSensitive',
+  'matchWholeWords',
+  'group',
+  'groupWeight',
+  'useGroupScoring',
+  'groupOverride',
+  'excludeRecursion',
+  'preventRecursion',
+  'delayUntilRecursion',
+  'addMemo',
+  'sticky',
+  'cooldown',
+  'delay',
+  'automationId',
+  'outletName',
+  'characterFilterNames',
+  'characterFilterTags',
+  'triggers',
+  'characterFilterExclude',
+  'matchPersonaDescription',
+  'matchCharacterDescription',
+  'matchCharacterPersonality',
+  'matchCharacterDepthPrompt',
+  'matchScenario',
+  'matchCreatorNotes',
+];
+const DIFF_FIELD_LABELS = {
+  comment: 'Title',
+  content: 'Content',
+  key: 'Keys',
+  keysecondary: 'Secondary keys',
+  constant: 'Constant',
+  disable: 'Enabled',
+  selective: 'Selective',
+  vectorized: 'Vectorized',
+  useProbability: 'Use probability',
+  ignoreBudget: 'Ignore budget',
+  position: 'Position',
+  role: 'Role',
+  depth: 'Depth',
+  order: 'Order',
+  probability: 'Probability',
+  scanDepth: 'Scan depth',
+  selectiveLogic: 'Selective logic',
+  caseSensitive: 'Case sensitive',
+  matchWholeWords: 'Whole words',
+  group: 'Group',
+  groupWeight: 'Group weight',
+  useGroupScoring: 'Group scoring',
+  groupOverride: 'Group override',
+  excludeRecursion: 'Exclude recursion',
+  preventRecursion: 'Prevent recursion',
+  delayUntilRecursion: 'Delay until recursion',
+  addMemo: 'Add memo',
+  sticky: 'Sticky',
+  cooldown: 'Cooldown',
+  delay: 'Delay',
+  automationId: 'Automation ID',
+  outletName: 'Outlet name',
+  characterFilterNames: 'Character names',
+  characterFilterTags: 'Character tags',
+  triggers: 'Triggers',
+  characterFilterExclude: 'Exclude character filter',
+  matchPersonaDescription: 'Match persona',
+  matchCharacterDescription: 'Match description',
+  matchCharacterPersonality: 'Match personality',
+  matchCharacterDepthPrompt: 'Match depth prompt',
+  matchScenario: 'Match scenario',
+  matchCreatorNotes: 'Match creator notes',
+};
+const BOOLEAN_DIFF_FIELDS = new Set([
+  'constant',
+  'selective',
+  'vectorized',
+  'useProbability',
+  'ignoreBudget',
+  'groupOverride',
+  'excludeRecursion',
+  'preventRecursion',
+  'delayUntilRecursion',
+  'addMemo',
+  'characterFilterExclude',
+  'matchPersonaDescription',
+  'matchCharacterDescription',
+  'matchCharacterPersonality',
+  'matchCharacterDepthPrompt',
+  'matchScenario',
+  'matchCreatorNotes',
+]);
 
 const ENTRY_DEFAULTS = {
   key: [],
@@ -2209,17 +2316,34 @@ function renderDiffPreview(base, target, diff) {
     section.append(meta);
 
     const fields = diffEntry?.fields || [];
+    const summary = renderDiffFieldSummaries(fields);
+    if (summary) section.append(summary);
     fields.filter(field => field.name !== 'content').forEach(field => section.append(renderDiffField(field)));
     section.append(renderPreviewContentField(entry, fields.find(field => field.name === 'content'), status));
     return section;
   });
 }
 
+function renderDiffFieldSummaries(fields) {
+  const summaryFields = fields.filter(field => field.name !== 'content');
+  if (!summaryFields.length) return null;
+
+  const list = document.createElement('div');
+  list.className = 'wbh-change-summary';
+  summaryFields.forEach(field => {
+    const item = document.createElement('span');
+    item.className = 'wbh-change-pill';
+    item.textContent = diffFieldSummary(field);
+    list.append(item);
+  });
+  return list;
+}
+
 function renderDiffField(field) {
   const block = document.createElement('div');
   block.className = 'wbh-field';
   const name = document.createElement('strong');
-  name.textContent = field.name;
+  name.textContent = diffFieldLabel(field.name);
   block.append(name);
 
   if (field.lines?.length) {
@@ -2229,8 +2353,8 @@ function renderDiffField(field) {
     grid.className = 'wbh-field-grid';
     const before = document.createElement('pre');
     const after = document.createElement('pre');
-    before.textContent = field.before;
-    after.textContent = field.after;
+    before.textContent = formatDiffFieldValue(field.name, field.before);
+    after.textContent = formatDiffFieldValue(field.name, field.after);
     grid.append(before, after);
     block.append(grid);
   }
@@ -2242,7 +2366,7 @@ function renderPreviewContentField(entry, contentDiff, status) {
   const block = document.createElement('div');
   block.className = 'wbh-field';
   const name = document.createElement('strong');
-  name.textContent = 'content';
+  name.textContent = 'Content';
   block.append(name);
 
   if (contentDiff?.lines?.length) {
@@ -2260,6 +2384,62 @@ function renderPreviewContentField(entry, contentDiff, status) {
   }
 
   return block;
+}
+
+function diffFieldLabel(field) {
+  return DIFF_FIELD_LABELS[field] || fieldLabel(field);
+}
+
+function diffFieldSummary(field) {
+  const before = shortDiffValue(formatDiffFieldValue(field.name, field.before));
+  const after = shortDiffValue(formatDiffFieldValue(field.name, field.after));
+  return `${diffFieldLabel(field.name)}: ${before} -> ${after}`;
+}
+
+function shortDiffValue(value) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim() || '(blank)';
+  return text.length > 84 ? `${text.slice(0, 81)}...` : text;
+}
+
+function formatDiffFieldValue(field, value) {
+  if (value === '' || value === null || value === undefined) return '(blank)';
+  if (field === 'position') return positionLabel(value);
+  if (field === 'role') return roleLabel(value);
+  if (field === 'selectiveLogic') return SELECTIVE_LOGIC_OPTIONS.find(option => option.value === Number(value))?.label || blankable(value);
+  if (field === 'disable') return truthyString(value) ? 'Disabled' : 'Enabled';
+  if (field === 'constant') return truthyString(value) ? 'Constant' : 'Normal';
+  if (TRI_STATE_BOOLEAN_FIELDS.has(field)) return triStateLabel(value);
+  if (BOOLEAN_DIFF_FIELDS.has(field)) return truthyString(value) ? 'On' : 'Off';
+  if (LIST_FIELDS.has(field)) return formatListDiffValue(value);
+  if (field === 'probability' && value !== '') return `${value}%`;
+  return blankable(value);
+}
+
+function blankable(value) {
+  return value === undefined || value === null || value === '' ? '(blank)' : String(value);
+}
+
+function truthyString(value) {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function triStateLabel(value) {
+  if (value === '' || value === null || value === undefined) return 'Global';
+  return truthyString(value) ? 'On' : 'Off';
+}
+
+function formatListDiffValue(value) {
+  if (value === '' || value === null || value === undefined) return '(blank)';
+  const text = String(value);
+  if (text.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed.join('\n') || '(blank)';
+    } catch {
+      return text;
+    }
+  }
+  return text;
 }
 
 function renderDiffLines(lines) {
@@ -2440,10 +2620,9 @@ function diffWorldbooks(base, current) {
 }
 
 function diffEntryFields(before, after) {
-  const fields = ['comment', 'content', 'key', 'keysecondary', 'selectiveLogic', 'position', 'order', 'depth', 'constant', 'disable', 'probability', 'useProbability', 'excludeRecursion', 'preventRecursion'];
-  return fields.map(field => {
-    const left = comparableField(before[field]);
-    const right = comparableField(after[field]);
+  return DIFF_ENTRY_FIELDS.map(field => {
+    const left = comparableEntryField(before, field);
+    const right = comparableEntryField(after, field);
     if (left === right) return null;
     return {
       name: field,
@@ -2452,6 +2631,24 @@ function diffEntryFields(before, after) {
       lines: field === 'content' || field === 'comment' ? diffLines(String(left), String(right)) : [],
     };
   }).filter(Boolean);
+}
+
+function comparableEntryField(entry, field) {
+  const hasValue = Object.prototype.hasOwnProperty.call(entry || {}, field);
+  const fallback = Object.prototype.hasOwnProperty.call(ENTRY_DEFAULTS, field) ? ENTRY_DEFAULTS[field] : '';
+  const value = hasValue ? entry[field] : fallback;
+
+  if (field === 'role') {
+    const isBlank = value === undefined || value === null || value === '';
+    if (isBlank) return Number(entry?.position) === 4 ? '0' : '';
+  }
+  if (field === 'disable' || BOOLEAN_DIFF_FIELDS.has(field)) {
+    return truthyString(value) ? 'true' : 'false';
+  }
+  if (TRI_STATE_BOOLEAN_FIELDS.has(field)) {
+    return value === undefined || value === null || value === '' ? '' : truthyString(value) ? 'true' : 'false';
+  }
+  return comparableField(value);
 }
 
 function diffLines(before, after) {
