@@ -1033,7 +1033,14 @@ function renderExperiments() {
     note.textContent = 'Note';
     note.addEventListener('click', async () => editExperimentNote(experiment));
 
-    row.append(button, note, rename);
+    const exportJson = document.createElement('button');
+    exportJson.type = 'button';
+    exportJson.className = 'wbh-mini';
+    exportJson.textContent = 'JSON';
+    exportJson.title = 'Export experiment JSON';
+    exportJson.addEventListener('click', async () => exportExperimentJson(experiment));
+
+    row.append(button, exportJson, note, rename);
     return row;
   }));
 }
@@ -1085,6 +1092,27 @@ async function editExperimentNote(experiment) {
   if (app.activeExperiment?.id === updated.id) app.activeExperiment = updated;
   await loadLocalSnapshots();
   setStatus('Experiment note saved');
+}
+
+async function exportExperimentJson(experiment) {
+  if (!experiment) return;
+
+  const baseline = await getSnapshotById(experiment.baselineSnapshotId);
+  const after = await getSnapshotById(experiment.afterSnapshotId);
+  const payload = {
+    type: 'worldbook-backup-helper-experiment',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    bookName: experiment.bookName,
+    experiment: cloneValue(experiment),
+    versions: {
+      baseline: baseline ? cloneValue(baseline) : null,
+      after: after ? cloneValue(after) : null,
+    },
+  };
+  const filename = `${safeFileName(experiment.title || 'experiment')}-${formatDateForFile(new Date())}.json`;
+  downloadJson(filename, payload);
+  setStatus('Experiment JSON exported');
 }
 
 async function loadSnapshotIntoEditor(snapshot, sourceName = 'Version') {
@@ -2497,6 +2525,26 @@ function positionLabel(value) {
 
 function roleLabel(value) {
   return ROLE_OPTIONS.find(option => option.value === Number(value))?.label || 'System';
+}
+
+function downloadJson(filename, data) {
+  const blob = new Blob([`${JSON.stringify(data, null, 2)}\n`], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function safeFileName(value) {
+  return String(value || 'export')
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, '-')
+    .slice(0, 80) || 'export';
 }
 
 function numericSort(value) {
