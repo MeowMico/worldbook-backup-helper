@@ -464,6 +464,7 @@ function ensureLocalWorkbench() {
             <div class="wbh-experiment-text">
               <strong id="wbh-experiment-title">No experiment selected</strong>
               <small id="wbh-experiment-meta">Ready</small>
+              <div id="wbh-experiment-note" class="wbh-experiment-note hidden"></div>
             </div>
             <div class="wbh-experiment-actions">
               <button id="wbh-start-experiment" type="button">Start</button>
@@ -1084,6 +1085,7 @@ function renderExperimentPanel() {
   const experiment = app.activeView === 'experiment' ? app.activeExperiment : null;
   const title = root.querySelector('#wbh-experiment-title');
   const meta = root.querySelector('#wbh-experiment-meta');
+  const note = root.querySelector('#wbh-experiment-note');
   const start = root.querySelector('#wbh-start-experiment');
   const finish = root.querySelector('#wbh-finish-experiment');
   const keep = root.querySelector('#wbh-keep-experiment');
@@ -1100,6 +1102,7 @@ function renderExperimentPanel() {
       experiment.changeNote || '',
     ].filter(Boolean).join(' | ')
     : 'Ready';
+  renderExperimentNote(note, experiment);
 
   start.disabled = !app.activeBook;
   finish.disabled = !app.activeBook || !experiment;
@@ -1109,6 +1112,28 @@ function renderExperimentPanel() {
   origin.disabled = !app.activeBook || !app.originSnapshot;
   baseline.disabled = !experiment?.baselineSnapshotId;
   after.disabled = !experiment?.afterSnapshotId;
+}
+
+function renderExperimentNote(container, experiment) {
+  if (!container) return;
+  container.replaceChildren();
+  const notes = experiment
+    ? [
+      ['Note', experiment.resultNote],
+      ['Change', experiment.changeNote],
+    ].filter(([, value]) => cleanText(value))
+    : [];
+
+  container.classList.toggle('hidden', !notes.length);
+  notes.forEach(([label, value]) => {
+    const row = document.createElement('div');
+    const strong = document.createElement('strong');
+    const span = document.createElement('span');
+    strong.textContent = label;
+    span.textContent = value;
+    row.append(strong, span);
+    container.append(row);
+  });
 }
 
 function renderOriginSnapshot() {
