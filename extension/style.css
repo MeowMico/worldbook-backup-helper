@@ -556,8 +556,9 @@
 }
 
 .wbh-editor-grid-compact {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  align-items: end;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  align-items: stretch;
+  gap: 8px;
 }
 
 .wbh-editor-grid-3 {
@@ -565,14 +566,29 @@
 }
 
 .wbh-check {
-  min-height: 36px;
-  display: flex;
+  min-width: 0;
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   border: 1px solid var(--wbh-border);
   border-radius: 6px;
   padding: 7px 8px;
   background: var(--wbh-surface-0);
+}
+
+.wbh-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.wbh-check span {
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .wbh-experiment-text {
