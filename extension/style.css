@@ -16,8 +16,32 @@
   --wbh-accent-soft: rgb(32 107 196 / 10%);
   --wbh-focus: #4c9aff;
   --wbh-success-soft: rgb(47 179 68 / 14%);
+  --wbh-success-text: #187431;
+  --wbh-success-line-bg: #dcfae6;
+  --wbh-success-line-text: #085d3a;
   --wbh-danger-soft: rgb(214 57 57 / 13%);
+  --wbh-danger-text: #b42318;
+  --wbh-danger-strong: #912018;
+  --wbh-danger-hover: #fff4f3;
+  --wbh-danger-line-bg: #fee4e2;
   --wbh-warning-soft: rgb(247 181 0 / 18%);
+  --wbh-warning-text: #8a5b00;
+  --wbh-heading: #101828;
+  --wbh-panel-bg: linear-gradient(135deg, #fbfdff 0%, #ffffff 58%, #fbf7ff 100%);
+  --wbh-header-bg: linear-gradient(90deg, #ffffff 0%, #f8fbff 62%, #fbf7ff 100%);
+  --wbh-input-bg: #ffffff;
+  --wbh-subtle-bg: #fbfcff;
+  --wbh-control-bg: #ffffff;
+  --wbh-control-hover: #f8fafc;
+  --wbh-control-text: #344054;
+  --wbh-disabled-bg: #f2f4f7;
+  --wbh-disabled-text: #98a2b3;
+  --wbh-pre-bg: #fbfcff;
+  --wbh-pre-text: #344054;
+  --wbh-placeholder: #98a2b3;
+  --wbh-selection: rgb(32 107 196 / 22%);
+  --wbh-scroll-thumb: rgb(102 112 133 / 32%);
+  --wbh-scroll-thumb-hover: rgb(102 112 133 / 48%);
   --wbh-shadow: 0 24px 56px rgb(15 23 42 / 28%);
   color-scheme: light;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -35,6 +59,50 @@
   color: var(--wbh-text);
 }
 
+#wbh-workbench[data-theme="dark"] {
+  --wbh-surface-0: #111827;
+  --wbh-surface-1: #17212f;
+  --wbh-surface-2: #202c3d;
+  --wbh-surface-3: #203858;
+  --wbh-border: rgb(203 213 225 / 12%);
+  --wbh-border-strong: rgb(203 213 225 / 18%);
+  --wbh-text: #e5e7eb;
+  --wbh-muted: #9ca3af;
+  --wbh-accent: #3b82f6;
+  --wbh-accent-strong: #2563eb;
+  --wbh-accent-soft: rgb(59 130 246 / 18%);
+  --wbh-focus: #60a5fa;
+  --wbh-success-soft: rgb(47 179 68 / 18%);
+  --wbh-success-text: #86efac;
+  --wbh-success-line-bg: rgb(22 101 52 / 40%);
+  --wbh-success-line-text: #bbf7d0;
+  --wbh-danger-soft: rgb(248 113 113 / 18%);
+  --wbh-danger-text: #fca5a5;
+  --wbh-danger-strong: #fecaca;
+  --wbh-danger-hover: rgb(127 29 29 / 30%);
+  --wbh-danger-line-bg: rgb(127 29 29 / 44%);
+  --wbh-warning-soft: rgb(251 191 36 / 18%);
+  --wbh-warning-text: #fbbf24;
+  --wbh-heading: #f8fafc;
+  --wbh-panel-bg: linear-gradient(135deg, #111827 0%, #17212f 62%, #211c2f 100%);
+  --wbh-header-bg: linear-gradient(90deg, #121a26 0%, #17212f 68%, #211c2f 100%);
+  --wbh-input-bg: #0f172a;
+  --wbh-subtle-bg: #121a26;
+  --wbh-control-bg: #1f2937;
+  --wbh-control-hover: #263244;
+  --wbh-control-text: #e5e7eb;
+  --wbh-disabled-bg: #1b2431;
+  --wbh-disabled-text: #6b7280;
+  --wbh-pre-bg: #0f172a;
+  --wbh-pre-text: #d1d5db;
+  --wbh-placeholder: #6b7280;
+  --wbh-selection: rgb(96 165 250 / 30%);
+  --wbh-scroll-thumb: rgb(148 163 184 / 30%);
+  --wbh-scroll-thumb-hover: rgb(148 163 184 / 48%);
+  --wbh-shadow: 0 24px 56px rgb(0 0 0 / 48%);
+  color-scheme: dark;
+}
+
 #wbh-workbench *,
 #wbh-workbench *::before,
 #wbh-workbench *::after {
@@ -50,11 +118,11 @@
 }
 
 #wbh-workbench ::placeholder {
-  color: #98a2b3;
+  color: var(--wbh-placeholder);
 }
 
 #wbh-workbench ::selection {
-  background: rgb(32 107 196 / 22%);
+  background: var(--wbh-selection);
 }
 
 #wbh-workbench.open {
@@ -70,7 +138,7 @@
   border: 1px solid var(--wbh-border-strong);
   border-radius: 8px;
   overflow: hidden;
-  background: linear-gradient(135deg, #fbfdff 0%, #ffffff 58%, #fbf7ff 100%);
+  background: var(--wbh-panel-bg);
   box-shadow: var(--wbh-shadow);
 }
 
@@ -87,7 +155,7 @@
   gap: 12px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--wbh-border);
-  background: linear-gradient(90deg, #ffffff 0%, #f8fbff 62%, #fbf7ff 100%);
+  background: var(--wbh-header-bg);
 }
 
 .wbh-header h2,
@@ -100,7 +168,7 @@
 .wbh-header h2 {
   font-size: 18px;
   font-weight: 600;
-  color: #101828;
+  color: var(--wbh-heading);
 }
 
 .wbh-header p,
@@ -119,7 +187,29 @@
 
 .wbh-actions {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.wbh-theme-toggle {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--wbh-border);
+  border-radius: 6px;
+  background: var(--wbh-control-bg);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
+}
+
+.wbh-theme-toggle button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.wbh-theme-toggle button + button {
+  border-left: 1px solid var(--wbh-border);
 }
 
 .wbh-grid {
@@ -260,7 +350,7 @@
   border: 1px solid var(--wbh-border);
   border-radius: 6px;
   padding: 6px 8px;
-  background: #ffffff;
+  background: var(--wbh-input-bg);
   color: inherit;
   font: inherit;
   box-shadow: 0 1px 2px rgb(16 24 40 / 4%);
@@ -331,7 +421,7 @@
   align-items: stretch;
   padding: 10px 12px;
   border-bottom: 1px solid var(--wbh-border);
-  background: #fbfcff;
+  background: var(--wbh-subtle-bg);
 }
 
 #wbh-experiment-note-input {
@@ -356,7 +446,7 @@
   gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--wbh-border);
-  background: #fbfcff;
+  background: var(--wbh-subtle-bg);
 }
 
 .wbh-tabs,
@@ -410,7 +500,7 @@
   gap: 8px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--wbh-border);
-  background: #fbfcff;
+  background: var(--wbh-subtle-bg);
 }
 
 .wbh-entry-pane-head strong {
@@ -444,7 +534,7 @@
   border: 1px solid var(--wbh-border);
   border-radius: 6px;
   padding: 6px 8px;
-  background: #ffffff;
+  background: var(--wbh-input-bg);
   color: inherit;
   box-shadow: 0 1px 2px rgb(16 24 40 / 4%);
 }
@@ -485,7 +575,7 @@
   margin: -12px -12px 0;
   padding: 12px;
   border-bottom: 1px solid var(--wbh-border);
-  background: #ffffff;
+  background: var(--wbh-input-bg);
 }
 
 #wbh-workbench.writer-mode .wbh-entry-title {
@@ -560,7 +650,7 @@
   border: 1px solid var(--wbh-border);
   border-radius: 6px;
   padding: 8px;
-  background: #ffffff;
+  background: var(--wbh-surface-1);
   color: inherit;
   box-shadow: 0 1px 2px rgb(16 24 40 / 4%);
 }
@@ -639,7 +729,7 @@
   border: 1px solid var(--wbh-border);
   border-radius: 6px;
   padding: 7px 8px;
-  background: #ffffff;
+  background: var(--wbh-input-bg);
 }
 
 .wbh-check input {
@@ -689,7 +779,7 @@
   gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--wbh-border);
-  background: #fbfcff;
+  background: var(--wbh-subtle-bg);
 }
 
 .wbh-toolbar #wbh-restore {
@@ -709,8 +799,8 @@
   border: 1px solid var(--wbh-border);
   border-radius: 6px;
   padding: 0 10px;
-  background: #ffffff;
-  color: #344054;
+  background: var(--wbh-control-bg);
+  color: var(--wbh-control-text);
   cursor: pointer;
   font-weight: 500;
   box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
@@ -726,9 +816,19 @@
 .wbh-toolbar button:hover,
 .wbh-icon-button:hover,
 .wbh-mini:hover {
-  background: #f8fafc;
+  background: var(--wbh-control-hover);
   border-color: rgb(32 107 196 / 26%);
-  color: #182230;
+  color: var(--wbh-text);
+}
+
+.wbh-actions .wbh-theme-toggle button {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.wbh-actions .wbh-theme-toggle button + button {
+  border-left: 1px solid var(--wbh-border);
 }
 
 .wbh-actions button:focus-visible,
@@ -747,6 +847,7 @@
 
 .wbh-toolbar button.active,
 .wbh-tabs button.active,
+.wbh-theme-toggle button.active,
 .wbh-form button,
 #wbh-start-experiment,
 #wbh-finish-experiment,
@@ -760,6 +861,7 @@
 
 .wbh-toolbar button.active:hover,
 .wbh-tabs button.active:hover,
+.wbh-theme-toggle button.active:hover,
 .wbh-form button:hover,
 #wbh-start-experiment:hover,
 #wbh-finish-experiment:hover,
@@ -780,13 +882,13 @@
 
 .wbh-viewbar button.danger {
   border-color: rgb(214 57 57 / 34%);
-  color: #b42318;
+  color: var(--wbh-danger-text);
 }
 
 .wbh-viewbar button.danger:hover {
-  background: #fff4f3;
+  background: var(--wbh-danger-hover);
   border-color: rgb(214 57 57 / 50%);
-  color: #912018;
+  color: var(--wbh-danger-strong);
 }
 
 .wbh-actions button:disabled,
@@ -798,9 +900,9 @@
 .wbh-toolbar button:disabled,
 .wbh-icon-button:disabled,
 .wbh-mini:disabled {
-  background: #f2f4f7;
+  background: var(--wbh-disabled-bg);
   border-color: var(--wbh-border);
-  color: #98a2b3;
+  color: var(--wbh-disabled-text);
   cursor: default;
   opacity: 0.45;
   box-shadow: none;
@@ -815,9 +917,9 @@
 .wbh-toolbar button:disabled:hover,
 .wbh-icon-button:disabled:hover,
 .wbh-mini:disabled:hover {
-  background: #f2f4f7;
+  background: var(--wbh-disabled-bg);
   border-color: var(--wbh-border);
-  color: #98a2b3;
+  color: var(--wbh-disabled-text);
 }
 
 .wbh-diff-summary {
@@ -857,7 +959,7 @@
   border-radius: 6px;
   overflow: hidden;
   margin-bottom: 10px;
-  background: #ffffff;
+  background: var(--wbh-surface-1);
   box-shadow: 0 1px 2px rgb(16 24 40 / 4%);
 }
 
@@ -870,17 +972,17 @@
 
 .wbh-diff-entry.added h4 {
   background: var(--wbh-success-soft);
-  color: #187431;
+  color: var(--wbh-success-text);
 }
 
 .wbh-diff-entry.removed h4 {
   background: var(--wbh-danger-soft);
-  color: #b42318;
+  color: var(--wbh-danger-text);
 }
 
 .wbh-diff-entry.changed h4 {
   background: var(--wbh-warning-soft);
-  color: #8a5b00;
+  color: var(--wbh-warning-text);
 }
 
 .wbh-diff-entry.change-active {
@@ -906,7 +1008,7 @@
   gap: 6px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--wbh-border);
-  background: #fbfcff;
+  background: var(--wbh-subtle-bg);
 }
 
 .wbh-change-pill {
@@ -956,10 +1058,10 @@
   border-radius: 6px;
   padding: 8px;
   border: 1px solid var(--wbh-border);
-  background: #fbfcff;
+  background: var(--wbh-pre-bg);
   font-size: 12px;
   line-height: 1.5;
-  color: #344054;
+  color: var(--wbh-pre-text);
 }
 
 .wbh-field pre span {
@@ -967,13 +1069,13 @@
 }
 
 .wbh-field pre .added {
-  background: #dcfae6;
-  color: #085d3a;
+  background: var(--wbh-success-line-bg);
+  color: var(--wbh-success-line-text);
 }
 
 .wbh-field pre .removed {
-  background: #fee4e2;
-  color: #912018;
+  background: var(--wbh-danger-line-bg);
+  color: var(--wbh-danger-strong);
 }
 
 #wbh-workbench ::-webkit-scrollbar {
@@ -984,12 +1086,12 @@
 #wbh-workbench ::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: rgb(102 112 133 / 32%);
+  background: var(--wbh-scroll-thumb);
   background-clip: content-box;
 }
 
 #wbh-workbench ::-webkit-scrollbar-thumb:hover {
-  background: rgb(102 112 133 / 48%);
+  background: var(--wbh-scroll-thumb-hover);
   background-clip: content-box;
 }
 

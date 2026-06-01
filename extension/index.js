@@ -36,6 +36,8 @@ const NULLABLE_NUMBER_FIELDS = new Set(['groupWeight', 'sticky', 'cooldown', 'de
 const TRI_STATE_BOOLEAN_FIELDS = new Set(['caseSensitive', 'matchWholeWords', 'useGroupScoring']);
 const FIND_FIELDS = ['comment', 'content', 'key', 'keysecondary', 'group', 'automationId', 'outletName', 'characterFilterNames', 'characterFilterTags', 'triggers'];
 const MAX_UNDO_STEPS = 80;
+const THEME_MODES = ['auto', 'light', 'dark'];
+const THEME_QUERY = window.matchMedia?.('(prefers-color-scheme: dark)');
 const DIFF_ENTRY_FIELDS = [
   'comment',
   'content',
@@ -219,6 +221,7 @@ const app = {
   historyCollapsed: readBooleanSetting('wbh-history-collapsed'),
   findCollapsed: readBooleanSetting('wbh-find-collapsed'),
   writerMode: readBooleanSetting('wbh-writer-mode'),
+  themeMode: readStringSetting('wbh-theme-mode', 'auto', THEME_MODES),
   diffMode: 'current',
 };
 
@@ -229,8 +232,19 @@ init();
 function init() {
   if (app.installed) return;
   app.installed = true;
+  installThemeListener();
   installWorkbenchButton();
   installWorldbookEditInterceptor();
+}
+
+function installThemeListener() {
+  if (!THEME_QUERY) return;
+  const render = () => renderThemeMode();
+  if (typeof THEME_QUERY.addEventListener === 'function') {
+    THEME_QUERY.addEventListener('change', render);
+  } else if (typeof THEME_QUERY.addListener === 'function') {
+    THEME_QUERY.addListener(render);
+  }
 }
 
 function installWorkbenchButton() {
@@ -437,6 +451,11 @@ function ensureLocalWorkbench() {
           <p id="wbh-status">Extension-only mode: snapshots are stored in this browser.</p>
         </div>
         <div class="wbh-actions">
+          <div class="wbh-theme-toggle" role="group" aria-label="Theme">
+            <button type="button" data-wbh-theme="auto">Auto</button>
+            <button type="button" data-wbh-theme="light">Light</button>
+            <button type="button" data-wbh-theme="dark">Dark</button>
+          </div>
           <button id="wbh-refresh" type="button">Refresh</button>
           <button id="wbh-close" type="button">Close</button>
         </div>
@@ -794,6 +813,9 @@ function ensureLocalWorkbench() {
 
   root.querySelector('#wbh-close').addEventListener('click', () => root.classList.remove('open'));
   root.querySelector('#wbh-refresh').addEventListener('click', refreshLocalWorkbench);
+  root.querySelectorAll('[data-wbh-theme]').forEach(button => {
+    button.addEventListener('click', () => setThemeMode(button.dataset.wbhTheme));
+  });
   root.querySelector('#wbh-toggle-books').addEventListener('click', toggleBooksPane);
   root.querySelector('#wbh-toggle-writer').addEventListener('click', toggleWriterMode);
   root.querySelector('#wbh-toggle-history').addEventListener('click', toggleHistoryPane);
@@ -841,6 +863,7 @@ function ensureLocalWorkbench() {
     input.addEventListener(eventName, () => updateActiveEntryFromEditor(input));
   });
   renderBooksPane();
+  renderThemeMode();
   renderLayoutMode();
 }
 
@@ -1005,6 +1028,31 @@ function toggleFindPane() {
   app.findCollapsed = !app.findCollapsed;
   writeBooleanSetting('wbh-find-collapsed', app.findCollapsed);
   renderLayoutMode();
+}
+
+function setThemeMode(mode) {
+  app.themeMode = THEME_MODES.includes(mode) ? mode : 'auto';
+  writeStringSetting('wbh-theme-mode', app.themeMode);
+  renderThemeMode();
+}
+
+function getResolvedThemeMode() {
+  if (app.themeMode === 'light' || app.themeMode === 'dark') return app.themeMode;
+  return THEME_QUERY?.matches ? 'dark' : 'light';
+}
+
+function renderThemeMode() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+
+  const resolved = getResolvedThemeMode();
+  root.dataset.theme = resolved;
+  root.dataset.themeMode = app.themeMode;
+  root.querySelectorAll('[data-wbh-theme]').forEach(button => {
+    const active = button.dataset.wbhTheme === app.themeMode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
 }
 
 function renderBooksPane() {
@@ -3037,9 +3085,28 @@ function readBooleanSetting(key) {
   }
 }
 
+function readStringSetting(key, fallback, allowedValues = null) {
+  try {
+    const value = localStorage.getItem(key);
+    if (!value) return fallback;
+    if (allowedValues && !allowedValues.includes(value)) return fallback;
+    return value;
+  } catch {
+    return fallback;
+  }
+}
+
 function writeBooleanSetting(key, value) {
   try {
     localStorage.setItem(key, value ? '1' : '0');
+  } catch {
+    // The toggle is cosmetic; ignore storage failures.
+  }
+}
+
+function writeStringSetting(key, value) {
+  try {
+    localStorage.setItem(key, value);
   } catch {
     // The toggle is cosmetic; ignore storage failures.
   }
