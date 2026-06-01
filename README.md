@@ -47,6 +47,8 @@ After installing, open the extension from the SillyTavern extensions menu.
 6. Use `Diff` to compare the baseline and after version.
 7. Mark the experiment as `Keep` or `Reject`, add a note if useful, or restore a previous version.
 
+`Save` is not a draft-only action. It writes the edited worldbook directly back to SillyTavern's native worldbook data, so no extra save step in the native editor is required. A before-save snapshot and an after-save snapshot are created automatically.
+
 If you edit in SillyTavern's native worldbook editor instead of the workbench, click `Finish` after the change to capture the after snapshot.
 
 ## Workbench Editing
@@ -62,6 +64,8 @@ The `Edit` tab supports common SillyTavern worldbook entry fields, including:
 - sticky, cooldown, delay, automation ID, and outlet/anchor fields
 
 The first time a worldbook is opened, the current state is saved as `Origin`. The origin snapshot is not overwritten by later edits.
+
+When you click `Save`, the live SillyTavern worldbook is updated immediately. If the result is not what you wanted, use the history sidebar to restore `Origin`, an experiment baseline/after version, or another saved version.
 
 ## Search, Replace, and Delete
 
