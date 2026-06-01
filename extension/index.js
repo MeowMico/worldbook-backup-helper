@@ -38,6 +38,7 @@ const FIND_FIELDS = ['comment', 'content', 'key', 'keysecondary', 'group', 'auto
 const MAX_UNDO_STEPS = 80;
 const THEME_MODES = ['auto', 'light', 'dark'];
 const THEME_QUERY = window.matchMedia?.('(prefers-color-scheme: dark)');
+const THEME_BACKGROUND_VARS = ['--SmartThemeBodyColor', '--SmartThemeBlurTintColor', '--SmartThemeChatTintColor'];
 const DIFF_ENTRY_FIELDS = [
   'comment',
   'content',
@@ -237,13 +238,16 @@ function init() {
 }
 
 function installThemeListener() {
-  if (!THEME_QUERY) return;
   const render = () => renderThemeMode();
-  if (typeof THEME_QUERY.addEventListener === 'function') {
+  if (THEME_QUERY && typeof THEME_QUERY.addEventListener === 'function') {
     THEME_QUERY.addEventListener('change', render);
-  } else if (typeof THEME_QUERY.addListener === 'function') {
+  } else if (THEME_QUERY && typeof THEME_QUERY.addListener === 'function') {
     THEME_QUERY.addListener(render);
   }
+  const observer = new MutationObserver(render);
+  [document.documentElement, document.body].filter(Boolean).forEach(element => {
+    observer.observe(element, { attributes: true, attributeFilter: ['class', 'style', 'data-theme', 'theme'] });
+  });
 }
 
 function installWorkbenchButton() {
@@ -1031,7 +1035,96 @@ function setThemeMode(mode) {
 
 function getResolvedThemeMode() {
   if (app.themeMode === 'light' || app.themeMode === 'dark') return app.themeMode;
+  const tavernTheme = detectSillyTavernTheme();
+  if (tavernTheme) return tavernTheme;
   return THEME_QUERY?.matches ? 'dark' : 'light';
+}
+
+function detectSillyTavernTheme() {
+  const themeText = [
+    document.documentElement?.dataset?.theme,
+    document.body?.dataset?.theme,
+    document.documentElement?.getAttribute('theme'),
+    document.body?.getAttribute('theme'),
+    document.documentElement?.className,
+    document.body?.className,
+  ].join(' ').toLowerCase();
+
+  if (/\b(light|latte)\b/.test(themeText)) return 'light';
+  if (/\b(dark|black|midnight|mocha|dracula)\b/.test(themeText)) return 'dark';
+
+  const elements = [
+    document.body,
+    document.documentElement,
+    document.querySelector('#sheld'),
+    document.querySelector('#chat'),
+    document.querySelector('#top-bar'),
+  ].filter(Boolean);
+
+  for (const element of elements) {
+    const styles = getComputedStyle(element);
+    const candidates = [
+      ...THEME_BACKGROUND_VARS.map(name => styles.getPropertyValue(name)),
+      styles.backgroundColor,
+    ];
+    for (const candidate of candidates) {
+      const color = parseCssColor(candidate);
+      if (!color || color.a < 0.2) continue;
+      return relativeLuminance(color) < 0.45 ? 'dark' : 'light';
+    }
+  }
+  return '';
+}
+
+function parseCssColor(value) {
+  const text = String(value || '').trim();
+  if (!text || text === 'transparent') return null;
+
+  const hex = text.match(/^#([0-9a-f]{3,8})$/i)?.[1];
+  if (hex) {
+    const full = hex.length === 3 || hex.length === 4
+      ? [...hex].map(char => `${char}${char}`).join('')
+      : hex;
+    const hasAlpha = full.length === 8;
+    return {
+      r: parseInt(full.slice(0, 2), 16),
+      g: parseInt(full.slice(2, 4), 16),
+      b: parseInt(full.slice(4, 6), 16),
+      a: hasAlpha ? parseInt(full.slice(6, 8), 16) / 255 : 1,
+    };
+  }
+
+  const rgb = text.match(/^rgba?\((.+)\)$/i)?.[1];
+  if (!rgb) return null;
+  const parts = rgb.replace(/\s*\/\s*/, ' ').split(/[,\s]+/).filter(Boolean);
+  if (parts.length < 3) return null;
+  const color = {
+    r: parseColorChannel(parts[0]),
+    g: parseColorChannel(parts[1]),
+    b: parseColorChannel(parts[2]),
+    a: parts[3] === undefined ? 1 : parseAlphaChannel(parts[3]),
+  };
+  return [color.r, color.g, color.b, color.a].every(Number.isFinite) ? color : null;
+}
+
+function parseColorChannel(value) {
+  const text = String(value || '').trim();
+  if (text.endsWith('%')) return Math.round(Number.parseFloat(text) * 2.55);
+  return Math.max(0, Math.min(255, Number.parseFloat(text)));
+}
+
+function parseAlphaChannel(value) {
+  const text = String(value || '').trim();
+  const alpha = text.endsWith('%') ? Number.parseFloat(text) / 100 : Number.parseFloat(text);
+  return Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : 1;
+}
+
+function relativeLuminance({ r, g, b }) {
+  const [red, green, blue] = [r, g, b].map(channel => {
+    const value = channel / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
 
 function renderThemeMode() {
@@ -1045,6 +1138,11 @@ function renderThemeMode() {
     const active = button.dataset.wbhTheme === app.themeMode;
     button.classList.toggle('active', active);
     button.setAttribute('aria-pressed', String(active));
+    if (button.dataset.wbhTheme === 'auto') {
+      button.title = `Auto: following SillyTavern (${resolved})`;
+    } else {
+      button.title = `Use ${button.dataset.wbhTheme} theme`;
+    }
   });
 }
 
