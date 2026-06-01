@@ -173,6 +173,10 @@ const TRANSLATIONS = {
     'status.replacedMatch': 'Replaced match',
     'status.noMatchesToReplace': 'No matches to replace',
     'status.replacedMatches': 'Replaced {count} {noun}',
+    'status.noMatchToDelete': 'No match to delete',
+    'status.deletedMatch': 'Deleted match',
+    'status.noMatchesToDelete': 'No matches to delete',
+    'status.deletedMatches': 'Deleted {count} {noun}',
     'status.unsavedEdits': 'Unsaved edits',
     'status.undo': 'Undo: {label}',
     'status.redo': 'Redo: {label}',
@@ -238,6 +242,7 @@ const TRANSLATIONS = {
     'action.next': 'Next',
     'action.replace': 'Replace',
     'action.all': 'All',
+    'action.deleteAll': 'Delete all',
     'action.prevChange': 'Prev change',
     'action.nextChange': 'Next change',
     'action.restore': 'Restore',
@@ -368,6 +373,7 @@ const TRANSLATIONS = {
     'prompt.experimentNote': 'Experiment note',
     'prompt.versionName': 'Version name',
     'confirm.replaceMatches': 'Replace {count} {noun}?',
+    'confirm.deleteMatches': 'Delete {count} {noun}?',
     'confirm.deleteEntry': 'Delete "{title}"?',
     'confirm.discardEdits': 'Discard unsaved workbench edits?',
     'confirm.saveBeforeFinish': 'Save workbench edits before finishing this experiment?',
@@ -425,6 +431,10 @@ const TRANSLATIONS = {
     'status.replacedMatch': '已替换匹配项',
     'status.noMatchesToReplace': '没有可替换的匹配项',
     'status.replacedMatches': '已替换 {count} 个匹配项',
+    'status.noMatchToDelete': '没有可删除的匹配项',
+    'status.deletedMatch': '已删除匹配项',
+    'status.noMatchesToDelete': '没有可删除的匹配项',
+    'status.deletedMatches': '已删除 {count} 个匹配项',
     'status.unsavedEdits': '有未保存编辑',
     'status.undo': '已撤回：{label}',
     'status.redo': '已重做：{label}',
@@ -490,6 +500,7 @@ const TRANSLATIONS = {
     'action.next': '下一个',
     'action.replace': '替换',
     'action.all': '全部',
+    'action.deleteAll': '删除全部',
     'action.prevChange': '上一处变化',
     'action.nextChange': '下一处变化',
     'action.restore': '回溯',
@@ -620,6 +631,7 @@ const TRANSLATIONS = {
     'prompt.experimentNote': '实验备注',
     'prompt.versionName': '版本名称',
     'confirm.replaceMatches': '替换 {count} 个匹配项吗？',
+    'confirm.deleteMatches': '删除 {count} 个匹配项吗？',
     'confirm.deleteEntry': '删除“{title}”吗？',
     'confirm.discardEdits': '放弃未保存的工作台编辑吗？',
     'confirm.saveBeforeFinish': '完成实验前保存工作台编辑吗？',
@@ -1077,6 +1089,10 @@ function ensureLocalWorkbench() {
                   <button id="wbh-replace-one" type="button" data-wbh-i18n="action.replace">${t('action.replace')}</button>
                   <button id="wbh-replace-all" type="button" data-wbh-i18n="action.all">${t('action.all')}</button>
                 </div>
+                <div class="wbh-find-row wbh-find-actions">
+                  <button id="wbh-delete-match" type="button" class="danger" data-wbh-i18n="action.delete">${t('action.delete')}</button>
+                  <button id="wbh-delete-all-matches" type="button" class="danger" data-wbh-i18n="action.deleteAll">${t('action.deleteAll')}</button>
+                </div>
               </div>
               <div id="wbh-entries" class="wbh-list"></div>
             </aside>
@@ -1374,6 +1390,8 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-find-next').addEventListener('click', () => navigateFind(1));
   root.querySelector('#wbh-replace-one').addEventListener('click', replaceCurrentFindMatch);
   root.querySelector('#wbh-replace-all').addEventListener('click', replaceAllFindMatches);
+  root.querySelector('#wbh-delete-match').addEventListener('click', deleteCurrentFindMatch);
+  root.querySelector('#wbh-delete-all-matches').addEventListener('click', deleteAllFindMatches);
   root.querySelector('#wbh-tab-edit').addEventListener('click', () => setMainTab('edit'));
   root.querySelector('#wbh-tab-diff').addEventListener('click', () => setMainTab('diff'));
   root.querySelector('#wbh-editor-undo').addEventListener('click', undoEditorChange);
@@ -2519,6 +2537,8 @@ function renderFindControls() {
   root.querySelector('#wbh-find-next').disabled = !total;
   root.querySelector('#wbh-replace-one').disabled = !total;
   root.querySelector('#wbh-replace-all').disabled = !total;
+  root.querySelector('#wbh-delete-match').disabled = !total;
+  root.querySelector('#wbh-delete-all-matches').disabled = !total;
 }
 
 function navigateFind(direction) {
@@ -2580,17 +2600,33 @@ function scrollTextControlToPosition(input, start) {
 function replaceCurrentFindMatch() {
   const root = document.querySelector('#wbh-workbench');
   app.replaceText = root?.querySelector('#wbh-replace-text')?.value || '';
+  applyCurrentFindMatch(app.replaceText, {
+    historyLabel: t('action.replace'),
+    missingStatus: t('status.noMatchToReplace'),
+    doneStatus: t('status.replacedMatch'),
+  });
+}
+
+function deleteCurrentFindMatch() {
+  applyCurrentFindMatch('', {
+    historyLabel: t('action.delete'),
+    missingStatus: t('status.noMatchToDelete'),
+    doneStatus: t('status.deletedMatch'),
+  });
+}
+
+function applyCurrentFindMatch(replacement, options) {
   refreshFindMatches();
 
   const match = getActiveFindMatch();
   const record = match ? getEntryRecordById(match.entryId) : null;
   if (!match || !record) {
-    setStatus(t('status.noMatchToReplace'));
+    setStatus(options.missingStatus);
     return;
   }
 
-  captureUndoState(t('action.replace'));
-  replaceMatchInRecord(record, match, app.replaceText);
+  captureUndoState(options.historyLabel);
+  replaceMatchInRecord(record, match, replacement);
   app.activeEntryId = match.entryId;
   setEditorDirty(true);
   const nextIndex = app.activeFindIndex;
@@ -2598,24 +2634,42 @@ function replaceCurrentFindMatch() {
   app.activeFindIndex = app.findMatches.length ? Math.min(nextIndex, app.findMatches.length - 1) : -1;
   renderEditor();
   queueFocusActiveFindMatch();
-  setStatus(t('status.replacedMatch'));
+  setStatus(options.doneStatus);
 }
 
 function replaceAllFindMatches() {
   const root = document.querySelector('#wbh-workbench');
   app.replaceText = root?.querySelector('#wbh-replace-text')?.value || '';
+  applyAllFindMatches(app.replaceText, {
+    historyLabel: t('action.all'),
+    confirmKey: 'confirm.replaceMatches',
+    missingStatus: t('status.noMatchesToReplace'),
+    doneKey: 'status.replacedMatches',
+  });
+}
+
+function deleteAllFindMatches() {
+  applyAllFindMatches('', {
+    historyLabel: t('action.deleteAll'),
+    confirmKey: 'confirm.deleteMatches',
+    missingStatus: t('status.noMatchesToDelete'),
+    doneKey: 'status.deletedMatches',
+  });
+}
+
+function applyAllFindMatches(replacement, options) {
   refreshFindMatches();
 
   const total = app.findMatches.length;
   if (!total) {
-    setStatus(t('status.noMatchesToReplace'));
+    setStatus(options.missingStatus);
     return;
   }
 
-  const ok = window.confirm(t('confirm.replaceMatches', { count: total, noun: total === 1 ? 'match' : 'matches' }));
+  const ok = window.confirm(t(options.confirmKey, { count: total, noun: total === 1 ? 'match' : 'matches' }));
   if (!ok) return;
 
-  captureUndoState(t('action.all'));
+  captureUndoState(options.historyLabel);
   const grouped = new Map();
   for (const match of app.findMatches) {
     const key = `${match.entryId}\u0000${match.field}`;
@@ -2629,7 +2683,7 @@ function replaceAllFindMatches() {
     if (!record) continue;
     const sorted = [...matches].sort((left, right) => right.start - left.start);
     for (const match of sorted) {
-      replaceMatchInRecord(record, match, app.replaceText);
+      replaceMatchInRecord(record, match, replacement);
     }
   }
 
@@ -2638,7 +2692,7 @@ function replaceAllFindMatches() {
   app.activeFindIndex = app.findMatches.length ? 0 : -1;
   renderEditor();
   queueFocusActiveFindMatch();
-  setStatus(t('status.replacedMatches', { count: total, noun: total === 1 ? 'match' : 'matches' }));
+  setStatus(t(options.doneKey, { count: total, noun: total === 1 ? 'match' : 'matches' }));
 }
 
 function replaceMatchInRecord(record, match, replacement) {

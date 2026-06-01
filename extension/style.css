@@ -911,12 +911,14 @@
   box-shadow: none;
 }
 
-.wbh-viewbar button.danger {
+.wbh-viewbar button.danger,
+.wbh-findbar button.danger {
   border-color: rgb(214 57 57 / 34%);
   color: var(--wbh-danger-text);
 }
 
-.wbh-viewbar button.danger:hover {
+.wbh-viewbar button.danger:hover,
+.wbh-findbar button.danger:hover {
   background: var(--wbh-danger-hover);
   border-color: rgb(214 57 57 / 50%);
   color: var(--wbh-danger-strong);
