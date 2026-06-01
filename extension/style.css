@@ -784,7 +784,8 @@
 .wbh-findbar button,
 .wbh-toolbar button,
 .wbh-icon-button,
-.wbh-mini {
+.wbh-mini,
+.wbh-history-actions summary {
   min-height: 32px;
   border: 1px solid var(--wbh-border);
   border-radius: 6px;
@@ -805,7 +806,8 @@
 .wbh-findbar button:hover,
 .wbh-toolbar button:hover,
 .wbh-icon-button:hover,
-.wbh-mini:hover {
+.wbh-mini:hover,
+.wbh-history-actions summary:hover {
   background: var(--wbh-control-hover);
   border-color: var(--wbh-control-hover-border);
   color: var(--wbh-text);
@@ -832,6 +834,7 @@
 .wbh-toolbar button:focus-visible,
 .wbh-icon-button:focus-visible,
 .wbh-mini:focus-visible,
+.wbh-history-actions summary:focus-visible,
 .wbh-row:focus-visible {
   outline: 2px solid var(--wbh-focus);
   outline-offset: 1px;
@@ -891,7 +894,8 @@
 .wbh-findbar button:disabled,
 .wbh-toolbar button:disabled,
 .wbh-icon-button:disabled,
-.wbh-mini:disabled {
+.wbh-mini:disabled,
+.wbh-history-menu button:disabled {
   background: var(--wbh-disabled-bg);
   border-color: var(--wbh-border);
   color: var(--wbh-disabled-text);
@@ -908,7 +912,8 @@
 .wbh-findbar button:disabled:hover,
 .wbh-toolbar button:disabled:hover,
 .wbh-icon-button:disabled:hover,
-.wbh-mini:disabled:hover {
+.wbh-mini:disabled:hover,
+.wbh-history-menu button:disabled:hover {
   background: var(--wbh-disabled-bg);
   border-color: var(--wbh-border);
   color: var(--wbh-disabled-text);
@@ -931,9 +936,10 @@
 
 .wbh-history-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) repeat(5, auto);
+  grid-template-columns: minmax(0, 1fr) auto;
   border-bottom: 1px solid var(--wbh-border);
   background: var(--wbh-surface-1);
+  position: relative;
 }
 
 .wbh-history-row .wbh-row {
@@ -944,6 +950,52 @@
   align-self: center;
   margin-right: 6px;
   font-size: 12px;
+}
+
+.wbh-history-actions {
+  align-self: center;
+  margin-right: 6px;
+  position: relative;
+}
+
+.wbh-history-actions summary {
+  min-width: 34px;
+  display: grid;
+  place-items: center;
+  margin-right: 0;
+  list-style: none;
+  user-select: none;
+}
+
+.wbh-history-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.wbh-history-menu {
+  min-width: 118px;
+  display: grid;
+  gap: 4px;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 8;
+  padding: 6px;
+  border: 1px solid var(--wbh-border-strong);
+  border-radius: 8px;
+  background: var(--wbh-surface-1);
+  box-shadow: 0 12px 30px rgb(16 24 40 / 18%);
+}
+
+.wbh-history-menu .wbh-mini {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-right: 0;
+}
+
+.wbh-history-menu-item {
+  text-align: left;
 }
 
 .wbh-diff-entry {

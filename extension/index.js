@@ -240,6 +240,7 @@ const TRANSLATIONS = {
     'action.note': 'Note',
     'action.json': 'JSON',
     'action.exp': 'Exp',
+    'action.more': 'More',
     'section.worldbooks': 'Worldbooks',
     'section.entries': 'Entries',
     'section.origin': 'Origin',
@@ -487,6 +488,7 @@ const TRANSLATIONS = {
     'action.note': '备注',
     'action.json': 'JSON',
     'action.exp': '实验',
+    'action.more': '更多',
     'section.worldbooks': '世界书',
     'section.entries': '条目',
     'section.origin': '原版',
@@ -1999,6 +2001,31 @@ function renderOriginSnapshot() {
   list.replaceChildren(row);
 }
 
+function createHistoryActionMenu(actions) {
+  const details = document.createElement('details');
+  details.className = 'wbh-history-actions';
+
+  const summary = document.createElement('summary');
+  summary.className = 'wbh-mini';
+  summary.textContent = '...';
+  summary.title = t('action.more');
+  summary.setAttribute('aria-label', t('action.more'));
+  details.append(summary);
+
+  const menu = document.createElement('div');
+  menu.className = 'wbh-history-menu';
+  actions.forEach(action => {
+    action.classList.add('wbh-history-menu-item');
+    action.addEventListener('click', () => {
+      details.open = false;
+    });
+    menu.append(action);
+  });
+  details.append(menu);
+
+  return details;
+}
+
 function renderExperiments() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
@@ -2077,7 +2104,7 @@ function renderExperiments() {
     restore.disabled = !experiment.afterSnapshotId;
     restore.addEventListener('click', async () => restoreExperimentResult(experiment));
 
-    row.append(button, restore, exportJson, note, rename);
+    row.append(button, createHistoryActionMenu([restore, exportJson, note, rename]));
     return row;
   }));
 }
@@ -2925,7 +2952,7 @@ function renderSnapshots() {
       await loadLocalSnapshots();
     });
 
-    row.append(main, restore, promote, rename);
+    row.append(main, createHistoryActionMenu([restore, promote, rename]));
     return row;
   }));
 }
