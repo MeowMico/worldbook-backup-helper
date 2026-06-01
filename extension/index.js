@@ -1011,7 +1011,7 @@ function ensureLocalWorkbench() {
           </div>
           <div class="wbh-experiment">
             <div class="wbh-experiment-text">
-              <strong id="wbh-experiment-title">${t('empty.noExperimentSelected')}</strong>
+              <button id="wbh-experiment-title" class="wbh-experiment-title-button" type="button" disabled aria-label="${t('prompt.experimentName')}">${t('empty.noExperimentSelected')}</button>
               <small id="wbh-experiment-meta">${t('status.ready')}</small>
             </div>
             <div class="wbh-experiment-actions">
@@ -1377,6 +1377,10 @@ function ensureLocalWorkbench() {
     void saveActiveExperimentNote();
   });
   root.querySelector('#wbh-snapshot').addEventListener('click', createManualLocalSnapshot);
+  root.querySelector('#wbh-experiment-title').addEventListener('click', () => {
+    const experiment = app.activeView === 'experiment' ? app.activeExperiment : null;
+    if (experiment) void renameExperiment(experiment);
+  });
   root.querySelector('#wbh-start-experiment').addEventListener('click', startExperiment);
   root.querySelector('#wbh-finish-experiment').addEventListener('click', finishExperiment);
   root.querySelector('#wbh-keep-experiment').addEventListener('click', () => setExperimentStatus('kept'));
@@ -1925,6 +1929,9 @@ function renderExperimentPanel() {
   const experimentOpen = isExperimentOpen(experiment);
 
   title.textContent = experiment?.title || t('empty.noExperimentSelected');
+  title.disabled = !experiment;
+  title.title = experiment ? t('prompt.experimentName') : '';
+  title.setAttribute('aria-label', experiment ? t('prompt.experimentName') : t('empty.noExperimentSelected'));
   meta.textContent = experiment
     ? [
       statusLabel(experiment.status),
