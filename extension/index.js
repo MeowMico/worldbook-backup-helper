@@ -220,7 +220,6 @@ const app = {
   booksCollapsed: readBooleanSetting('wbh-books-collapsed'),
   historyCollapsed: readBooleanSetting('wbh-history-collapsed'),
   findCollapsed: readBooleanSetting('wbh-find-collapsed'),
-  writerMode: readBooleanSetting('wbh-writer-mode'),
   themeMode: readStringSetting('wbh-theme-mode', 'auto', THEME_MODES),
   diffMode: 'current',
 };
@@ -503,7 +502,6 @@ function ensureLocalWorkbench() {
               <button id="wbh-tab-diff" type="button">Diff</button>
             </div>
             <div class="wbh-view-options">
-              <button id="wbh-toggle-writer" type="button" title="Focus the editor and tuck away side history">Writer</button>
               <button id="wbh-toggle-history" type="button" title="Show or hide the history sidebar">History</button>
             </div>
             <div class="wbh-editor-actions">
@@ -821,7 +819,6 @@ function ensureLocalWorkbench() {
     button.addEventListener('click', () => setThemeMode(button.dataset.wbhTheme));
   });
   root.querySelector('#wbh-toggle-books').addEventListener('click', toggleBooksPane);
-  root.querySelector('#wbh-toggle-writer').addEventListener('click', toggleWriterMode);
   root.querySelector('#wbh-toggle-history').addEventListener('click', toggleHistoryPane);
   root.querySelector('#wbh-toggle-find').addEventListener('click', toggleFindPane);
   root.querySelector('#wbh-book-search').addEventListener('input', renderBooks);
@@ -1014,14 +1011,6 @@ function toggleBooksPane() {
   renderBooksPane();
 }
 
-function toggleWriterMode() {
-  app.writerMode = !app.writerMode;
-  if (app.writerMode) app.historyCollapsed = true;
-  writeBooleanSetting('wbh-writer-mode', app.writerMode);
-  writeBooleanSetting('wbh-history-collapsed', app.historyCollapsed);
-  renderLayoutMode();
-}
-
 function toggleHistoryPane() {
   app.historyCollapsed = !app.historyCollapsed;
   writeBooleanSetting('wbh-history-collapsed', app.historyCollapsed);
@@ -1080,18 +1069,12 @@ function renderLayoutMode() {
 
   const grid = root.querySelector('.wbh-grid');
   const entryPane = root.querySelector('.wbh-entry-pane');
-  const writer = root.querySelector('#wbh-toggle-writer');
   const history = root.querySelector('#wbh-toggle-history');
   const find = root.querySelector('#wbh-toggle-find');
 
-  root.classList.toggle('writer-mode', app.writerMode);
   grid?.classList.toggle('history-collapsed', app.historyCollapsed);
   entryPane?.classList.toggle('find-collapsed', app.findCollapsed);
 
-  if (writer) {
-    writer.classList.toggle('active', app.writerMode);
-    writer.setAttribute('aria-pressed', String(app.writerMode));
-  }
   if (history) {
     history.classList.toggle('active', !app.historyCollapsed);
     history.textContent = app.historyCollapsed ? 'Show history' : 'Hide history';
