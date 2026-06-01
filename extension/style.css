@@ -305,6 +305,21 @@
   font-weight: 600;
 }
 
+.wbh-head-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.wbh-head-actions span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .wbh-book-head {
   gap: 8px;
 }
@@ -939,7 +954,7 @@
 
 .wbh-history-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  grid-template-columns: minmax(0, 1fr) repeat(5, auto);
   border-bottom: 1px solid var(--wbh-border);
   background: var(--wbh-surface-1);
 }

@@ -477,7 +477,10 @@ function ensureLocalWorkbench() {
         <section class="wbh-pane wbh-main">
           <div class="wbh-pane-head">
             <h3 id="wbh-active-title">No worldbook selected</h3>
-            <span id="wbh-active-meta">0 entries</span>
+            <div class="wbh-head-actions">
+              <span id="wbh-active-meta">0 entries</span>
+              <button id="wbh-export-all" class="wbh-mini" type="button" disabled>Export all</button>
+            </div>
           </div>
           <div class="wbh-experiment">
             <div class="wbh-experiment-text">
@@ -813,6 +816,7 @@ function ensureLocalWorkbench() {
 
   root.querySelector('#wbh-close').addEventListener('click', () => root.classList.remove('open'));
   root.querySelector('#wbh-refresh').addEventListener('click', refreshLocalWorkbench);
+  root.querySelector('#wbh-export-all').addEventListener('click', exportActiveBookArchive);
   root.querySelectorAll('[data-wbh-theme]').forEach(button => {
     button.addEventListener('click', () => setThemeMode(button.dataset.wbhTheme));
   });
@@ -1108,6 +1112,7 @@ function renderActiveBook() {
   const dirty = app.editorDirty ? ' | unsaved' : '';
   const source = app.editorSourceLabel && app.editorSourceLabel !== 'Current' ? ` | loaded: ${app.editorSourceLabel}` : '';
   root.querySelector('#wbh-active-meta').textContent = app.activeBook ? `${entryCount} entries${dirty}${source}` : '0 entries';
+  root.querySelector('#wbh-export-all').disabled = !app.activeBook;
   root.querySelector('#wbh-restore').disabled = !app.activeBook || app.activeView !== 'snapshot' || !app.activeSnapshot;
   renderExperimentPanel();
   renderEditorState();
@@ -1296,7 +1301,15 @@ function renderExperiments() {
     exportJson.title = 'Export experiment JSON';
     exportJson.addEventListener('click', async () => exportExperimentJson(experiment));
 
-    row.append(button, exportJson, note, rename);
+    const restore = document.createElement('button');
+    restore.type = 'button';
+    restore.className = 'wbh-mini';
+    restore.textContent = 'Restore';
+    restore.title = experiment.afterSnapshotId ? 'Restore this experiment result' : 'Save or finish the experiment before restoring its result';
+    restore.disabled = !experiment.afterSnapshotId;
+    restore.addEventListener('click', async () => restoreExperimentResult(experiment));
+
+    row.append(button, restore, exportJson, note, rename);
     return row;
   }));
 }
@@ -1385,6 +1398,29 @@ async function exportExperimentJson(experiment) {
   const filename = `${safeFileName(experiment.title || 'experiment')}-${formatDateForFile(new Date())}.json`;
   downloadJson(filename, payload);
   setStatus('Experiment JSON exported');
+}
+
+async function exportActiveBookArchive() {
+  if (!app.activeBook) return;
+  setStatus('Exporting worldbook archive');
+
+  const current = app.activeData ? cloneValue(app.activeData) : await loadWorldbook(app.activeBook.name);
+  const payload = {
+    type: 'worldbook-backup-helper-archive',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    book: cloneValue(app.activeBook),
+    current: {
+      entryCount: countEntries(current),
+      data: current,
+    },
+    origin: app.originSnapshot ? cloneValue(app.originSnapshot) : null,
+    snapshots: app.snapshots.map(cloneValue),
+    experiments: app.experiments.map(cloneValue),
+  };
+  const filename = `${safeFileName(app.activeBook.title || app.activeBook.name)}-wbh-archive-${formatDateForFile(new Date())}.json`;
+  downloadJson(filename, payload);
+  setStatus('Worldbook archive JSON exported');
 }
 
 async function loadSnapshotIntoEditor(snapshot, sourceName = 'Version') {
@@ -2263,9 +2299,6 @@ async function finishExperiment() {
   }
 
   const experiment = app.activeExperiment;
-  const note = window.prompt('Change / result note', experiment.changeNote || '');
-  if (note === null) return;
-
   setStatus(isExperimentOpen(experiment) ? 'Finishing experiment' : 'Updating experiment');
   let afterSnapshot = experiment.afterSnapshotId ? await getSnapshotById(experiment.afterSnapshotId) : null;
   if (!afterSnapshot || !isExperimentOpen(experiment)) {
@@ -2283,7 +2316,7 @@ async function finishExperiment() {
     finishedAt: now.toISOString(),
     finishedAtMs: now.getTime(),
     afterSnapshotId: afterSnapshot.id,
-    changeNote: note.trim(),
+    changeNote: experiment.changeNote || '',
   };
 
   await putExperiment(updated);
@@ -2292,6 +2325,13 @@ async function finishExperiment() {
   app.activeSnapshot = afterSnapshot;
   setStatus('Experiment saved');
   await loadLocalSnapshots();
+}
+
+async function restoreExperimentResult(experiment) {
+  if (!app.activeBook || !experiment?.afterSnapshotId) return;
+  const snapshot = await getSnapshotById(experiment.afterSnapshotId);
+  if (!snapshot) return;
+  await restoreSnapshot(snapshot, `experiment result: ${experiment.title || 'Untitled experiment'}`);
 }
 
 async function setExperimentStatus(status) {
