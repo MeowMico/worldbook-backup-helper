@@ -261,6 +261,13 @@
   flex-direction: column;
 }
 
+.wbh-side-section > .wbh-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .wbh-side-section:not(:last-child) {
   border-bottom: 1px solid var(--wbh-border);
 }
@@ -1013,6 +1020,11 @@
   border-radius: 8px;
   background: var(--wbh-surface-1);
   box-shadow: 0 12px 30px rgb(16 24 40 / 18%);
+}
+
+.wbh-history-actions.drop-up .wbh-history-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 
 .wbh-history-menu .wbh-mini {

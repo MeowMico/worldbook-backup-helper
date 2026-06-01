@@ -243,7 +243,7 @@ const TRANSLATIONS = {
     'action.restore': 'Restore',
     'action.name': 'Name',
     'action.note': 'Note',
-    'action.json': 'JSON',
+    'action.json': 'Export',
     'action.exp': 'Exp',
     'action.more': 'More',
     'section.worldbooks': 'Worldbooks',
@@ -495,7 +495,7 @@ const TRANSLATIONS = {
     'action.restore': '回溯',
     'action.name': '改名',
     'action.note': '备注',
-    'action.json': 'JSON',
+    'action.json': '导出',
     'action.exp': '实验',
     'action.more': '更多',
     'section.worldbooks': '世界书',
@@ -2056,8 +2056,32 @@ function createHistoryActionMenu(actions) {
     menu.append(action);
   });
   details.append(menu);
+  details.addEventListener('toggle', () => {
+    if (!details.open) {
+      details.classList.remove('drop-up');
+      return;
+    }
+
+    document.querySelectorAll('#wbh-workbench .wbh-history-actions[open]').forEach(openDetails => {
+      if (openDetails !== details) openDetails.open = false;
+    });
+    window.requestAnimationFrame(() => positionHistoryActionMenu(details));
+  });
 
   return details;
+}
+
+function positionHistoryActionMenu(details) {
+  const menu = details.querySelector('.wbh-history-menu');
+  if (!menu) return;
+
+  details.classList.remove('drop-up');
+  const menuRect = menu.getBoundingClientRect();
+  const section = details.closest('.wbh-side-section');
+  const sectionRect = section?.getBoundingClientRect();
+  const lowerLimit = Math.min(window.innerHeight, sectionRect?.bottom ?? window.innerHeight);
+  const needsDropUp = menuRect.bottom > lowerLimit - 8;
+  details.classList.toggle('drop-up', needsDropUp);
 }
 
 function renderExperiments() {
