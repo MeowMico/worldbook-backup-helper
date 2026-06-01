@@ -193,7 +193,8 @@
   gap: 8px;
 }
 
-.wbh-theme-toggle {
+.wbh-theme-toggle,
+.wbh-language-toggle {
   display: flex;
   overflow: hidden;
   border: 1px solid var(--wbh-border);
@@ -202,14 +203,16 @@
   box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
 }
 
-.wbh-theme-toggle button {
+.wbh-theme-toggle button,
+.wbh-language-toggle button {
   min-height: 32px;
   border: 0;
   border-radius: 0;
   box-shadow: none;
 }
 
-.wbh-theme-toggle button + button {
+.wbh-theme-toggle button + button,
+.wbh-language-toggle button + button {
   border-left: 1px solid var(--wbh-border);
 }
 
@@ -266,7 +269,7 @@
 }
 
 .wbh-grid.history-collapsed .wbh-side-stack::before {
-  content: "History";
+  content: attr(data-wbh-history-label);
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   color: var(--wbh-muted);
@@ -802,13 +805,15 @@
   color: var(--wbh-text);
 }
 
-.wbh-actions .wbh-theme-toggle button {
+.wbh-actions .wbh-theme-toggle button,
+.wbh-actions .wbh-language-toggle button {
   border: 0;
   border-radius: 0;
   box-shadow: none;
 }
 
-.wbh-actions .wbh-theme-toggle button + button {
+.wbh-actions .wbh-theme-toggle button + button,
+.wbh-actions .wbh-language-toggle button + button {
   border-left: 1px solid var(--wbh-border);
 }
 
@@ -829,6 +834,7 @@
 .wbh-toolbar button.active,
 .wbh-tabs button.active,
 .wbh-theme-toggle button.active,
+.wbh-language-toggle button.active,
 .wbh-form button,
 #wbh-start-experiment,
 #wbh-finish-experiment,
@@ -842,6 +848,7 @@
 .wbh-toolbar button.active:hover,
 .wbh-tabs button.active:hover,
 .wbh-theme-toggle button.active:hover,
+.wbh-language-toggle button.active:hover,
 .wbh-form button:hover,
 #wbh-start-experiment:hover,
 #wbh-finish-experiment:hover,

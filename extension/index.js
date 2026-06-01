@@ -8,26 +8,26 @@ const SNAPSHOT_STORE = 'snapshots';
 const EXPERIMENT_STORE = 'experiments';
 
 const POSITION_OPTIONS = [
-  { value: 0, label: 'Before Char Defs' },
-  { value: 1, label: 'After Char Defs' },
-  { value: 5, label: 'Before Example Messages' },
-  { value: 6, label: 'After Example Messages' },
-  { value: 2, label: 'Top of AN' },
-  { value: 3, label: 'Bottom of AN' },
-  { value: 4, label: '@ Depth' },
+  { value: 0, key: 'position.beforeChar' },
+  { value: 1, key: 'position.afterChar' },
+  { value: 5, key: 'position.beforeExample' },
+  { value: 6, key: 'position.afterExample' },
+  { value: 2, key: 'position.topAn' },
+  { value: 3, key: 'position.bottomAn' },
+  { value: 4, key: 'position.depth' },
 ];
 
 const ROLE_OPTIONS = [
-  { value: 0, label: 'System' },
-  { value: 1, label: 'User' },
-  { value: 2, label: 'Assistant' },
+  { value: 0, key: 'role.system' },
+  { value: 1, key: 'role.user' },
+  { value: 2, key: 'role.assistant' },
 ];
 
 const SELECTIVE_LOGIC_OPTIONS = [
-  { value: 0, label: 'AND any' },
-  { value: 3, label: 'AND all' },
-  { value: 2, label: 'NOT any' },
-  { value: 1, label: 'NOT all' },
+  { value: 0, key: 'logic.andAny' },
+  { value: 3, key: 'logic.andAll' },
+  { value: 2, key: 'logic.notAny' },
+  { value: 1, key: 'logic.notAll' },
 ];
 
 const LIST_FIELDS = new Set(['key', 'keysecondary', 'characterFilterNames', 'characterFilterTags', 'triggers']);
@@ -39,6 +39,7 @@ const MAX_UNDO_STEPS = 80;
 const THEME_MODES = ['auto', 'light', 'dark'];
 const THEME_QUERY = window.matchMedia?.('(prefers-color-scheme: dark)');
 const THEME_BACKGROUND_VARS = ['--SmartThemeBodyColor', '--SmartThemeBlurTintColor', '--SmartThemeChatTintColor'];
+const LANGUAGE_MODES = ['auto', 'en', 'zh'];
 const DIFF_ENTRY_FIELDS = [
   'comment',
   'content',
@@ -84,48 +85,48 @@ const DIFF_ENTRY_FIELDS = [
   'matchCreatorNotes',
 ];
 const DIFF_FIELD_LABELS = {
-  comment: 'Title',
-  content: 'Content',
-  key: 'Keys',
-  keysecondary: 'Secondary keys',
-  constant: 'Constant',
-  disable: 'Enabled',
-  selective: 'Selective',
-  vectorized: 'Vectorized',
-  useProbability: 'Use probability',
-  ignoreBudget: 'Ignore budget',
-  position: 'Position',
-  role: 'Role',
-  depth: 'Depth',
-  order: 'Order',
-  probability: 'Probability',
-  scanDepth: 'Scan depth',
-  selectiveLogic: 'Selective logic',
-  caseSensitive: 'Case sensitive',
-  matchWholeWords: 'Whole words',
-  group: 'Group',
-  groupWeight: 'Group weight',
-  useGroupScoring: 'Group scoring',
-  groupOverride: 'Group override',
-  excludeRecursion: 'Exclude recursion',
-  preventRecursion: 'Prevent recursion',
-  delayUntilRecursion: 'Delay until recursion',
-  addMemo: 'Add memo',
-  sticky: 'Sticky',
-  cooldown: 'Cooldown',
-  delay: 'Delay',
-  automationId: 'Automation ID',
-  outletName: 'Outlet name',
-  characterFilterNames: 'Character names',
-  characterFilterTags: 'Character tags',
-  triggers: 'Triggers',
-  characterFilterExclude: 'Exclude character filter',
-  matchPersonaDescription: 'Match persona',
-  matchCharacterDescription: 'Match description',
-  matchCharacterPersonality: 'Match personality',
-  matchCharacterDepthPrompt: 'Match depth prompt',
-  matchScenario: 'Match scenario',
-  matchCreatorNotes: 'Match creator notes',
+  comment: 'field.title',
+  content: 'field.content',
+  key: 'field.keys',
+  keysecondary: 'field.secondary',
+  constant: 'flag.constant',
+  disable: 'field.enabled',
+  selective: 'flag.selective',
+  vectorized: 'flag.vectorized',
+  useProbability: 'flag.useProbability',
+  ignoreBudget: 'flag.ignoreBudget',
+  position: 'field.position',
+  role: 'field.role',
+  depth: 'field.depth',
+  order: 'field.order',
+  probability: 'field.probability',
+  scanDepth: 'field.scanDepth',
+  selectiveLogic: 'field.selectiveLogic',
+  caseSensitive: 'field.caseSensitive',
+  matchWholeWords: 'field.wholeWords',
+  group: 'field.group',
+  groupWeight: 'field.groupWeight',
+  useGroupScoring: 'field.groupScoring',
+  groupOverride: 'flag.groupOverride',
+  excludeRecursion: 'flag.excludeRecursion',
+  preventRecursion: 'flag.preventRecursion',
+  delayUntilRecursion: 'flag.delayUntilRecursion',
+  addMemo: 'flag.addMemo',
+  sticky: 'field.sticky',
+  cooldown: 'field.cooldown',
+  delay: 'field.delay',
+  automationId: 'field.automationId',
+  outletName: 'field.outletName',
+  characterFilterNames: 'field.characterNames',
+  characterFilterTags: 'field.characterTags',
+  triggers: 'field.triggers',
+  characterFilterExclude: 'flag.excludeCharacterFilter',
+  matchPersonaDescription: 'field.matchPersona',
+  matchCharacterDescription: 'field.matchDescription',
+  matchCharacterPersonality: 'field.matchPersonality',
+  matchCharacterDepthPrompt: 'field.matchDepthPrompt',
+  matchScenario: 'field.matchScenario',
+  matchCreatorNotes: 'field.matchCreatorNotes',
 };
 const BOOLEAN_DIFF_FIELDS = new Set([
   'constant',
@@ -146,6 +147,503 @@ const BOOLEAN_DIFF_FIELDS = new Set([
   'matchScenario',
   'matchCreatorNotes',
 ]);
+
+const TRANSLATIONS = {
+  en: {
+    'app.title': 'Worldbook Backup Helper',
+    'menu.open': 'Worldbook Backups',
+    'status.extensionMode': 'Extension-only mode: snapshots are stored in this browser.',
+    'status.ready': 'Ready',
+    'status.refreshing': 'Refreshing',
+    'status.viewingExperiment': 'Viewing experiment: {title}',
+    'status.experimentRenamed': 'Experiment renamed',
+    'status.experimentNoteSaved': 'Experiment note saved',
+    'status.experimentJsonExported': 'Experiment JSON exported',
+    'status.exportingArchive': 'Exporting worldbook archive',
+    'status.archiveExported': 'Worldbook archive JSON exported',
+    'status.loadedForEditing': 'Loaded {source} for editing: {label}',
+    'status.noMatches': 'No matches',
+    'status.matches': '{current}/{total} matches',
+    'status.noMatchToReplace': 'No match to replace',
+    'status.replacedMatch': 'Replaced match',
+    'status.noMatchesToReplace': 'No matches to replace',
+    'status.replacedMatches': 'Replaced {count} {noun}',
+    'status.unsavedEdits': 'Unsaved edits',
+    'status.undo': 'Undo: {label}',
+    'status.redo': 'Redo: {label}',
+    'status.savingWorldbook': 'Saving worldbook',
+    'status.saved': 'Saved',
+    'status.reloadingWorldbook': 'Reloading worldbook',
+    'status.experimentCreatedFromVersion': 'Experiment created from version',
+    'status.creatingSnapshot': 'Creating snapshot',
+    'status.skippedDuplicate': 'Skipped duplicate',
+    'status.snapshotCreated': 'Snapshot created',
+    'status.finishOpenExperiment': 'Finish "{title}" before starting another',
+    'status.startingExperiment': 'Starting experiment',
+    'status.experimentStarted': 'Experiment started',
+    'status.finishingExperiment': 'Finishing experiment',
+    'status.updatingExperiment': 'Updating experiment',
+    'status.experimentSaved': 'Experiment saved',
+    'status.restoring': 'Restoring',
+    'status.restored': 'Restored',
+    'status.restoredLabel': 'Restored {label}',
+    'status.changedEntries': '{current}/{total} changed entries',
+    'theme.label': 'Theme',
+    'theme.auto': 'Auto',
+    'theme.light': 'Light',
+    'theme.dark': 'Dark',
+    'theme.autoTitle': 'Auto: following SillyTavern ({resolved})',
+    'theme.useTitle': 'Use {mode} theme',
+    'language.label': 'Language',
+    'language.auto': 'Auto',
+    'language.en': 'EN',
+    'language.zh': '中文',
+    'language.autoTitle': 'Auto: following page/browser ({resolved})',
+    'language.useTitle': 'Use {mode}',
+    'action.refresh': 'Refresh',
+    'action.close': 'Close',
+    'action.exportAll': 'Export all',
+    'action.start': 'Start',
+    'action.finish': 'Finish',
+    'action.updateAfter': 'Update After',
+    'action.keep': 'Keep',
+    'action.reject': 'Reject',
+    'action.origin': 'Origin',
+    'action.baseline': 'Baseline',
+    'action.after': 'After',
+    'action.edit': 'Edit',
+    'action.diff': 'Diff',
+    'action.history': 'History',
+    'action.showHistory': 'Show history',
+    'action.hideHistory': 'Hide history',
+    'action.find': 'Find',
+    'action.hideFind': 'Hide find',
+    'action.undo': 'Undo',
+    'action.redo': 'Redo',
+    'action.new': 'New',
+    'action.duplicate': 'Duplicate',
+    'action.delete': 'Delete',
+    'action.reload': 'Reload',
+    'action.save': 'Save',
+    'action.saveNote': 'Save note',
+    'action.snapshot': 'Snapshot',
+    'action.current': 'Current',
+    'action.previous': 'Previous',
+    'action.prev': 'Prev',
+    'action.next': 'Next',
+    'action.replace': 'Replace',
+    'action.all': 'All',
+    'action.prevChange': 'Prev change',
+    'action.nextChange': 'Next change',
+    'action.restore': 'Restore',
+    'action.name': 'Name',
+    'action.note': 'Note',
+    'action.json': 'JSON',
+    'action.exp': 'Exp',
+    'section.worldbooks': 'Worldbooks',
+    'section.entries': 'Entries',
+    'section.origin': 'Origin',
+    'section.experiments': 'Experiments',
+    'section.versions': 'Versions',
+    'section.activation': 'Activation',
+    'section.insertion': 'Insertion',
+    'section.logic': 'Logic',
+    'section.timingFilters': 'Timing and Filters',
+    'section.matchSources': 'Match Sources',
+    'empty.noWorldbookSelected': 'No worldbook selected',
+    'empty.noExperimentSelected': 'No experiment selected',
+    'empty.noEntrySelected': 'No entry selected',
+    'empty.noOriginYet': 'No origin yet',
+    'empty.noExperimentsYet': 'No experiments yet',
+    'empty.noMatchingExperiments': 'No matching experiments',
+    'empty.noWorldbookLoaded': 'No worldbook loaded',
+    'empty.noEntries': 'No entries',
+    'empty.noVersionsYet': 'No versions yet',
+    'empty.selectSnapshot': 'Select a snapshot',
+    'empty.noPreviousVersion': 'No previous version',
+    'empty.noBaseline': 'No baseline',
+    'empty.noChanges': 'No changes',
+    'placeholder.search': 'Search',
+    'placeholder.findEntries': 'Find in entries',
+    'placeholder.replace': 'Replace',
+    'placeholder.searchExperiments': 'Search experiments',
+    'placeholder.note': 'Experiment note, e.g. This version is better for Claude than Gemini',
+    'placeholder.noteDisabled': 'Select an experiment to write a note',
+    'placeholder.snapshotNote': 'Note, e.g. trimmed xxx',
+    'tooltip.hideWorldbooks': 'Hide worldbooks',
+    'tooltip.showWorldbooks': 'Show worldbooks',
+    'tooltip.history': 'Show or hide the history sidebar',
+    'tooltip.findReplace': 'Show or hide find and replace',
+    'tooltip.exportExperimentJson': 'Export experiment JSON',
+    'tooltip.promoteExperiment': 'Create experiment from this version',
+    'tooltip.restoreExperimentReady': 'Restore this experiment result',
+    'tooltip.restoreExperimentDisabled': 'Save or finish the experiment before restoring its result',
+    'tooltip.roleDepthOnly': 'Role is only used for @ Depth entries',
+    'field.title': 'Title',
+    'field.content': 'Content',
+    'field.keys': 'Keys',
+    'field.secondary': 'Secondary',
+    'field.position': 'Position',
+    'field.role': 'Role',
+    'field.depth': 'Depth',
+    'field.order': 'Order',
+    'field.probability': 'Probability',
+    'field.scanDepth': 'Scan Depth',
+    'field.selectiveLogic': 'Selective Logic',
+    'field.caseSensitive': 'Case Sensitive',
+    'field.wholeWords': 'Whole Words',
+    'field.group': 'Group',
+    'field.groupWeight': 'Group Weight',
+    'field.groupScoring': 'Group Scoring',
+    'field.sticky': 'Sticky',
+    'field.cooldown': 'Cooldown',
+    'field.delay': 'Delay',
+    'field.automationId': 'Automation ID',
+    'field.outletName': 'Outlet Name',
+    'field.characterNames': 'Character Names',
+    'field.characterTags': 'Character Tags',
+    'field.triggers': 'Triggers',
+    'field.matchPersona': 'Persona',
+    'field.matchDescription': 'Description',
+    'field.matchPersonality': 'Personality',
+    'field.matchDepthPrompt': 'Depth Prompt',
+    'field.matchScenario': 'Scenario',
+    'field.matchCreatorNotes': 'Creator Notes',
+    'field.enabled': 'Enabled',
+    'flag.constant': 'Constant',
+    'flag.disabled': 'Disabled',
+    'flag.selective': 'Selective',
+    'flag.vectorized': 'Vectorized',
+    'flag.useProbability': 'Use Probability',
+    'flag.ignoreBudget': 'Ignore Budget',
+    'flag.groupOverride': 'Group Override',
+    'flag.excludeRecursion': 'Exclude Recursion',
+    'flag.preventRecursion': 'Prevent Recursion',
+    'flag.delayUntilRecursion': 'Delay Until Recursion',
+    'flag.addMemo': 'Add Memo',
+    'flag.excludeCharacterFilter': 'Exclude Character Filter',
+    'value.global': 'Global',
+    'value.on': 'On',
+    'value.off': 'Off',
+    'value.blank': '(blank)',
+    'value.untitled': '(untitled)',
+    'value.entry': 'entry',
+    'value.normal': 'Normal',
+    'position.beforeChar': 'Before Char Defs',
+    'position.afterChar': 'After Char Defs',
+    'position.beforeExample': 'Before Example Messages',
+    'position.afterExample': 'After Example Messages',
+    'position.topAn': 'Top of AN',
+    'position.bottomAn': 'Bottom of AN',
+    'position.depth': '@ Depth',
+    'position.fallback': 'position {value}',
+    'role.system': 'System',
+    'role.user': 'User',
+    'role.assistant': 'Assistant',
+    'role.depth': '{role} depth {depth}',
+    'logic.andAny': 'AND any',
+    'logic.andAll': 'AND all',
+    'logic.notAny': 'NOT any',
+    'logic.notAll': 'NOT all',
+    'status.testing': 'Testing',
+    'status.kept': 'Kept',
+    'status.rejected': 'Rejected',
+    'count.entries': '{count} entries',
+    'count.entry': '{count} entry',
+    'count.unsaved': 'unsaved',
+    'count.loaded': 'loaded: {source}',
+    'count.matches': '{count} matches',
+    'count.match': '{count} match',
+    'prompt.experimentName': 'Experiment name / problem',
+    'prompt.experimentNote': 'Experiment note',
+    'prompt.versionName': 'Version name',
+    'confirm.replaceMatches': 'Replace {count} {noun}?',
+    'confirm.deleteEntry': 'Delete "{title}"?',
+    'confirm.discardEdits': 'Discard unsaved workbench edits?',
+    'confirm.saveBeforeFinish': 'Save workbench edits before finishing this experiment?',
+    'confirm.restoreExperimentPoint': 'Restore "{book}" to {point} of "{title}"?',
+    'confirm.restoreSnapshot': 'Restore "{book}" to "{label}"?',
+    'label.current': 'Current',
+    'label.version': 'Version',
+    'label.origin': 'Origin',
+    'label.experiment': 'Experiment {date}',
+    'label.currentExperiment': 'current experiment',
+    'label.untitledExperiment': 'Untitled experiment',
+    'label.untitledVersion': 'Untitled version',
+    'label.beforeAutoSave': 'Before auto save',
+    'label.afterAutoSave': 'After auto save',
+    'label.beforeSave': 'Before save: {title}',
+    'label.afterSave': 'After save: {title}',
+    'label.manualSnapshot': 'Manual snapshot',
+    'label.manualSnapshotExperiment': 'Manual snapshot: {title}',
+    'label.baseline': 'Baseline: {title}',
+    'label.after': 'After: {title}',
+    'label.originSnapshot': 'Origin: {name}',
+    'label.beforeRestore': 'Before restore {date}',
+    'label.beforeRestoreTo': 'Before restore to {label} {date}',
+    'label.experimentResult': 'experiment result: {title}',
+    'label.fromVersion': 'From version: {label}',
+    'label.createdFromVersion': 'Created from saved version',
+    'label.savedFromWorkbench': 'Saved from workbench',
+    'label.change': 'change',
+    'label.workbenchEdit': 'Workbench edit',
+    'label.rangeAfter': 'Baseline -> After',
+    'label.rangeCurrent': 'Baseline -> Current',
+    'diff.summary': '+{added} -{removed} ~{changed} unchanged {unchanged}',
+    'diff.summaryWithRange': '{range} | +{added} -{removed} ~{changed} unchanged {unchanged}',
+    'diff.entry': 'ENTRY',
+    'diff.added': 'ADDED',
+    'diff.removed': 'REMOVED',
+    'diff.changed': 'CHANGED',
+  },
+  zh: {
+    'app.title': '世界书备份助手',
+    'menu.open': '世界书备份',
+    'status.extensionMode': '本地扩展模式：快照会保存在此浏览器中。',
+    'status.ready': '就绪',
+    'status.refreshing': '正在刷新',
+    'status.viewingExperiment': '正在查看实验：{title}',
+    'status.experimentRenamed': '实验已重命名',
+    'status.experimentNoteSaved': '实验备注已保存',
+    'status.experimentJsonExported': '实验 JSON 已导出',
+    'status.exportingArchive': '正在导出世界书合集',
+    'status.archiveExported': '世界书历史合集 JSON 已导出',
+    'status.loadedForEditing': '已载入{source}用于编辑：{label}',
+    'status.noMatches': '没有匹配项',
+    'status.matches': '{current}/{total} 个匹配项',
+    'status.noMatchToReplace': '没有可替换的匹配项',
+    'status.replacedMatch': '已替换匹配项',
+    'status.noMatchesToReplace': '没有可替换的匹配项',
+    'status.replacedMatches': '已替换 {count} 个匹配项',
+    'status.unsavedEdits': '有未保存编辑',
+    'status.undo': '已撤回：{label}',
+    'status.redo': '已重做：{label}',
+    'status.savingWorldbook': '正在保存世界书',
+    'status.saved': '已保存',
+    'status.reloadingWorldbook': '正在重新读取世界书',
+    'status.experimentCreatedFromVersion': '已从此版本创建实验',
+    'status.creatingSnapshot': '正在创建快照',
+    'status.skippedDuplicate': '内容重复，已跳过',
+    'status.snapshotCreated': '快照已创建',
+    'status.finishOpenExperiment': '请先结束“{title}”再开始新实验',
+    'status.startingExperiment': '正在开始实验',
+    'status.experimentStarted': '实验已开始',
+    'status.finishingExperiment': '正在结束实验',
+    'status.updatingExperiment': '正在更新实验结果',
+    'status.experimentSaved': '实验已保存',
+    'status.restoring': '正在回溯',
+    'status.restored': '已回溯',
+    'status.restoredLabel': '已回溯到 {label}',
+    'status.changedEntries': '{current}/{total} 个变更条目',
+    'theme.label': '主题',
+    'theme.auto': '自动',
+    'theme.light': '浅色',
+    'theme.dark': '深色',
+    'theme.autoTitle': '自动：跟随 SillyTavern（{resolved}）',
+    'theme.useTitle': '使用{mode}主题',
+    'language.label': '语言',
+    'language.auto': '自动',
+    'language.en': 'EN',
+    'language.zh': '中文',
+    'language.autoTitle': '自动：跟随页面/浏览器（{resolved}）',
+    'language.useTitle': '使用{mode}',
+    'action.refresh': '刷新',
+    'action.close': '关闭',
+    'action.exportAll': '导出全部',
+    'action.start': '开始',
+    'action.finish': '完成',
+    'action.updateAfter': '更新结果',
+    'action.keep': '保留',
+    'action.reject': '放弃',
+    'action.origin': '原版',
+    'action.baseline': '改前',
+    'action.after': '改后',
+    'action.edit': '编辑',
+    'action.diff': '对比',
+    'action.history': '历史',
+    'action.showHistory': '显示历史',
+    'action.hideHistory': '隐藏历史',
+    'action.find': '查找',
+    'action.hideFind': '隐藏查找',
+    'action.undo': '撤回',
+    'action.redo': '重做',
+    'action.new': '新建',
+    'action.duplicate': '复制',
+    'action.delete': '删除',
+    'action.reload': '重新读取',
+    'action.save': '保存',
+    'action.saveNote': '保存备注',
+    'action.snapshot': '快照',
+    'action.current': '当前',
+    'action.previous': '上一版',
+    'action.prev': '上一个',
+    'action.next': '下一个',
+    'action.replace': '替换',
+    'action.all': '全部',
+    'action.prevChange': '上一处变化',
+    'action.nextChange': '下一处变化',
+    'action.restore': '回溯',
+    'action.name': '改名',
+    'action.note': '备注',
+    'action.json': 'JSON',
+    'action.exp': '实验',
+    'section.worldbooks': '世界书',
+    'section.entries': '条目',
+    'section.origin': '原版',
+    'section.experiments': '实验',
+    'section.versions': '版本',
+    'section.activation': '激活',
+    'section.insertion': '插入',
+    'section.logic': '逻辑',
+    'section.timingFilters': '额外匹配来源',
+    'section.matchSources': '筛选生成触发器',
+    'empty.noWorldbookSelected': '未选择世界书',
+    'empty.noExperimentSelected': '未选择实验',
+    'empty.noEntrySelected': '未选择条目',
+    'empty.noOriginYet': '暂无原版',
+    'empty.noExperimentsYet': '暂无实验',
+    'empty.noMatchingExperiments': '没有匹配的实验',
+    'empty.noWorldbookLoaded': '未读取世界书',
+    'empty.noEntries': '暂无条目',
+    'empty.noVersionsYet': '暂无版本',
+    'empty.selectSnapshot': '请选择一个快照',
+    'empty.noPreviousVersion': '没有上一版',
+    'empty.noBaseline': '没有改前版本',
+    'empty.noChanges': '没有变化',
+    'placeholder.search': '搜索',
+    'placeholder.findEntries': '在条目中查找',
+    'placeholder.replace': '替换为',
+    'placeholder.searchExperiments': '搜索实验',
+    'placeholder.note': '实验备注，例如：这个版本不太适配 Gemini，下次用 Claude 试试',
+    'placeholder.noteDisabled': '选择实验后可写备注',
+    'placeholder.snapshotNote': '备注，例如：删减了 xxx',
+    'tooltip.hideWorldbooks': '隐藏世界书列表',
+    'tooltip.showWorldbooks': '显示世界书列表',
+    'tooltip.history': '显示或隐藏历史栏',
+    'tooltip.findReplace': '显示或隐藏查找替换',
+    'tooltip.exportExperimentJson': '导出实验 JSON',
+    'tooltip.promoteExperiment': '从此版本创建实验',
+    'tooltip.restoreExperimentReady': '回溯到此实验结果',
+    'tooltip.restoreExperimentDisabled': '请先保存或完成实验，再回溯实验结果',
+    'tooltip.roleDepthOnly': '只有“插入深度 @D”条目会使用 Role',
+    'field.title': '标题（备忘）',
+    'field.content': '内容',
+    'field.keys': '主要关键字',
+    'field.secondary': '可选过滤器',
+    'field.position': '插入位置',
+    'field.role': '角色',
+    'field.depth': '深度',
+    'field.order': '顺序',
+    'field.probability': '触发概率 %',
+    'field.scanDepth': '扫描深度',
+    'field.selectiveLogic': '逻辑',
+    'field.caseSensitive': '区分大小写',
+    'field.wholeWords': '完整单词',
+    'field.group': '包含组',
+    'field.groupWeight': '组权重',
+    'field.groupScoring': '组评分',
+    'field.sticky': '粘性',
+    'field.cooldown': '冷却',
+    'field.delay': '延迟',
+    'field.automationId': '自动化 ID',
+    'field.outletName': '锚点',
+    'field.characterNames': '绑定到角色',
+    'field.characterTags': '绑定到标签',
+    'field.triggers': '触发器',
+    'field.matchPersona': '用户描述',
+    'field.matchDescription': '角色描述',
+    'field.matchPersonality': '角色人格',
+    'field.matchDepthPrompt': '深度提示词',
+    'field.matchScenario': '场景',
+    'field.matchCreatorNotes': '作者备注',
+    'field.enabled': '启用状态',
+    'flag.constant': '常驻',
+    'flag.disabled': '禁用',
+    'flag.selective': '可选',
+    'flag.vectorized': '向量化',
+    'flag.useProbability': '使用触发概率',
+    'flag.ignoreBudget': '无视回复限额',
+    'flag.groupOverride': '确定优先级',
+    'flag.excludeRecursion': '不可递归',
+    'flag.preventRecursion': '防止进一步递归',
+    'flag.delayUntilRecursion': '延迟到递归',
+    'flag.addMemo': '添加备忘',
+    'flag.excludeCharacterFilter': '排除',
+    'value.global': '使用全局',
+    'value.on': '开启',
+    'value.off': '关闭',
+    'value.blank': '（空）',
+    'value.untitled': '（未命名）',
+    'value.entry': '条目',
+    'value.normal': '普通',
+    'position.beforeChar': '角色定义前（↑Char）',
+    'position.afterChar': '角色定义后（↓Char）',
+    'position.beforeExample': '示例消息前（↑EM）',
+    'position.afterExample': '示例消息后（↓EM）',
+    'position.topAn': '作者注释前（↑AN）',
+    'position.bottomAn': '作者注释后（↓AN）',
+    'position.depth': '[系统] 插入深度 @D',
+    'position.fallback': '位置 {value}',
+    'role.system': '系统',
+    'role.user': '用户',
+    'role.assistant': 'AI',
+    'role.depth': '{role} 深度 {depth}',
+    'logic.andAny': '与任意',
+    'logic.andAll': '与全部',
+    'logic.notAny': '非任意',
+    'logic.notAll': '非全部',
+    'status.testing': '测试中',
+    'status.kept': '已保留',
+    'status.rejected': '已放弃',
+    'count.entries': '{count} 个条目',
+    'count.entry': '{count} 个条目',
+    'count.unsaved': '未保存',
+    'count.loaded': '已载入：{source}',
+    'count.matches': '{count} 个匹配项',
+    'count.match': '{count} 个匹配项',
+    'prompt.experimentName': '实验名称 / 问题记录',
+    'prompt.experimentNote': '实验备注',
+    'prompt.versionName': '版本名称',
+    'confirm.replaceMatches': '替换 {count} 个匹配项吗？',
+    'confirm.deleteEntry': '删除“{title}”吗？',
+    'confirm.discardEdits': '放弃未保存的工作台编辑吗？',
+    'confirm.saveBeforeFinish': '完成实验前保存工作台编辑吗？',
+    'confirm.restoreExperimentPoint': '把“{book}”回溯到“{title}”的{point}吗？',
+    'confirm.restoreSnapshot': '把“{book}”回溯到“{label}”吗？',
+    'label.current': '当前',
+    'label.version': '版本',
+    'label.origin': '原版',
+    'label.experiment': '实验 {date}',
+    'label.currentExperiment': '当前实验',
+    'label.untitledExperiment': '未命名实验',
+    'label.untitledVersion': '未命名版本',
+    'label.beforeAutoSave': '自动保存前',
+    'label.afterAutoSave': '自动保存后',
+    'label.beforeSave': '保存前：{title}',
+    'label.afterSave': '保存后：{title}',
+    'label.manualSnapshot': '手动快照',
+    'label.manualSnapshotExperiment': '手动快照：{title}',
+    'label.baseline': '改前：{title}',
+    'label.after': '改后：{title}',
+    'label.originSnapshot': '原版：{name}',
+    'label.beforeRestore': '回溯前 {date}',
+    'label.beforeRestoreTo': '回溯到 {label} 前 {date}',
+    'label.experimentResult': '实验结果：{title}',
+    'label.fromVersion': '来自版本：{label}',
+    'label.createdFromVersion': '从已保存版本创建',
+    'label.savedFromWorkbench': '从工作台保存',
+    'label.change': '改动',
+    'label.workbenchEdit': '工作台编辑',
+    'label.rangeAfter': '改前 -> 改后',
+    'label.rangeCurrent': '改前 -> 当前',
+    'diff.summary': '+{added} -{removed} ~{changed} 未变 {unchanged}',
+    'diff.summaryWithRange': '{range} | +{added} -{removed} ~{changed} 未变 {unchanged}',
+    'diff.entry': '条目',
+    'diff.added': '新增',
+    'diff.removed': '删除',
+    'diff.changed': '变更',
+  },
+};
 
 const ENTRY_DEFAULTS = {
   key: [],
@@ -222,6 +720,7 @@ const app = {
   historyCollapsed: readBooleanSetting('wbh-history-collapsed'),
   findCollapsed: readBooleanSetting('wbh-find-collapsed'),
   themeMode: readStringSetting('wbh-theme-mode', 'auto', THEME_MODES),
+  languageMode: readStringSetting('wbh-language-mode', 'auto', LANGUAGE_MODES),
   diffMode: 'current',
 };
 
@@ -233,6 +732,7 @@ function init() {
   if (app.installed) return;
   app.installed = true;
   installThemeListener();
+  installLanguageListener();
   installWorkbenchButton();
   installWorldbookEditInterceptor();
 }
@@ -250,6 +750,23 @@ function installThemeListener() {
   });
 }
 
+function installLanguageListener() {
+  const render = () => {
+    if (app.languageMode !== 'auto') return;
+    renderLanguageMode();
+    renderThemeMode();
+    renderEditor();
+    renderOriginSnapshot();
+    renderExperiments();
+    renderSnapshots();
+    void renderDiff();
+  };
+  const observer = new MutationObserver(render);
+  [document.documentElement, document.body].filter(Boolean).forEach(element => {
+    observer.observe(element, { attributes: true, attributeFilter: ['lang', 'data-language', 'data-locale'] });
+  });
+}
+
 function installWorkbenchButton() {
   const add = () => {
     const menu = document.querySelector('#extensionsMenu');
@@ -259,7 +776,7 @@ function installWorkbenchButton() {
     button.id = 'wbh-open-workbench';
     button.className = 'list-group-item flex-container flexGap5 interactable';
     button.tabIndex = 0;
-    button.textContent = 'Worldbook Backups';
+    button.textContent = t('menu.open');
     button.addEventListener('click', openWorkbench);
     button.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
@@ -447,324 +964,329 @@ function ensureLocalWorkbench() {
   const root = document.createElement('div');
   root.id = 'wbh-workbench';
   root.innerHTML = `
-    <div class="wbh-panel" role="dialog" aria-modal="true" aria-label="Worldbook Backup Helper">
+    <div class="wbh-panel" role="dialog" aria-modal="true" aria-label="${t('app.title')}">
       <header class="wbh-header">
         <div>
-          <h2>Worldbook Backup Helper</h2>
-          <p id="wbh-status">Extension-only mode: snapshots are stored in this browser.</p>
+          <h2 data-wbh-i18n="app.title">${t('app.title')}</h2>
+          <p id="wbh-status">${t('status.extensionMode')}</p>
         </div>
         <div class="wbh-actions">
-          <div class="wbh-theme-toggle" role="group" aria-label="Theme">
-            <button type="button" data-wbh-theme="auto">Auto</button>
-            <button type="button" data-wbh-theme="light">Light</button>
-            <button type="button" data-wbh-theme="dark">Dark</button>
+          <div class="wbh-language-toggle" role="group" aria-label="${t('language.label')}">
+            <button type="button" data-wbh-language="auto" data-wbh-i18n="language.auto">${t('language.auto')}</button>
+            <button type="button" data-wbh-language="en" data-wbh-i18n="language.en">${t('language.en')}</button>
+            <button type="button" data-wbh-language="zh" data-wbh-i18n="language.zh">${t('language.zh')}</button>
           </div>
-          <button id="wbh-refresh" type="button">Refresh</button>
-          <button id="wbh-close" type="button">Close</button>
+          <div class="wbh-theme-toggle" role="group" aria-label="${t('theme.label')}">
+            <button type="button" data-wbh-theme="auto" data-wbh-i18n="theme.auto">${t('theme.auto')}</button>
+            <button type="button" data-wbh-theme="light" data-wbh-i18n="theme.light">${t('theme.light')}</button>
+            <button type="button" data-wbh-theme="dark" data-wbh-i18n="theme.dark">${t('theme.dark')}</button>
+          </div>
+          <button id="wbh-refresh" type="button" data-wbh-i18n="action.refresh">${t('action.refresh')}</button>
+          <button id="wbh-close" type="button" data-wbh-i18n="action.close">${t('action.close')}</button>
         </div>
       </header>
       <main class="wbh-grid">
         <section id="wbh-book-pane" class="wbh-pane wbh-book-pane">
           <div class="wbh-pane-head wbh-book-head">
             <div class="wbh-book-title">
-              <h3>Worldbooks</h3>
+              <h3 data-wbh-i18n="section.worldbooks">${t('section.worldbooks')}</h3>
               <span id="wbh-book-count">0</span>
             </div>
-            <button id="wbh-toggle-books" class="wbh-icon-button" type="button" title="Hide worldbooks" aria-label="Hide worldbooks">&lt;</button>
+            <button id="wbh-toggle-books" class="wbh-icon-button" type="button" title="${t('tooltip.hideWorldbooks')}" aria-label="${t('tooltip.hideWorldbooks')}">&lt;</button>
           </div>
           <div class="wbh-book-content">
-            <input id="wbh-book-search" type="search" placeholder="Search">
+            <input id="wbh-book-search" type="search" placeholder="${t('placeholder.search')}" data-wbh-i18n-placeholder="placeholder.search">
             <div id="wbh-books" class="wbh-list"></div>
           </div>
         </section>
         <section class="wbh-pane wbh-main">
           <div class="wbh-pane-head">
-            <h3 id="wbh-active-title">No worldbook selected</h3>
+            <h3 id="wbh-active-title">${t('empty.noWorldbookSelected')}</h3>
             <div class="wbh-head-actions">
-              <span id="wbh-active-meta">0 entries</span>
-              <button id="wbh-export-all" class="wbh-mini" type="button" disabled>Export all</button>
+              <span id="wbh-active-meta">${entriesLabel(0)}</span>
+              <button id="wbh-export-all" class="wbh-mini" type="button" disabled data-wbh-i18n="action.exportAll">${t('action.exportAll')}</button>
             </div>
           </div>
           <div class="wbh-experiment">
             <div class="wbh-experiment-text">
-              <strong id="wbh-experiment-title">No experiment selected</strong>
-              <small id="wbh-experiment-meta">Ready</small>
+              <strong id="wbh-experiment-title">${t('empty.noExperimentSelected')}</strong>
+              <small id="wbh-experiment-meta">${t('status.ready')}</small>
             </div>
             <div class="wbh-experiment-actions">
-              <button id="wbh-start-experiment" type="button">Start</button>
-              <button id="wbh-finish-experiment" type="button">Finish</button>
-              <button id="wbh-keep-experiment" type="button">Keep</button>
-              <button id="wbh-reject-experiment" type="button">Reject</button>
-              <button id="wbh-restore-origin" type="button">Origin</button>
-              <button id="wbh-restore-baseline" type="button">Baseline</button>
-              <button id="wbh-restore-after" type="button">After</button>
+              <button id="wbh-start-experiment" type="button" data-wbh-i18n="action.start">${t('action.start')}</button>
+              <button id="wbh-finish-experiment" type="button">${t('action.finish')}</button>
+              <button id="wbh-keep-experiment" type="button" data-wbh-i18n="action.keep">${t('action.keep')}</button>
+              <button id="wbh-reject-experiment" type="button" data-wbh-i18n="action.reject">${t('action.reject')}</button>
+              <button id="wbh-restore-origin" type="button" data-wbh-i18n="action.origin">${t('action.origin')}</button>
+              <button id="wbh-restore-baseline" type="button" data-wbh-i18n="action.baseline">${t('action.baseline')}</button>
+              <button id="wbh-restore-after" type="button" data-wbh-i18n="action.after">${t('action.after')}</button>
             </div>
           </div>
           <div class="wbh-viewbar">
             <div class="wbh-tabs">
-              <button id="wbh-tab-edit" type="button" class="active">Edit</button>
-              <button id="wbh-tab-diff" type="button">Diff</button>
+              <button id="wbh-tab-edit" type="button" class="active" data-wbh-i18n="action.edit">${t('action.edit')}</button>
+              <button id="wbh-tab-diff" type="button" data-wbh-i18n="action.diff">${t('action.diff')}</button>
             </div>
             <div class="wbh-view-options">
-              <button id="wbh-toggle-history" type="button" title="Show or hide the history sidebar">History</button>
+              <button id="wbh-toggle-history" type="button" title="${t('tooltip.history')}">${t('action.history')}</button>
             </div>
             <div class="wbh-editor-actions">
-              <button id="wbh-editor-undo" type="button" disabled>Undo</button>
-              <button id="wbh-editor-redo" type="button" disabled>Redo</button>
-              <button id="wbh-entry-new" type="button">New</button>
-              <button id="wbh-entry-duplicate" type="button" disabled>Duplicate</button>
-              <button id="wbh-entry-delete" type="button" class="danger" disabled>Delete</button>
-              <button id="wbh-editor-reload" type="button">Reload</button>
-              <button id="wbh-editor-save" type="button" disabled>Save</button>
+              <button id="wbh-editor-undo" type="button" disabled data-wbh-i18n="action.undo">${t('action.undo')}</button>
+              <button id="wbh-editor-redo" type="button" disabled data-wbh-i18n="action.redo">${t('action.redo')}</button>
+              <button id="wbh-entry-new" type="button" data-wbh-i18n="action.new">${t('action.new')}</button>
+              <button id="wbh-entry-duplicate" type="button" disabled data-wbh-i18n="action.duplicate">${t('action.duplicate')}</button>
+              <button id="wbh-entry-delete" type="button" class="danger" disabled data-wbh-i18n="action.delete">${t('action.delete')}</button>
+              <button id="wbh-editor-reload" type="button" data-wbh-i18n="action.reload">${t('action.reload')}</button>
+              <button id="wbh-editor-save" type="button" disabled data-wbh-i18n="action.save">${t('action.save')}</button>
             </div>
           </div>
           <div id="wbh-editor-view" class="wbh-editor-view">
             <aside class="wbh-entry-pane">
               <div class="wbh-entry-pane-head">
-                <strong>Entries</strong>
-                <button id="wbh-toggle-find" type="button" title="Show or hide find and replace">Find</button>
+                <strong data-wbh-i18n="section.entries">${t('section.entries')}</strong>
+                <button id="wbh-toggle-find" type="button" title="${t('tooltip.findReplace')}">${t('action.find')}</button>
               </div>
               <div class="wbh-findbar">
                 <div class="wbh-find-row">
-                  <input id="wbh-entry-search" type="search" placeholder="Find in entries">
+                  <input id="wbh-entry-search" type="search" placeholder="${t('placeholder.findEntries')}" data-wbh-i18n-placeholder="placeholder.findEntries">
                   <span id="wbh-find-count">0/0</span>
                 </div>
                 <div class="wbh-find-row wbh-find-actions">
-                  <button id="wbh-find-prev" type="button">Prev</button>
-                  <button id="wbh-find-next" type="button">Next</button>
+                  <button id="wbh-find-prev" type="button" data-wbh-i18n="action.prev">${t('action.prev')}</button>
+                  <button id="wbh-find-next" type="button" data-wbh-i18n="action.next">${t('action.next')}</button>
                 </div>
                 <div class="wbh-find-row">
-                  <input id="wbh-replace-text" type="text" placeholder="Replace">
+                  <input id="wbh-replace-text" type="text" placeholder="${t('placeholder.replace')}" data-wbh-i18n-placeholder="placeholder.replace">
                 </div>
                 <div class="wbh-find-row wbh-find-actions">
-                  <button id="wbh-replace-one" type="button">Replace</button>
-                  <button id="wbh-replace-all" type="button">All</button>
+                  <button id="wbh-replace-one" type="button" data-wbh-i18n="action.replace">${t('action.replace')}</button>
+                  <button id="wbh-replace-all" type="button" data-wbh-i18n="action.all">${t('action.all')}</button>
                 </div>
               </div>
               <div id="wbh-entries" class="wbh-list"></div>
             </aside>
             <section class="wbh-entry-editor">
               <div class="wbh-entry-title">
-                <h3 id="wbh-entry-title">No entry selected</h3>
+                <h3 id="wbh-entry-title">${t('empty.noEntrySelected')}</h3>
                 <span id="wbh-entry-meta"></span>
               </div>
               <label class="wbh-editor-field wbh-title-field">
-                <span>Title</span>
+                <span data-wbh-i18n="field.title">${t('field.title')}</span>
                 <input id="wbh-entry-comment" type="text" data-wbh-field="comment">
               </label>
               <label class="wbh-editor-field wbh-editor-field-wide wbh-content-field">
-                <span>Content</span>
+                <span data-wbh-i18n="field.content">${t('field.content')}</span>
                 <textarea id="wbh-entry-content" data-wbh-field="content" rows="12"></textarea>
               </label>
               <div class="wbh-editor-section wbh-activation-section">
-                <h4>Activation</h4>
+                <h4 data-wbh-i18n="section.activation">${t('section.activation')}</h4>
                 <div class="wbh-editor-grid">
                   <label class="wbh-editor-field">
-                    <span>Keys</span>
+                    <span data-wbh-i18n="field.keys">${t('field.keys')}</span>
                     <textarea id="wbh-entry-key" data-wbh-field="key" rows="3"></textarea>
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Secondary</span>
+                    <span data-wbh-i18n="field.secondary">${t('field.secondary')}</span>
                     <textarea id="wbh-entry-keysecondary" data-wbh-field="keysecondary" rows="3"></textarea>
                   </label>
                 </div>
                 <div class="wbh-editor-grid wbh-editor-grid-compact">
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="constant">
-                    <span>Constant</span>
+                    <span data-wbh-i18n="flag.constant">${t('flag.constant')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="disable">
-                    <span>Disabled</span>
+                    <span data-wbh-i18n="flag.disabled">${t('flag.disabled')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="selective">
-                    <span>Selective</span>
+                    <span data-wbh-i18n="flag.selective">${t('flag.selective')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="vectorized">
-                    <span>Vectorized</span>
+                    <span data-wbh-i18n="flag.vectorized">${t('flag.vectorized')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="useProbability">
-                    <span>Use Probability</span>
+                    <span data-wbh-i18n="flag.useProbability">${t('flag.useProbability')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="ignoreBudget">
-                    <span>Ignore Budget</span>
+                    <span data-wbh-i18n="flag.ignoreBudget">${t('flag.ignoreBudget')}</span>
                   </label>
                 </div>
               </div>
               <div class="wbh-editor-section wbh-insertion-section">
-                <h4>Insertion</h4>
+                <h4 data-wbh-i18n="section.insertion">${t('section.insertion')}</h4>
                 <div class="wbh-editor-grid wbh-editor-grid-3">
                   <label class="wbh-editor-field">
-                    <span>Position</span>
-                    <select data-wbh-field="position" data-wbh-type="number">
-                      ${POSITION_OPTIONS.map(option => `<option value="${option.value}">${option.label}</option>`).join('')}
+                    <span data-wbh-i18n="field.position">${t('field.position')}</span>
+                    <select data-wbh-field="position" data-wbh-type="number" data-wbh-options="position">
+                      ${POSITION_OPTIONS.map(option => `<option value="${option.value}" data-wbh-key="${option.key}">${optionLabel(option)}</option>`).join('')}
                     </select>
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Role</span>
-                    <select data-wbh-field="role" data-wbh-type="number">
+                    <span data-wbh-i18n="field.role">${t('field.role')}</span>
+                    <select data-wbh-field="role" data-wbh-type="number" data-wbh-options="role">
                       <option value=""></option>
-                      ${ROLE_OPTIONS.map(option => `<option value="${option.value}">${option.label}</option>`).join('')}
+                      ${ROLE_OPTIONS.map(option => `<option value="${option.value}" data-wbh-key="${option.key}">${optionLabel(option)}</option>`).join('')}
                     </select>
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Depth</span>
+                    <span data-wbh-i18n="field.depth">${t('field.depth')}</span>
                     <input type="number" data-wbh-field="depth">
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Order</span>
+                    <span data-wbh-i18n="field.order">${t('field.order')}</span>
                     <input type="number" data-wbh-field="order">
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Probability</span>
+                    <span data-wbh-i18n="field.probability">${t('field.probability')}</span>
                     <input type="number" data-wbh-field="probability" min="0" max="100">
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Scan Depth</span>
+                    <span data-wbh-i18n="field.scanDepth">${t('field.scanDepth')}</span>
                     <input type="number" data-wbh-field="scanDepth">
                   </label>
                 </div>
               </div>
               <div class="wbh-editor-section wbh-logic-section">
-                <h4>Logic</h4>
+                <h4 data-wbh-i18n="section.logic">${t('section.logic')}</h4>
                 <div class="wbh-editor-grid wbh-editor-grid-3">
                   <label class="wbh-editor-field">
-                    <span>Selective Logic</span>
-                    <select data-wbh-field="selectiveLogic" data-wbh-type="number">
-                      ${SELECTIVE_LOGIC_OPTIONS.map(option => `<option value="${option.value}">${option.label}</option>`).join('')}
+                    <span data-wbh-i18n="field.selectiveLogic">${t('field.selectiveLogic')}</span>
+                    <select data-wbh-field="selectiveLogic" data-wbh-type="number" data-wbh-options="selectiveLogic">
+                      ${SELECTIVE_LOGIC_OPTIONS.map(option => `<option value="${option.value}" data-wbh-key="${option.key}">${optionLabel(option)}</option>`).join('')}
                     </select>
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Case Sensitive</span>
+                    <span data-wbh-i18n="field.caseSensitive">${t('field.caseSensitive')}</span>
                     <select data-wbh-field="caseSensitive" data-wbh-type="tri-state">
-                      <option value="">Global</option>
-                      <option value="true">On</option>
-                      <option value="false">Off</option>
+                      <option value="" data-wbh-key="value.global">${t('value.global')}</option>
+                      <option value="true" data-wbh-key="value.on">${t('value.on')}</option>
+                      <option value="false" data-wbh-key="value.off">${t('value.off')}</option>
                     </select>
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Whole Words</span>
+                    <span data-wbh-i18n="field.wholeWords">${t('field.wholeWords')}</span>
                     <select data-wbh-field="matchWholeWords" data-wbh-type="tri-state">
-                      <option value="">Global</option>
-                      <option value="true">On</option>
-                      <option value="false">Off</option>
+                      <option value="" data-wbh-key="value.global">${t('value.global')}</option>
+                      <option value="true" data-wbh-key="value.on">${t('value.on')}</option>
+                      <option value="false" data-wbh-key="value.off">${t('value.off')}</option>
                     </select>
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Group</span>
+                    <span data-wbh-i18n="field.group">${t('field.group')}</span>
                     <input type="text" data-wbh-field="group">
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Group Weight</span>
+                    <span data-wbh-i18n="field.groupWeight">${t('field.groupWeight')}</span>
                     <input type="number" data-wbh-field="groupWeight">
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Group Scoring</span>
+                    <span data-wbh-i18n="field.groupScoring">${t('field.groupScoring')}</span>
                     <select data-wbh-field="useGroupScoring" data-wbh-type="tri-state">
-                      <option value="">Global</option>
-                      <option value="true">On</option>
-                      <option value="false">Off</option>
+                      <option value="" data-wbh-key="value.global">${t('value.global')}</option>
+                      <option value="true" data-wbh-key="value.on">${t('value.on')}</option>
+                      <option value="false" data-wbh-key="value.off">${t('value.off')}</option>
                     </select>
                   </label>
                 </div>
                 <div class="wbh-editor-grid wbh-editor-grid-compact">
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="groupOverride">
-                    <span>Group Override</span>
+                    <span data-wbh-i18n="flag.groupOverride">${t('flag.groupOverride')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="excludeRecursion">
-                    <span>Exclude Recursion</span>
+                    <span data-wbh-i18n="flag.excludeRecursion">${t('flag.excludeRecursion')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="preventRecursion">
-                    <span>Prevent Recursion</span>
+                    <span data-wbh-i18n="flag.preventRecursion">${t('flag.preventRecursion')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="delayUntilRecursion">
-                    <span>Delay Until Recursion</span>
+                    <span data-wbh-i18n="flag.delayUntilRecursion">${t('flag.delayUntilRecursion')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="addMemo">
-                    <span>Add Memo</span>
+                    <span data-wbh-i18n="flag.addMemo">${t('flag.addMemo')}</span>
                   </label>
                 </div>
               </div>
               <div class="wbh-editor-section wbh-timing-section">
-                <h4>Timing and Filters</h4>
+                <h4 data-wbh-i18n="section.timingFilters">${t('section.timingFilters')}</h4>
                 <div class="wbh-editor-grid wbh-editor-grid-3">
                   <label class="wbh-editor-field">
-                    <span>Sticky</span>
+                    <span data-wbh-i18n="field.sticky">${t('field.sticky')}</span>
                     <input type="number" data-wbh-field="sticky">
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Cooldown</span>
+                    <span data-wbh-i18n="field.cooldown">${t('field.cooldown')}</span>
                     <input type="number" data-wbh-field="cooldown">
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Delay</span>
+                    <span data-wbh-i18n="field.delay">${t('field.delay')}</span>
                     <input type="number" data-wbh-field="delay">
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Automation ID</span>
+                    <span data-wbh-i18n="field.automationId">${t('field.automationId')}</span>
                     <input type="text" data-wbh-field="automationId">
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Outlet Name</span>
+                    <span data-wbh-i18n="field.outletName">${t('field.outletName')}</span>
                     <input type="text" data-wbh-field="outletName">
                   </label>
                 </div>
                 <div class="wbh-editor-grid">
                   <label class="wbh-editor-field">
-                    <span>Character Names</span>
+                    <span data-wbh-i18n="field.characterNames">${t('field.characterNames')}</span>
                     <textarea data-wbh-field="characterFilterNames" rows="3"></textarea>
                   </label>
                   <label class="wbh-editor-field">
-                    <span>Character Tags</span>
+                    <span data-wbh-i18n="field.characterTags">${t('field.characterTags')}</span>
                     <textarea data-wbh-field="characterFilterTags" rows="3"></textarea>
                   </label>
                 </div>
                 <div class="wbh-editor-grid">
                   <label class="wbh-editor-field">
-                    <span>Triggers</span>
+                    <span data-wbh-i18n="field.triggers">${t('field.triggers')}</span>
                     <textarea data-wbh-field="triggers" rows="3"></textarea>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="characterFilterExclude">
-                    <span>Exclude Character Filter</span>
+                    <span data-wbh-i18n="flag.excludeCharacterFilter">${t('flag.excludeCharacterFilter')}</span>
                   </label>
                 </div>
               </div>
               <div class="wbh-editor-section wbh-match-section">
-                <h4>Match Sources</h4>
+                <h4 data-wbh-i18n="section.matchSources">${t('section.matchSources')}</h4>
                 <div class="wbh-editor-grid wbh-editor-grid-compact">
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="matchPersonaDescription">
-                    <span>Persona</span>
+                    <span data-wbh-i18n="field.matchPersona">${t('field.matchPersona')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="matchCharacterDescription">
-                    <span>Description</span>
+                    <span data-wbh-i18n="field.matchDescription">${t('field.matchDescription')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="matchCharacterPersonality">
-                    <span>Personality</span>
+                    <span data-wbh-i18n="field.matchPersonality">${t('field.matchPersonality')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="matchCharacterDepthPrompt">
-                    <span>Depth Prompt</span>
+                    <span data-wbh-i18n="field.matchDepthPrompt">${t('field.matchDepthPrompt')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="matchScenario">
-                    <span>Scenario</span>
+                    <span data-wbh-i18n="field.matchScenario">${t('field.matchScenario')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="matchCreatorNotes">
-                    <span>Creator Notes</span>
+                    <span data-wbh-i18n="field.matchCreatorNotes">${t('field.matchCreatorNotes')}</span>
                   </label>
                 </div>
               </div>
@@ -772,40 +1294,40 @@ function ensureLocalWorkbench() {
           </div>
           <div id="wbh-diff-view" class="wbh-diff-view hidden">
             <div class="wbh-form">
-              <textarea id="wbh-experiment-note-input" rows="2" placeholder="Experiment note, e.g. 这个版本不太适配 Gemini，下次用 Claude 试试"></textarea>
-              <button id="wbh-save-experiment-note" type="button">Save note</button>
-              <button id="wbh-snapshot" type="button">Snapshot</button>
+              <textarea id="wbh-experiment-note-input" rows="2" placeholder="${t('placeholder.note')}" data-wbh-i18n-placeholder="placeholder.note"></textarea>
+              <button id="wbh-save-experiment-note" type="button" data-wbh-i18n="action.saveNote">${t('action.saveNote')}</button>
+              <button id="wbh-snapshot" type="button" data-wbh-i18n="action.snapshot">${t('action.snapshot')}</button>
             </div>
             <div class="wbh-toolbar">
-              <button id="wbh-mode-current" type="button" class="active">Current</button>
-              <button id="wbh-mode-previous" type="button">Previous</button>
-              <button id="wbh-change-prev" type="button" disabled>Prev change</button>
-              <button id="wbh-change-next" type="button" disabled>Next change</button>
-              <button id="wbh-restore" type="button" disabled>Restore</button>
+              <button id="wbh-mode-current" type="button" class="active" data-wbh-i18n="action.current">${t('action.current')}</button>
+              <button id="wbh-mode-previous" type="button" data-wbh-i18n="action.previous">${t('action.previous')}</button>
+              <button id="wbh-change-prev" type="button" disabled data-wbh-i18n="action.prevChange">${t('action.prevChange')}</button>
+              <button id="wbh-change-next" type="button" disabled data-wbh-i18n="action.nextChange">${t('action.nextChange')}</button>
+              <button id="wbh-restore" type="button" disabled data-wbh-i18n="action.restore">${t('action.restore')}</button>
             </div>
             <div id="wbh-diff-summary" class="wbh-diff-summary"></div>
-            <div id="wbh-diff" class="wbh-diff">Select a snapshot</div>
+            <div id="wbh-diff" class="wbh-diff">${t('empty.selectSnapshot')}</div>
           </div>
         </section>
         <section class="wbh-pane wbh-side-stack">
           <div class="wbh-side-section wbh-origin-section">
             <div class="wbh-pane-head">
-              <h3>Origin</h3>
+              <h3 data-wbh-i18n="section.origin">${t('section.origin')}</h3>
               <span id="wbh-origin-count">0</span>
             </div>
             <div id="wbh-origin" class="wbh-list"></div>
           </div>
           <div class="wbh-side-section">
             <div class="wbh-pane-head">
-              <h3>Experiments</h3>
+              <h3 data-wbh-i18n="section.experiments">${t('section.experiments')}</h3>
               <span id="wbh-experiment-count">0</span>
             </div>
-            <input id="wbh-experiment-search" type="search" placeholder="Search experiments">
+            <input id="wbh-experiment-search" type="search" placeholder="${t('placeholder.searchExperiments')}" data-wbh-i18n-placeholder="placeholder.searchExperiments">
             <div id="wbh-experiments" class="wbh-list"></div>
           </div>
           <div class="wbh-side-section">
             <div class="wbh-pane-head">
-              <h3>Versions</h3>
+              <h3 data-wbh-i18n="section.versions">${t('section.versions')}</h3>
               <span id="wbh-snapshot-count">0</span>
             </div>
             <div id="wbh-snapshots" class="wbh-list"></div>
@@ -821,6 +1343,9 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-export-all').addEventListener('click', exportActiveBookArchive);
   root.querySelectorAll('[data-wbh-theme]').forEach(button => {
     button.addEventListener('click', () => setThemeMode(button.dataset.wbhTheme));
+  });
+  root.querySelectorAll('[data-wbh-language]').forEach(button => {
+    button.addEventListener('click', () => setLanguageMode(button.dataset.wbhLanguage));
   });
   root.querySelector('#wbh-toggle-books').addEventListener('click', toggleBooksPane);
   root.querySelector('#wbh-toggle-history').addEventListener('click', toggleHistoryPane);
@@ -868,13 +1393,14 @@ function ensureLocalWorkbench() {
     input.addEventListener(eventName, () => updateActiveEntryFromEditor(input));
   });
   renderBooksPane();
+  renderLanguageMode();
   renderThemeMode();
   renderLayoutMode();
 }
 
 async function refreshLocalWorkbench() {
   if (!await confirmDiscardEditorChanges()) return;
-  setStatus('Refreshing');
+  setStatus(t('status.refreshing'));
   app.books = await listWorldbooks();
   app.activeBook = app.activeBook
     ? app.books.find(book => book.name === app.activeBook.name) || app.books[0] || null
@@ -882,7 +1408,7 @@ async function refreshLocalWorkbench() {
   await loadEditorWorldbook({ force: true });
   renderBooks();
   await loadLocalSnapshots();
-  setStatus('Ready');
+  setStatus(t('status.ready'));
 }
 
 async function listWorldbooks() {
@@ -1127,6 +1653,160 @@ function relativeLuminance({ r, g, b }) {
   return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
 
+function setLanguageMode(mode) {
+  app.languageMode = LANGUAGE_MODES.includes(mode) ? mode : 'auto';
+  writeStringSetting('wbh-language-mode', app.languageMode);
+  renderLanguageMode();
+  renderThemeMode();
+  renderEditor();
+  renderOriginSnapshot();
+  renderExperiments();
+  renderSnapshots();
+  void renderDiff();
+}
+
+function getResolvedLanguageMode() {
+  if (app.languageMode === 'en' || app.languageMode === 'zh') return app.languageMode;
+  const storedLanguageCandidates = ['language', 'ui_language', 'uiLanguage', 'locale', 'sillytavern_language']
+    .map(key => {
+      try {
+        return localStorage.getItem(key);
+      } catch {
+        return '';
+      }
+    });
+  const selectLanguageCandidates = [
+    '#ui_language_select',
+    '#language_select',
+    '#ui_language',
+    'select[name="language"]',
+    'select[id*="language" i]',
+    'select[id*="locale" i]',
+  ].map(selector => document.querySelector(selector)?.value);
+  const candidates = [
+    document.documentElement?.lang,
+    document.body?.lang,
+    document.documentElement?.dataset?.language,
+    document.body?.dataset?.language,
+    document.documentElement?.dataset?.locale,
+    document.body?.dataset?.locale,
+    ...selectLanguageCandidates,
+    ...storedLanguageCandidates,
+    navigator.language,
+    ...(navigator.languages || []),
+  ].filter(Boolean).map(value => String(value).toLowerCase());
+  return candidates.some(value => value.startsWith('zh') || value.includes('chinese')) ? 'zh' : 'en';
+}
+
+function t(key, values = {}) {
+  const lang = getResolvedLanguageMode();
+  const text = TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS.en[key] ?? key;
+  return String(text).replace(/\{(\w+)\}/g, (_, name) => values[name] ?? '');
+}
+
+function optionLabel(option) {
+  return t(option.key);
+}
+
+function entriesLabel(count) {
+  const key = getResolvedLanguageMode() === 'en' && Number(count) === 1 ? 'count.entry' : 'count.entries';
+  return t(key, { count });
+}
+
+function matchesLabel(count) {
+  const key = getResolvedLanguageMode() === 'en' && Number(count) === 1 ? 'count.match' : 'count.matches';
+  return t(key, { count });
+}
+
+function diffStatusLabel(status) {
+  if (status === 'unchanged') return t('diff.entry');
+  if (status === 'added') return t('diff.added');
+  if (status === 'removed') return t('diff.removed');
+  if (status === 'changed') return t('diff.changed');
+  return status.toUpperCase();
+}
+
+function displaySnapshotLabel(label) {
+  const text = String(label || '');
+  const replacements = [
+    [/^Before auto save$/i, 'label.beforeAutoSave'],
+    [/^After auto save$/i, 'label.afterAutoSave'],
+    [/^Manual snapshot$/i, 'label.manualSnapshot'],
+    [/^Before save:\s*(.+)$/i, 'label.beforeSave'],
+    [/^After save:\s*(.+)$/i, 'label.afterSave'],
+    [/^Manual snapshot:\s*(.+)$/i, 'label.manualSnapshotExperiment'],
+    [/^Baseline:\s*(.+)$/i, 'label.baseline'],
+    [/^After:\s*(.+)$/i, 'label.after'],
+    [/^Origin:\s*(.+)$/i, 'label.originSnapshot'],
+  ];
+  for (const [pattern, key] of replacements) {
+    const match = text.match(pattern);
+    if (match) return t(key, { title: match[1] || '', name: match[1] || '' });
+  }
+  return text;
+}
+
+function renderStaticTranslations(root = document.querySelector('#wbh-workbench')) {
+  if (!root) return;
+  root.querySelectorAll('[data-wbh-i18n]').forEach(element => {
+    element.textContent = t(element.dataset.wbhI18n);
+  });
+  root.querySelectorAll('[data-wbh-i18n-placeholder]').forEach(element => {
+    element.placeholder = t(element.dataset.wbhI18nPlaceholder);
+  });
+  root.querySelectorAll('[data-wbh-i18n-title]').forEach(element => {
+    const title = t(element.dataset.wbhI18nTitle);
+    element.title = title;
+    if (element.hasAttribute('aria-label')) element.setAttribute('aria-label', title);
+  });
+  updateSelectOptionLabels(root);
+}
+
+function updateSelectOptionLabels(root = document.querySelector('#wbh-workbench')) {
+  if (!root) return;
+  root.querySelectorAll('select[data-wbh-options="position"] option[data-wbh-key]').forEach(option => {
+    option.textContent = t(option.dataset.wbhKey);
+  });
+  root.querySelectorAll('select[data-wbh-options="role"] option[data-wbh-key]').forEach(option => {
+    option.textContent = t(option.dataset.wbhKey);
+  });
+  root.querySelectorAll('select[data-wbh-options="selectiveLogic"] option[data-wbh-key]').forEach(option => {
+    option.textContent = t(option.dataset.wbhKey);
+  });
+  root.querySelectorAll('option[data-wbh-key="value.global"]').forEach(option => {
+    option.textContent = t('value.global');
+  });
+  root.querySelectorAll('option[data-wbh-key="value.on"]').forEach(option => {
+    option.textContent = t('value.on');
+  });
+  root.querySelectorAll('option[data-wbh-key="value.off"]').forEach(option => {
+    option.textContent = t('value.off');
+  });
+}
+
+function renderLanguageMode() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+  const resolved = getResolvedLanguageMode();
+  root.dataset.language = resolved;
+  root.dataset.languageMode = app.languageMode;
+  root.querySelector('.wbh-panel')?.setAttribute('aria-label', t('app.title'));
+  root.querySelector('.wbh-language-toggle')?.setAttribute('aria-label', t('language.label'));
+  root.querySelector('.wbh-theme-toggle')?.setAttribute('aria-label', t('theme.label'));
+  root.querySelectorAll('[data-wbh-language]').forEach(button => {
+    const active = button.dataset.wbhLanguage === app.languageMode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+    if (button.dataset.wbhLanguage === 'auto') {
+      button.title = t('language.autoTitle', { resolved });
+    } else {
+      button.title = t('language.useTitle', { mode: t(`language.${button.dataset.wbhLanguage}`) });
+    }
+  });
+  renderStaticTranslations(root);
+  document.querySelector('#wbh-open-workbench')?.replaceChildren(document.createTextNode(t('menu.open')));
+}
+
 function renderThemeMode() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
@@ -1139,9 +1819,9 @@ function renderThemeMode() {
     button.classList.toggle('active', active);
     button.setAttribute('aria-pressed', String(active));
     if (button.dataset.wbhTheme === 'auto') {
-      button.title = `Auto: following SillyTavern (${resolved})`;
+      button.title = t('theme.autoTitle', { resolved });
     } else {
-      button.title = `Use ${button.dataset.wbhTheme} theme`;
+      button.title = t('theme.useTitle', { mode: t(`theme.${button.dataset.wbhTheme}`) });
     }
   });
 }
@@ -1156,7 +1836,7 @@ function renderBooksPane() {
   grid.classList.toggle('books-collapsed', app.booksCollapsed);
   pane.classList.toggle('collapsed', app.booksCollapsed);
   toggle.textContent = app.booksCollapsed ? '>' : '<';
-  toggle.title = app.booksCollapsed ? 'Show worldbooks' : 'Hide worldbooks';
+  toggle.title = app.booksCollapsed ? t('tooltip.showWorldbooks') : t('tooltip.hideWorldbooks');
   toggle.setAttribute('aria-label', toggle.title);
   renderLayoutMode();
 }
@@ -1167,20 +1847,22 @@ function renderLayoutMode() {
 
   const grid = root.querySelector('.wbh-grid');
   const entryPane = root.querySelector('.wbh-entry-pane');
+  const historyPane = root.querySelector('.wbh-side-stack');
   const history = root.querySelector('#wbh-toggle-history');
   const find = root.querySelector('#wbh-toggle-find');
 
   grid?.classList.toggle('history-collapsed', app.historyCollapsed);
   entryPane?.classList.toggle('find-collapsed', app.findCollapsed);
+  historyPane?.setAttribute('data-wbh-history-label', t('action.history'));
 
   if (history) {
     history.classList.toggle('active', !app.historyCollapsed);
-    history.textContent = app.historyCollapsed ? 'Show history' : 'Hide history';
+    history.textContent = app.historyCollapsed ? t('action.showHistory') : t('action.hideHistory');
     history.setAttribute('aria-pressed', String(!app.historyCollapsed));
   }
   if (find) {
     find.classList.toggle('active', !app.findCollapsed);
-    find.textContent = app.findCollapsed ? 'Find' : 'Hide find';
+    find.textContent = app.findCollapsed ? t('action.find') : t('action.hideFind');
     find.setAttribute('aria-pressed', String(!app.findCollapsed));
   }
 }
@@ -1188,11 +1870,14 @@ function renderLayoutMode() {
 function renderActiveBook() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
-  root.querySelector('#wbh-active-title').textContent = app.activeBook?.title || app.activeBook?.name || 'No worldbook selected';
+  root.querySelector('#wbh-active-title').textContent = app.activeBook?.title || app.activeBook?.name || t('empty.noWorldbookSelected');
   const entryCount = app.activeData ? countEntries(app.activeData) : 0;
-  const dirty = app.editorDirty ? ' | unsaved' : '';
-  const source = app.editorSourceLabel && app.editorSourceLabel !== 'Current' ? ` | loaded: ${app.editorSourceLabel}` : '';
-  root.querySelector('#wbh-active-meta').textContent = app.activeBook ? `${entryCount} entries${dirty}${source}` : '0 entries';
+  const parts = [entriesLabel(entryCount)];
+  if (app.editorDirty) parts.push(t('count.unsaved'));
+  if (app.editorSourceLabel && app.editorSourceLabel !== 'Current') {
+    parts.push(t('count.loaded', { source: displaySnapshotLabel(app.editorSourceLabel) }));
+  }
+  root.querySelector('#wbh-active-meta').textContent = app.activeBook ? parts.join(' | ') : entriesLabel(0);
   root.querySelector('#wbh-export-all').disabled = !app.activeBook;
   root.querySelector('#wbh-restore').disabled = !app.activeBook || app.activeView !== 'snapshot' || !app.activeSnapshot;
   renderExperimentPanel();
@@ -1237,27 +1922,29 @@ function renderExperimentPanel() {
   const openExperiment = getOpenExperiment();
   const experimentOpen = isExperimentOpen(experiment);
 
-  title.textContent = experiment?.title || 'No experiment selected';
+  title.textContent = experiment?.title || t('empty.noExperimentSelected');
   meta.textContent = experiment
     ? [
       statusLabel(experiment.status),
       formatDate(experiment.startedAt),
       experiment.changeNote || '',
     ].filter(Boolean).join(' | ')
-    : 'Ready';
+    : t('status.ready');
   if (noteInput) {
     noteInput.disabled = !experiment;
     noteInput.placeholder = experiment
-      ? 'Experiment note, e.g. 这个版本不太适配 Gemini，下次用 Claude 试试'
-      : 'Select an experiment to write a note';
+      ? t('placeholder.note')
+      : t('placeholder.noteDisabled');
     if (document.activeElement !== noteInput) noteInput.value = experiment?.resultNote || '';
   }
   if (saveNote) saveNote.disabled = !experiment;
 
   start.disabled = !app.activeBook || Boolean(openExperiment);
-  start.title = openExperiment ? `Finish "${openExperiment.title || 'current experiment'}" before starting another` : '';
+  start.title = openExperiment
+    ? t('status.finishOpenExperiment', { title: openExperiment.title || t('label.currentExperiment') })
+    : '';
   finish.disabled = !app.activeBook || !experiment;
-  finish.textContent = experimentOpen ? 'Finish' : experiment?.afterSnapshotId ? 'Update After' : 'Finish';
+  finish.textContent = experimentOpen ? t('action.finish') : experiment?.afterSnapshotId ? t('action.updateAfter') : t('action.finish');
   keep.disabled = !experiment;
   reject.disabled = !experiment;
   origin.disabled = !app.activeBook || !app.originSnapshot;
@@ -1284,7 +1971,7 @@ function renderOriginSnapshot() {
   if (!app.originSnapshot) {
     const empty = document.createElement('div');
     empty.className = 'wbh-empty';
-    empty.textContent = 'No origin yet';
+    empty.textContent = t('empty.noOriginYet');
     list.replaceChildren(empty);
     return;
   }
@@ -1296,17 +1983,17 @@ function renderOriginSnapshot() {
   button.type = 'button';
   button.className = 'wbh-row';
   button.innerHTML = '<span></span><small></small>';
-  button.querySelector('span').textContent = app.originSnapshot.label || 'Origin';
-  button.querySelector('small').textContent = `${formatDate(app.originSnapshot.createdAt)} | ${app.originSnapshot.entryCount || 0} entries`;
+  button.querySelector('span').textContent = displaySnapshotLabel(app.originSnapshot.label || t('label.origin'));
+  button.querySelector('small').textContent = `${formatDate(app.originSnapshot.createdAt)} | ${entriesLabel(app.originSnapshot.entryCount || 0)}`;
   button.addEventListener('click', async () => {
-    await loadSnapshotIntoEditor(app.originSnapshot, 'Origin');
+    await loadSnapshotIntoEditor(app.originSnapshot, t('label.origin'));
   });
 
   const restore = document.createElement('button');
   restore.type = 'button';
   restore.className = 'wbh-mini';
-  restore.textContent = 'Restore';
-  restore.addEventListener('click', async () => restoreSnapshot(app.originSnapshot, 'Origin'));
+  restore.textContent = t('action.restore');
+  restore.addEventListener('click', async () => restoreSnapshot(app.originSnapshot, t('label.origin')));
 
   row.append(button, restore);
   list.replaceChildren(row);
@@ -1327,7 +2014,7 @@ function renderExperiments() {
   if (!app.experiments.length) {
     const empty = document.createElement('div');
     empty.className = 'wbh-empty';
-    empty.textContent = 'No experiments yet';
+    empty.textContent = t('empty.noExperimentsYet');
     list.replaceChildren(empty);
     return;
   }
@@ -1335,7 +2022,7 @@ function renderExperiments() {
   if (!visibleExperiments.length) {
     const empty = document.createElement('div');
     empty.className = 'wbh-empty';
-    empty.textContent = 'No matching experiments';
+    empty.textContent = t('empty.noMatchingExperiments');
     list.replaceChildren(empty);
     return;
   }
@@ -1348,7 +2035,7 @@ function renderExperiments() {
     button.type = 'button';
     button.className = 'wbh-row';
     button.innerHTML = '<span></span><small></small>';
-    button.querySelector('span').textContent = experiment.title || 'Untitled experiment';
+    button.querySelector('span').textContent = experiment.title || t('label.untitledExperiment');
     button.querySelector('small').textContent = experimentMeta(experiment);
     button.addEventListener('click', async () => {
       app.activeView = 'experiment';
@@ -1360,33 +2047,33 @@ function renderExperiments() {
       renderExperiments();
       renderSnapshots();
       await renderDiff({ focusChange: true });
-      setStatus(`Viewing experiment: ${experiment.title || 'Untitled experiment'}`);
+      setStatus(t('status.viewingExperiment', { title: experiment.title || t('label.untitledExperiment') }));
     });
 
     const rename = document.createElement('button');
     rename.type = 'button';
     rename.className = 'wbh-mini';
-    rename.textContent = 'Name';
+    rename.textContent = t('action.name');
     rename.addEventListener('click', async () => renameExperiment(experiment));
 
     const note = document.createElement('button');
     note.type = 'button';
     note.className = 'wbh-mini';
-    note.textContent = 'Note';
+    note.textContent = t('action.note');
     note.addEventListener('click', async () => editExperimentNote(experiment));
 
     const exportJson = document.createElement('button');
     exportJson.type = 'button';
     exportJson.className = 'wbh-mini';
-    exportJson.textContent = 'JSON';
-    exportJson.title = 'Export experiment JSON';
+    exportJson.textContent = t('action.json');
+    exportJson.title = t('tooltip.exportExperimentJson');
     exportJson.addEventListener('click', async () => exportExperimentJson(experiment));
 
     const restore = document.createElement('button');
     restore.type = 'button';
     restore.className = 'wbh-mini';
-    restore.textContent = 'Restore';
-    restore.title = experiment.afterSnapshotId ? 'Restore this experiment result' : 'Save or finish the experiment before restoring its result';
+    restore.textContent = t('action.restore');
+    restore.title = experiment.afterSnapshotId ? t('tooltip.restoreExperimentReady') : t('tooltip.restoreExperimentDisabled');
     restore.disabled = !experiment.afterSnapshotId;
     restore.addEventListener('click', async () => restoreExperimentResult(experiment));
 
@@ -1397,8 +2084,8 @@ function renderExperiments() {
 
 function experimentMeta(experiment) {
   const parts = [statusLabel(experiment.status), formatDate(experiment.startedAt)];
-  if (experiment.changeNote) parts.push(`change: ${experiment.changeNote}`);
-  if (experiment.resultNote) parts.push(`note: ${experiment.resultNote}`);
+  if (experiment.changeNote) parts.push(`${t('label.change')}: ${experiment.changeNote}`);
+  if (experiment.resultNote) parts.push(`${t('action.note')}: ${experiment.resultNote}`);
   return parts.join(' | ');
 }
 
@@ -1416,22 +2103,22 @@ function experimentSearchText(experiment) {
 
 async function renameExperiment(experiment) {
   if (!experiment) return;
-  const title = window.prompt('Experiment name / problem', experiment.title || '');
+  const title = window.prompt(t('prompt.experimentName'), experiment.title || '');
   if (title === null) return;
 
   const updated = {
     ...experiment,
-    title: title.trim() || 'Untitled experiment',
+    title: title.trim() || t('label.untitledExperiment'),
   };
   await putExperiment(updated);
   if (app.activeExperiment?.id === updated.id) app.activeExperiment = updated;
   await loadLocalSnapshots();
-  setStatus('Experiment renamed');
+  setStatus(t('status.experimentRenamed'));
 }
 
 async function editExperimentNote(experiment) {
   if (!experiment) return;
-  const note = window.prompt('Experiment note', experiment.resultNote || experiment.changeNote || '');
+  const note = window.prompt(t('prompt.experimentNote'), experiment.resultNote || experiment.changeNote || '');
   if (note === null) return;
 
   const updated = {
@@ -1441,7 +2128,7 @@ async function editExperimentNote(experiment) {
   await putExperiment(updated);
   if (app.activeExperiment?.id === updated.id) app.activeExperiment = updated;
   await loadLocalSnapshots();
-  setStatus('Experiment note saved');
+  setStatus(t('status.experimentNoteSaved'));
 }
 
 async function saveActiveExperimentNote() {
@@ -1457,7 +2144,7 @@ async function saveActiveExperimentNote() {
   await putExperiment(updated);
   if (app.activeExperiment?.id === updated.id) app.activeExperiment = updated;
   await loadLocalSnapshots();
-  setStatus('Experiment note saved');
+  setStatus(t('status.experimentNoteSaved'));
 }
 
 async function exportExperimentJson(experiment) {
@@ -1478,12 +2165,12 @@ async function exportExperimentJson(experiment) {
   };
   const filename = `${safeFileName(experiment.title || 'experiment')}-${formatDateForFile(new Date())}.json`;
   downloadJson(filename, payload);
-  setStatus('Experiment JSON exported');
+  setStatus(t('status.experimentJsonExported'));
 }
 
 async function exportActiveBookArchive() {
   if (!app.activeBook) return;
-  setStatus('Exporting worldbook archive');
+  setStatus(t('status.exportingArchive'));
 
   const current = app.activeData ? cloneValue(app.activeData) : await loadWorldbook(app.activeBook.name);
   const payload = {
@@ -1501,10 +2188,10 @@ async function exportActiveBookArchive() {
   };
   const filename = `${safeFileName(app.activeBook.title || app.activeBook.name)}-wbh-archive-${formatDateForFile(new Date())}.json`;
   downloadJson(filename, payload);
-  setStatus('Worldbook archive JSON exported');
+  setStatus(t('status.archiveExported'));
 }
 
-async function loadSnapshotIntoEditor(snapshot, sourceName = 'Version') {
+async function loadSnapshotIntoEditor(snapshot, sourceName = t('label.version')) {
   if (!app.activeBook || !snapshot) return;
   if (!await confirmDiscardEditorChanges()) return;
 
@@ -1516,7 +2203,7 @@ async function loadSnapshotIntoEditor(snapshot, sourceName = 'Version') {
   app.activeEntryId = null;
   ensureActiveEntry();
   app.activeView = 'snapshot';
-  const showChanges = sourceName === 'Version';
+  const showChanges = sourceName === 'Version' || sourceName === t('label.version');
   app.mainTab = showChanges ? 'diff' : 'edit';
   if (showChanges) {
     app.diffMode = 'previous';
@@ -1529,7 +2216,10 @@ async function loadSnapshotIntoEditor(snapshot, sourceName = 'Version') {
   renderExperiments();
   renderSnapshots();
   if (showChanges) await renderDiff({ focusChange: true });
-  setStatus(`Loaded ${sourceName.toLowerCase()} for editing: ${snapshot.label || formatDate(snapshot.createdAt)}`);
+  setStatus(t('status.loadedForEditing', {
+    source: String(sourceName).toLowerCase(),
+    label: displaySnapshotLabel(snapshot.label || formatDate(snapshot.createdAt)),
+  }));
 }
 
 function setMainTab(tab) {
@@ -1600,7 +2290,7 @@ function renderEntryList() {
   if (!app.activeData) {
     const empty = document.createElement('div');
     empty.className = 'wbh-empty';
-    empty.textContent = 'No worldbook loaded';
+    empty.textContent = t('empty.noWorldbookLoaded');
     list.replaceChildren(empty);
     renderFindControls();
     return;
@@ -1609,7 +2299,7 @@ function renderEntryList() {
   if (!entries.length) {
     const empty = document.createElement('div');
     empty.className = 'wbh-empty';
-    empty.textContent = 'No entries';
+    empty.textContent = t('empty.noEntries');
     list.replaceChildren(empty);
     renderFindControls();
     return;
@@ -1624,7 +2314,7 @@ function renderEntryList() {
     button.innerHTML = '<span></span><small></small>';
     button.querySelector('span').textContent = entryTitle(record.entry);
     button.querySelector('small').textContent = matchCount
-      ? `${matchCount} ${matchCount === 1 ? 'match' : 'matches'} | ${entryMeta(record.entry)}`
+      ? `${matchesLabel(matchCount)} | ${entryMeta(record.entry)}`
       : entryMeta(record.entry);
     button.addEventListener('click', () => {
       app.activeEntryId = record.id;
@@ -1646,7 +2336,7 @@ function renderEntryEditor() {
   const inputs = getEditorInputs(root);
   const disabled = !record;
 
-  root.querySelector('#wbh-entry-title').textContent = record ? entryTitle(record.entry) : 'No entry selected';
+  root.querySelector('#wbh-entry-title').textContent = record ? entryTitle(record.entry) : t('empty.noEntrySelected');
   root.querySelector('#wbh-entry-meta').textContent = record ? entryMeta(record.entry) : '';
   Object.values(inputs).forEach(input => {
     input.disabled = disabled;
@@ -1751,7 +2441,7 @@ function navigateFind(direction) {
   if (!app.findMatches.length) {
     renderEntryList();
     renderFindControls();
-    setStatus(app.findQuery.trim() ? 'No matches' : 'Ready');
+    setStatus(app.findQuery.trim() ? t('status.noMatches') : t('status.ready'));
     return;
   }
 
@@ -1773,7 +2463,7 @@ function openActiveFindMatch() {
   app.mainTab = 'edit';
   renderEditor();
   queueFocusActiveFindMatch();
-  setStatus(`${app.activeFindIndex + 1}/${app.findMatches.length} matches`);
+  setStatus(t('status.matches', { current: app.activeFindIndex + 1, total: app.findMatches.length }));
 }
 
 function queueFocusActiveFindMatch() {
@@ -1810,11 +2500,11 @@ function replaceCurrentFindMatch() {
   const match = getActiveFindMatch();
   const record = match ? getEntryRecordById(match.entryId) : null;
   if (!match || !record) {
-    setStatus('No match to replace');
+    setStatus(t('status.noMatchToReplace'));
     return;
   }
 
-  captureUndoState('Replace match');
+  captureUndoState(t('action.replace'));
   replaceMatchInRecord(record, match, app.replaceText);
   app.activeEntryId = match.entryId;
   setEditorDirty(true);
@@ -1823,7 +2513,7 @@ function replaceCurrentFindMatch() {
   app.activeFindIndex = app.findMatches.length ? Math.min(nextIndex, app.findMatches.length - 1) : -1;
   renderEditor();
   queueFocusActiveFindMatch();
-  setStatus('Replaced match');
+  setStatus(t('status.replacedMatch'));
 }
 
 function replaceAllFindMatches() {
@@ -1833,14 +2523,14 @@ function replaceAllFindMatches() {
 
   const total = app.findMatches.length;
   if (!total) {
-    setStatus('No matches to replace');
+    setStatus(t('status.noMatchesToReplace'));
     return;
   }
 
-  const ok = window.confirm(`Replace ${total} ${total === 1 ? 'match' : 'matches'}?`);
+  const ok = window.confirm(t('confirm.replaceMatches', { count: total, noun: total === 1 ? 'match' : 'matches' }));
   if (!ok) return;
 
-  captureUndoState('Replace all');
+  captureUndoState(t('action.all'));
   const grouped = new Map();
   for (const match of app.findMatches) {
     const key = `${match.entryId}\u0000${match.field}`;
@@ -1863,7 +2553,7 @@ function replaceAllFindMatches() {
   app.activeFindIndex = app.findMatches.length ? 0 : -1;
   renderEditor();
   queueFocusActiveFindMatch();
-  setStatus(`Replaced ${total} ${total === 1 ? 'match' : 'matches'}`);
+  setStatus(t('status.replacedMatches', { count: total, noun: total === 1 ? 'match' : 'matches' }));
 }
 
 function replaceMatchInRecord(record, match, replacement) {
@@ -1923,7 +2613,7 @@ function updateRoleControl(entry) {
 
   const atDepth = Number(entry?.position) === 4;
   role.disabled = !atDepth;
-  role.title = atDepth ? '' : 'Role is only used for @ Depth entries';
+  role.title = atDepth ? '' : t('tooltip.roleDepthOnly');
   if (!atDepth) {
     role.value = '';
   } else if (role.value === '') {
@@ -1955,7 +2645,7 @@ function beginInputHistory(input) {
   if (!field) return;
   const key = `${record.id}:${field}`;
   if (app.pendingInputHistoryKey === key) return;
-  captureUndoState(`Edit ${fieldLabel(field)}`);
+  captureUndoState(`${t('action.edit')} ${diffFieldLabel(field)}`);
   app.pendingInputHistoryKey = key;
 }
 
@@ -2004,9 +2694,9 @@ function readEditorInputValue(input) {
 function createEntry() {
   if (!app.activeData) return;
   finishInputHistory();
-  captureUndoState('New entry');
+  captureUndoState(t('action.new'));
   const uid = getFreeEntryUid(app.activeData);
-  const entry = createEntryTemplate(uid, 'New entry');
+  const entry = createEntryTemplate(uid, t('action.new'));
   insertEntry(app.activeData, entry);
   app.activeEntryId = String(uid);
   setEditorDirty(true);
@@ -2018,12 +2708,12 @@ function duplicateEntry() {
   if (!app.activeData || !record) return;
 
   finishInputHistory();
-  captureUndoState('Duplicate entry');
+  captureUndoState(t('action.duplicate'));
   const uid = getFreeEntryUid(app.activeData);
   const entry = {
     ...cloneValue(record.entry),
     uid,
-    comment: `Copy of ${entryTitle(record.entry)}`,
+    comment: `${t('action.duplicate')} ${entryTitle(record.entry)}`,
   };
   insertEntry(app.activeData, entry);
   app.activeEntryId = String(uid);
@@ -2034,11 +2724,11 @@ function duplicateEntry() {
 function deleteEntry() {
   const record = getActiveEntryRecord();
   if (!app.activeData || !record) return;
-  const ok = window.confirm(`Delete "${entryTitle(record.entry)}"?`);
+  const ok = window.confirm(t('confirm.deleteEntry', { title: entryTitle(record.entry) }));
   if (!ok) return;
 
   finishInputHistory();
-  captureUndoState('Delete entry');
+  captureUndoState(t('action.delete'));
   removeEntry(app.activeData, record);
   ensureActiveEntry();
   setEditorDirty(true);
@@ -2049,13 +2739,14 @@ function setEditorDirty(dirty) {
   app.editorDirty = dirty;
   renderActiveBook();
   renderEntryList();
-  if (dirty) setStatus('Unsaved edits');
+  if (dirty) setStatus(t('status.unsavedEdits'));
 }
 
-function captureUndoState(label = 'Edit') {
+function captureUndoState(label = '') {
   if (!app.activeData) return;
+  const historyLabel = label || t('action.edit');
   app.undoStack.push({
-    label,
+    label: historyLabel,
     data: cloneValue(app.activeData),
     activeEntryId: app.activeEntryId,
     editorDirty: app.editorDirty,
@@ -2082,7 +2773,7 @@ function undoEditorChange() {
   const current = createHistoryState(previous.label);
   app.redoStack.push(current);
   restoreHistoryState(previous);
-  setStatus(`Undo: ${previous.label}`);
+  setStatus(t('status.undo', { label: previous.label }));
 }
 
 function redoEditorChange() {
@@ -2093,7 +2784,7 @@ function redoEditorChange() {
   const current = createHistoryState(next.label);
   app.undoStack.push(current);
   restoreHistoryState(next);
-  setStatus(`Redo: ${next.label}`);
+  setStatus(t('status.redo', { label: next.label }));
 }
 
 function createHistoryState(label) {
@@ -2122,7 +2813,7 @@ function restoreHistoryState(state) {
 async function saveEditorWorldbook() {
   if (!app.activeBook || !app.activeData || !app.editorDirty) return;
 
-  setStatus('Saving worldbook');
+  setStatus(t('status.savingWorldbook'));
   const name = app.activeBook.name;
   const title = app.activeExperiment?.title || 'Workbench edit';
   const before = await loadWorldbook(name);
@@ -2164,20 +2855,20 @@ async function saveEditorWorldbook() {
 
   await loadLocalSnapshots();
   renderEditor();
-  setStatus('Saved');
+  setStatus(t('status.saved'));
 }
 
 async function reloadEditorWorldbook() {
   if (!await confirmDiscardEditorChanges()) return;
-  setStatus('Reloading worldbook');
+  setStatus(t('status.reloadingWorldbook'));
   await loadEditorWorldbook({ force: true });
   await loadLocalSnapshots();
-  setStatus('Ready');
+  setStatus(t('status.ready'));
 }
 
 async function confirmDiscardEditorChanges() {
   if (!app.editorDirty) return true;
-  return window.confirm('Discard unsaved workbench edits?');
+  return window.confirm(t('confirm.discardEdits'));
 }
 
 function renderSnapshots() {
@@ -2190,7 +2881,7 @@ function renderSnapshots() {
   if (!visibleSnapshots.length) {
     const empty = document.createElement('div');
     empty.className = 'wbh-empty';
-    empty.textContent = 'No versions yet';
+    empty.textContent = t('empty.noVersionsYet');
     list.replaceChildren(empty);
     return;
   }
@@ -2203,31 +2894,31 @@ function renderSnapshots() {
     main.type = 'button';
     main.className = 'wbh-row';
     main.innerHTML = '<span></span><small></small>';
-    main.querySelector('span').textContent = snapshot.label || 'Untitled version';
-    main.querySelector('small').textContent = `${formatDate(snapshot.createdAt)} | ${snapshot.entryCount || 0} entries`;
+    main.querySelector('span').textContent = displaySnapshotLabel(snapshot.label || t('label.untitledVersion'));
+    main.querySelector('small').textContent = `${formatDate(snapshot.createdAt)} | ${entriesLabel(snapshot.entryCount || 0)}`;
     main.addEventListener('click', async () => {
-      await loadSnapshotIntoEditor(snapshot, 'Version');
+      await loadSnapshotIntoEditor(snapshot, t('label.version'));
     });
 
     const restore = document.createElement('button');
     restore.type = 'button';
     restore.className = 'wbh-mini';
-    restore.textContent = 'Restore';
-    restore.addEventListener('click', async () => restoreSnapshot(snapshot, snapshot.label || 'version'));
+    restore.textContent = t('action.restore');
+    restore.addEventListener('click', async () => restoreSnapshot(snapshot, displaySnapshotLabel(snapshot.label || t('label.version'))));
 
     const promote = document.createElement('button');
     promote.type = 'button';
     promote.className = 'wbh-mini';
-    promote.textContent = 'Exp';
-    promote.title = 'Create experiment from this version';
+    promote.textContent = t('action.exp');
+    promote.title = t('tooltip.promoteExperiment');
     promote.addEventListener('click', async () => createExperimentFromSnapshot(snapshot));
 
     const rename = document.createElement('button');
     rename.type = 'button';
     rename.className = 'wbh-mini';
-    rename.textContent = 'Name';
+    rename.textContent = t('action.name');
     rename.addEventListener('click', async () => {
-      const label = window.prompt('Version name', snapshot.label || '');
+      const label = window.prompt(t('prompt.versionName'), snapshot.label || '');
       if (label === null) return;
       snapshot.label = label.trim();
       await putSnapshot(snapshot);
@@ -2245,12 +2936,12 @@ async function createExperimentFromSnapshot(snapshot) {
   const defaultTitle = snapshot.label
     ? snapshot.label.replace(/^(After save:|After:|Manual snapshot)\s*/i, '').trim()
     : '';
-  const title = window.prompt('Experiment name / problem', defaultTitle || `Experiment ${formatDate(snapshot.createdAt)}`);
+  const title = window.prompt(t('prompt.experimentName'), defaultTitle || t('label.experiment', { date: formatDate(snapshot.createdAt) }));
   if (title === null) return;
 
   const baseline = getPreviousSnapshot(snapshot) || app.originSnapshot || snapshot;
   const now = new Date();
-  const cleanTitle = title.trim() || `Experiment ${formatDate(now.toISOString())}`;
+  const cleanTitle = title.trim() || t('label.experiment', { date: formatDate(now.toISOString()) });
   const experiment = {
     id: `${app.activeBook.name}:experiment:${formatDateForFile(now)}:${randomId()}`,
     bookName: app.activeBook.name,
@@ -2262,7 +2953,7 @@ async function createExperimentFromSnapshot(snapshot) {
     finishedAtMs: Number(snapshot.createdAtMs || now.getTime()),
     baselineSnapshotId: baseline.id,
     afterSnapshotId: snapshot.id,
-    changeNote: snapshot.label ? `From version: ${snapshot.label}` : 'Created from saved version',
+    changeNote: snapshot.label ? t('label.fromVersion', { label: displaySnapshotLabel(snapshot.label) }) : t('label.createdFromVersion'),
     resultNote: '',
     parentExperimentId: '',
   };
@@ -2273,12 +2964,12 @@ async function createExperimentFromSnapshot(snapshot) {
   app.activeExperiment = experiment;
   app.activeSnapshot = snapshot;
   await loadLocalSnapshots();
-  setStatus('Experiment created from version');
+  setStatus(t('status.experimentCreatedFromVersion'));
 }
 
 async function createManualLocalSnapshot() {
   if (!app.activeBook) return;
-  setStatus('Creating snapshot');
+  setStatus(t('status.creatingSnapshot'));
   const label = app.activeExperiment?.title
     ? `Manual snapshot: ${app.activeExperiment.title}`
     : 'Manual snapshot';
@@ -2290,7 +2981,7 @@ async function createManualLocalSnapshot() {
   app.activeView = 'snapshot';
   app.activeExperiment = null;
   app.activeSnapshot = result.snapshot;
-  setStatus(result.skipped ? 'Skipped duplicate' : 'Snapshot created');
+  setStatus(result.skipped ? t('status.skippedDuplicate') : t('status.snapshotCreated'));
   await loadLocalSnapshots();
 }
 
@@ -2331,15 +3022,15 @@ async function startExperiment() {
     app.mainTab = 'edit';
     renderActiveBook();
     renderExperiments();
-    setStatus(`Finish "${openExperiment.title || 'current experiment'}" before starting another`);
+    setStatus(t('status.finishOpenExperiment', { title: openExperiment.title || t('label.currentExperiment') }));
     return;
   }
 
-  const title = window.prompt('Experiment name / problem', '');
+  const title = window.prompt(t('prompt.experimentName'), '');
   if (title === null) return;
 
-  const cleanTitle = title.trim() || `Experiment ${formatDate(new Date().toISOString())}`;
-  setStatus('Starting experiment');
+  const cleanTitle = title.trim() || t('label.experiment', { date: formatDate(new Date().toISOString()) });
+  setStatus(t('status.startingExperiment'));
   const baseline = await createLocalSnapshot(app.activeBook.name, {
     label: `Baseline: ${cleanTitle}`,
     reason: 'experiment-baseline',
@@ -2367,20 +3058,20 @@ async function startExperiment() {
   app.mainTab = 'edit';
   app.activeExperiment = experiment;
   app.activeSnapshot = baseline.snapshot;
-  setStatus('Experiment started');
+  setStatus(t('status.experimentStarted'));
   await loadLocalSnapshots();
 }
 
 async function finishExperiment() {
   if (!app.activeBook || !app.activeExperiment) return;
   if (app.editorDirty) {
-    const saveFirst = window.confirm('Save workbench edits before finishing this experiment?');
+    const saveFirst = window.confirm(t('confirm.saveBeforeFinish'));
     if (!saveFirst) return;
     await saveEditorWorldbook();
   }
 
   const experiment = app.activeExperiment;
-  setStatus(isExperimentOpen(experiment) ? 'Finishing experiment' : 'Updating experiment');
+  setStatus(isExperimentOpen(experiment) ? t('status.finishingExperiment') : t('status.updatingExperiment'));
   let afterSnapshot = experiment.afterSnapshotId ? await getSnapshotById(experiment.afterSnapshotId) : null;
   if (!afterSnapshot || !isExperimentOpen(experiment)) {
     const after = await createLocalSnapshot(app.activeBook.name, {
@@ -2404,7 +3095,7 @@ async function finishExperiment() {
   app.activeView = 'experiment';
   app.activeExperiment = updated;
   app.activeSnapshot = afterSnapshot;
-  setStatus('Experiment saved');
+  setStatus(t('status.experimentSaved'));
   await loadLocalSnapshots();
 }
 
@@ -2412,7 +3103,7 @@ async function restoreExperimentResult(experiment) {
   if (!app.activeBook || !experiment?.afterSnapshotId) return;
   const snapshot = await getSnapshotById(experiment.afterSnapshotId);
   if (!snapshot) return;
-  await restoreSnapshot(snapshot, `experiment result: ${experiment.title || 'Untitled experiment'}`);
+  await restoreSnapshot(snapshot, t('label.experimentResult', { title: experiment.title || t('label.untitledExperiment') }));
 }
 
 async function setExperimentStatus(status) {
@@ -2429,7 +3120,7 @@ async function setExperimentStatus(status) {
 
 async function restoreOriginSnapshot() {
   if (!app.activeBook || !app.originSnapshot) return;
-  await restoreSnapshot(app.originSnapshot, 'Origin');
+  await restoreSnapshot(app.originSnapshot, t('label.origin'));
 }
 
 async function restoreExperimentSnapshot(point) {
@@ -2440,11 +3131,16 @@ async function restoreExperimentSnapshot(point) {
   const snapshot = await getSnapshotById(snapshotId);
   if (!snapshot) return;
 
-  const label = point === 'baseline' ? 'baseline' : 'after';
-  const ok = window.confirm(`Restore "${app.activeBook.name}" to ${label} of "${app.activeExperiment.title}"?`);
+  const label = point === 'baseline' ? t('action.baseline') : t('action.after');
+  const ok = window.confirm(t('confirm.restoreExperimentPoint', {
+    book: app.activeBook.name,
+    label,
+    point: label,
+    title: app.activeExperiment.title,
+  }));
   if (!ok) return;
 
-  setStatus('Restoring');
+  setStatus(t('status.restoring'));
   await createLocalSnapshot(app.activeBook.name, {
     label: `Before restore ${formatDate(new Date().toISOString())}`,
     reason: 'pre-restore',
@@ -2455,7 +3151,7 @@ async function restoreExperimentSnapshot(point) {
   app.activeView = 'experiment';
   app.activeSnapshot = snapshot;
   await loadLocalSnapshots();
-  setStatus('Restored');
+  setStatus(t('status.restored'));
 }
 
 function setDiffMode(mode) {
@@ -2483,7 +3179,7 @@ async function renderDiff({ focusChange = false } = {}) {
   if (!app.activeBook || !app.activeSnapshot) {
     summary.textContent = '';
     view.className = 'wbh-diff';
-    view.textContent = 'Select a snapshot';
+    view.textContent = t('empty.selectSnapshot');
     updateDiffChangeControls();
     return;
   }
@@ -2496,7 +3192,7 @@ async function renderDiff({ focusChange = false } = {}) {
     const previous = getPreviousSnapshot(app.activeSnapshot);
     if (!previous) {
       summary.textContent = '';
-      view.textContent = 'No previous version';
+      view.textContent = t('empty.noPreviousVersion');
       updateDiffChangeControls();
       return;
     }
@@ -2505,7 +3201,7 @@ async function renderDiff({ focusChange = false } = {}) {
   }
 
   const diff = diffWorldbooks(base, target);
-  summary.textContent = `+${diff.summary.added} -${diff.summary.removed} ~${diff.summary.changed} unchanged ${diff.summary.unchanged}`;
+  summary.textContent = t('diff.summary', diff.summary);
   view.replaceChildren(...renderDiffPreview(base, target, diff));
   updateDiffChangeControls();
   if (focusChange) queueFocusDiffChange(0);
@@ -2515,7 +3211,7 @@ async function renderExperimentDiff(summary, view) {
   const baseline = await getSnapshotById(app.activeExperiment.baselineSnapshotId);
   if (!app.activeBook || !baseline) {
     summary.textContent = '';
-    view.textContent = 'No baseline';
+    view.textContent = t('empty.noBaseline');
     updateDiffChangeControls();
     return;
   }
@@ -2525,8 +3221,8 @@ async function renderExperimentDiff(summary, view) {
     : null;
   const target = after?.data || await loadWorldbook(app.activeBook.name);
   const diff = diffWorldbooks(baseline.data, target);
-  const range = after ? 'Baseline -> After' : 'Baseline -> Current';
-  summary.textContent = `${range} | +${diff.summary.added} -${diff.summary.removed} ~${diff.summary.changed} unchanged ${diff.summary.unchanged}`;
+  const range = after ? t('label.rangeAfter') : t('label.rangeCurrent');
+  summary.textContent = t('diff.summaryWithRange', { range, ...diff.summary });
   view.replaceChildren(...renderDiffPreview(baseline.data, target, diff));
   updateDiffChangeControls();
 }
@@ -2562,7 +3258,7 @@ function focusDiffChange(index = 0) {
   active.classList.add('change-active');
   active.scrollIntoView({ block: 'center', behavior: 'smooth' });
   updateDiffChangeControls();
-  setStatus(`${app.diffChangeIndex + 1}/${changes.length} changed entries`);
+  setStatus(t('status.changedEntries', { current: app.diffChangeIndex + 1, total: changes.length }));
 }
 
 function updateDiffChangeControls() {
@@ -2590,7 +3286,7 @@ function renderDiffPreview(base, target, diff) {
   if (!ids.length) {
     const empty = document.createElement('div');
     empty.className = 'wbh-empty';
-    empty.textContent = 'No entries';
+    empty.textContent = t('empty.noEntries');
     return [empty];
   }
 
@@ -2602,7 +3298,7 @@ function renderDiffPreview(base, target, diff) {
     section.className = `wbh-diff-entry ${status}`;
     if (status !== 'unchanged') section.dataset.wbhChange = 'true';
     const title = document.createElement('h4');
-    title.textContent = `${status === 'unchanged' ? 'ENTRY' : status.toUpperCase()} ${entryTitle(entry)}`;
+    title.textContent = `${diffStatusLabel(status)} ${entryTitle(entry)}`;
     section.append(title);
 
     const meta = document.createElement('div');
@@ -2661,7 +3357,7 @@ function renderPreviewContentField(entry, contentDiff, status) {
   const block = document.createElement('div');
   block.className = 'wbh-field';
   const name = document.createElement('strong');
-  name.textContent = 'Content';
+  name.textContent = t('field.content');
   block.append(name);
 
   if (contentDiff?.lines?.length) {
@@ -2682,7 +3378,8 @@ function renderPreviewContentField(entry, contentDiff, status) {
 }
 
 function diffFieldLabel(field) {
-  return DIFF_FIELD_LABELS[field] || fieldLabel(field);
+  const key = DIFF_FIELD_LABELS[field];
+  return key ? t(key) : fieldLabel(field);
 }
 
 function diffFieldSummary(field) {
@@ -2692,26 +3389,29 @@ function diffFieldSummary(field) {
 }
 
 function shortDiffValue(value) {
-  const text = String(value || '').replace(/\s+/g, ' ').trim() || '(blank)';
+  const text = String(value || '').replace(/\s+/g, ' ').trim() || t('value.blank');
   return text.length > 84 ? `${text.slice(0, 81)}...` : text;
 }
 
 function formatDiffFieldValue(field, value) {
-  if (value === '' || value === null || value === undefined) return '(blank)';
+  if (value === '' || value === null || value === undefined) return t('value.blank');
   if (field === 'position') return positionLabel(value);
   if (field === 'role') return roleLabel(value);
-  if (field === 'selectiveLogic') return SELECTIVE_LOGIC_OPTIONS.find(option => option.value === Number(value))?.label || blankable(value);
-  if (field === 'disable') return truthyString(value) ? 'Disabled' : 'Enabled';
-  if (field === 'constant') return truthyString(value) ? 'Constant' : 'Normal';
+  if (field === 'selectiveLogic') {
+    const option = SELECTIVE_LOGIC_OPTIONS.find(item => item.value === Number(value));
+    return option ? optionLabel(option) : blankable(value);
+  }
+  if (field === 'disable') return truthyString(value) ? t('flag.disabled') : t('field.enabled');
+  if (field === 'constant') return truthyString(value) ? t('flag.constant') : t('value.normal');
   if (TRI_STATE_BOOLEAN_FIELDS.has(field)) return triStateLabel(value);
-  if (BOOLEAN_DIFF_FIELDS.has(field)) return truthyString(value) ? 'On' : 'Off';
+  if (BOOLEAN_DIFF_FIELDS.has(field)) return truthyString(value) ? t('value.on') : t('value.off');
   if (LIST_FIELDS.has(field)) return formatListDiffValue(value);
   if (field === 'probability' && value !== '') return `${value}%`;
   return blankable(value);
 }
 
 function blankable(value) {
-  return value === undefined || value === null || value === '' ? '(blank)' : String(value);
+  return value === undefined || value === null || value === '' ? t('value.blank') : String(value);
 }
 
 function truthyString(value) {
@@ -2719,17 +3419,17 @@ function truthyString(value) {
 }
 
 function triStateLabel(value) {
-  if (value === '' || value === null || value === undefined) return 'Global';
-  return truthyString(value) ? 'On' : 'Off';
+  if (value === '' || value === null || value === undefined) return t('value.global');
+  return truthyString(value) ? t('value.on') : t('value.off');
 }
 
 function formatListDiffValue(value) {
-  if (value === '' || value === null || value === undefined) return '(blank)';
+  if (value === '' || value === null || value === undefined) return t('value.blank');
   const text = String(value);
   if (text.startsWith('[')) {
     try {
       const parsed = JSON.parse(text);
-      if (Array.isArray(parsed)) return parsed.join('\n') || '(blank)';
+      if (Array.isArray(parsed)) return parsed.join('\n') || t('value.blank');
     } catch {
       return text;
     }
@@ -2749,16 +3449,16 @@ function renderDiffLines(lines) {
 }
 
 async function restoreLocalSnapshot() {
-  await restoreSnapshot(app.activeSnapshot, app.activeSnapshot?.label || 'version');
+  await restoreSnapshot(app.activeSnapshot, displaySnapshotLabel(app.activeSnapshot?.label || t('label.version')));
 }
 
 async function restoreSnapshot(snapshot, label = 'version') {
   if (!app.activeBook || !snapshot) return;
-  const restoreLabel = label || snapshot.label || snapshot.createdAt || 'version';
-  const ok = window.confirm(`Restore "${app.activeBook.name}" to "${restoreLabel}"?`);
+  const restoreLabel = label || displaySnapshotLabel(snapshot.label) || snapshot.createdAt || t('label.version');
+  const ok = window.confirm(t('confirm.restoreSnapshot', { book: app.activeBook.name, label: restoreLabel }));
   if (!ok) return;
 
-  setStatus('Restoring');
+  setStatus(t('status.restoring'));
   await createLocalSnapshot(app.activeBook.name, {
     label: `Before restore to ${restoreLabel} ${formatDate(new Date().toISOString())}`,
     reason: 'pre-restore',
@@ -2771,7 +3471,7 @@ async function restoreSnapshot(snapshot, label = 'version') {
   app.activeExperiment = null;
   app.activeSnapshot = snapshot;
   await loadLocalSnapshots();
-  setStatus(`Restored ${restoreLabel}`);
+  setStatus(t('status.restoredLabel', { label: restoreLabel }));
 }
 
 function getPreviousSnapshot(snapshot) {
@@ -3067,25 +3767,27 @@ function ensureActiveEntry() {
 }
 
 function entryTitle(entry) {
-  return cleanText(entry?.comment) || cleanText(entry?.name) || cleanText(entry?.uid) || '(untitled)';
+  return cleanText(entry?.comment) || cleanText(entry?.name) || cleanText(entry?.uid) || t('value.untitled');
 }
 
 function entryMeta(entry) {
   const parts = [];
-  if (entry?.constant) parts.push('constant');
-  if (entry?.disable) parts.push('disabled');
+  if (entry?.constant) parts.push(t('flag.constant').toLowerCase());
+  if (entry?.disable) parts.push(t('flag.disabled').toLowerCase());
   if (entry?.position !== undefined) parts.push(positionLabel(entry.position));
-  if (Number(entry?.position) === 4) parts.push(`${roleLabel(entry.role)} depth ${entry?.depth ?? 0}`);
-  if (entry?.order !== undefined) parts.push(`order ${entry.order}`);
-  return parts.join(' | ') || 'entry';
+  if (Number(entry?.position) === 4) parts.push(t('role.depth', { role: roleLabel(entry.role), depth: entry?.depth ?? 0 }));
+  if (entry?.order !== undefined) parts.push(`${t('field.order').toLowerCase()} ${entry.order}`);
+  return parts.join(' | ') || t('value.entry');
 }
 
 function positionLabel(value) {
-  return POSITION_OPTIONS.find(option => option.value === Number(value))?.label || `position ${value}`;
+  const option = POSITION_OPTIONS.find(item => item.value === Number(value));
+  return option ? optionLabel(option) : t('position.fallback', { value });
 }
 
 function roleLabel(value) {
-  return ROLE_OPTIONS.find(option => option.value === Number(value))?.label || 'System';
+  const option = ROLE_OPTIONS.find(item => item.value === Number(value));
+  return option ? optionLabel(option) : t('role.system');
 }
 
 function downloadJson(filename, data) {
@@ -3187,9 +3889,9 @@ function cleanText(value) {
 }
 
 function statusLabel(status) {
-  if (status === 'kept') return 'Kept';
-  if (status === 'rejected') return 'Rejected';
-  return 'Testing';
+  if (status === 'kept') return t('status.kept');
+  if (status === 'rejected') return t('status.rejected');
+  return t('status.testing');
 }
 
 function randomId() {
