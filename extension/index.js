@@ -1100,6 +1100,8 @@ function renderExperimentPanel() {
   const origin = root.querySelector('#wbh-restore-origin');
   const baseline = root.querySelector('#wbh-restore-baseline');
   const after = root.querySelector('#wbh-restore-after');
+  const openExperiment = getOpenExperiment();
+  const experimentOpen = isExperimentOpen(experiment);
 
   title.textContent = experiment?.title || 'No experiment selected';
   meta.textContent = experiment
@@ -1118,14 +1120,25 @@ function renderExperimentPanel() {
   }
   if (saveNote) saveNote.disabled = !experiment;
 
-  start.disabled = !app.activeBook;
+  start.disabled = !app.activeBook || Boolean(openExperiment);
+  start.title = openExperiment ? `Finish "${openExperiment.title || 'current experiment'}" before starting another` : '';
   finish.disabled = !app.activeBook || !experiment;
-  finish.textContent = experiment?.afterSnapshotId ? 'Update After' : 'Finish';
+  finish.textContent = experimentOpen ? 'Finish' : experiment?.afterSnapshotId ? 'Update After' : 'Finish';
   keep.disabled = !experiment;
   reject.disabled = !experiment;
   origin.disabled = !app.activeBook || !app.originSnapshot;
   baseline.disabled = !experiment?.baselineSnapshotId;
   after.disabled = !experiment?.afterSnapshotId;
+}
+
+function getOpenExperiment() {
+  return app.activeBook
+    ? app.experiments.find(experiment => experiment.bookName === app.activeBook.name && isExperimentOpen(experiment)) || null
+    : null;
+}
+
+function isExperimentOpen(experiment) {
+  return Boolean(experiment && !experiment.finishedAt && !experiment.finishedAtMs);
 }
 
 function renderOriginSnapshot() {
@@ -1972,12 +1985,9 @@ async function saveEditorWorldbook() {
 
   app.activeSnapshot = after.snapshot;
   if (app.activeExperiment) {
-    const now = new Date();
     app.activeExperiment = {
       ...app.activeExperiment,
       status: app.activeExperiment.status || 'testing',
-      finishedAt: now.toISOString(),
-      finishedAtMs: now.getTime(),
       afterSnapshotId: after.snapshot.id,
       changeNote: app.activeExperiment.changeNote || 'Saved from workbench',
     };
@@ -2149,6 +2159,17 @@ async function createLocalSnapshotFromData(name, data, { label = '', reason = 'm
 
 async function startExperiment() {
   if (!app.activeBook) return;
+  const openExperiment = getOpenExperiment();
+  if (openExperiment) {
+    app.activeView = 'experiment';
+    app.activeExperiment = openExperiment;
+    app.mainTab = 'edit';
+    renderActiveBook();
+    renderExperiments();
+    setStatus(`Finish "${openExperiment.title || 'current experiment'}" before starting another`);
+    return;
+  }
+
   const title = window.prompt('Experiment name / problem', '');
   if (title === null) return;
 
@@ -2188,34 +2209,39 @@ async function startExperiment() {
 async function finishExperiment() {
   if (!app.activeBook || !app.activeExperiment) return;
   if (app.editorDirty) {
-    const saveFirst = window.confirm('Save workbench edits and update this experiment?');
-    if (saveFirst) await saveEditorWorldbook();
-    return;
+    const saveFirst = window.confirm('Save workbench edits before finishing this experiment?');
+    if (!saveFirst) return;
+    await saveEditorWorldbook();
   }
 
-  const note = window.prompt('Change / result note', app.activeExperiment.changeNote || '');
+  const experiment = app.activeExperiment;
+  const note = window.prompt('Change / result note', experiment.changeNote || '');
   if (note === null) return;
 
-  setStatus(app.activeExperiment.afterSnapshotId ? 'Updating experiment' : 'Finishing experiment');
-  const after = await createLocalSnapshot(app.activeBook.name, {
-    label: `After: ${app.activeExperiment.title}`,
-    reason: 'experiment-after',
-    skipDuplicate: false,
-  });
+  setStatus(isExperimentOpen(experiment) ? 'Finishing experiment' : 'Updating experiment');
+  let afterSnapshot = experiment.afterSnapshotId ? await getSnapshotById(experiment.afterSnapshotId) : null;
+  if (!afterSnapshot || !isExperimentOpen(experiment)) {
+    const after = await createLocalSnapshot(app.activeBook.name, {
+      label: `After: ${experiment.title}`,
+      reason: 'experiment-after',
+      skipDuplicate: false,
+    });
+    afterSnapshot = after.snapshot;
+  }
   const now = new Date();
   const updated = {
-    ...app.activeExperiment,
-    status: app.activeExperiment.status || 'testing',
+    ...experiment,
+    status: experiment.status || 'testing',
     finishedAt: now.toISOString(),
     finishedAtMs: now.getTime(),
-    afterSnapshotId: after.snapshot.id,
+    afterSnapshotId: afterSnapshot.id,
     changeNote: note.trim(),
   };
 
   await putExperiment(updated);
   app.activeView = 'experiment';
   app.activeExperiment = updated;
-  app.activeSnapshot = after.snapshot;
+  app.activeSnapshot = afterSnapshot;
   setStatus('Experiment saved');
   await loadLocalSnapshots();
 }
