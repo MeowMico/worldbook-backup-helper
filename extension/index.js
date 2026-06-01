@@ -6,15 +6,20 @@ const DB_NAME = 'worldbook-backup-helper';
 const DB_VERSION = 2;
 const SNAPSHOT_STORE = 'snapshots';
 const EXPERIMENT_STORE = 'experiments';
+const POSITION_AT_DEPTH = 4;
+const POSITION_OUTLET = 7;
 
 const POSITION_OPTIONS = [
-  { value: 0, key: 'position.beforeChar' },
-  { value: 1, key: 'position.afterChar' },
-  { value: 5, key: 'position.beforeExample' },
-  { value: 6, key: 'position.afterExample' },
-  { value: 2, key: 'position.topAn' },
-  { value: 3, key: 'position.bottomAn' },
-  { value: 4, key: 'position.depth' },
+  { value: '0', position: 0, key: 'position.beforeChar' },
+  { value: '1', position: 1, key: 'position.afterChar' },
+  { value: '5', position: 5, key: 'position.beforeExample' },
+  { value: '6', position: 6, key: 'position.afterExample' },
+  { value: '2', position: 2, key: 'position.topAn' },
+  { value: '3', position: 3, key: 'position.bottomAn' },
+  { value: '4:0', position: POSITION_AT_DEPTH, role: 0, key: 'position.depthSystem' },
+  { value: '4:1', position: POSITION_AT_DEPTH, role: 1, key: 'position.depthUser' },
+  { value: '4:2', position: POSITION_AT_DEPTH, role: 2, key: 'position.depthAssistant' },
+  { value: '7', position: POSITION_OUTLET, key: 'position.outlet' },
 ];
 
 const ROLE_OPTIONS = [
@@ -337,6 +342,10 @@ const TRANSLATIONS = {
     'position.topAn': 'Top of AN',
     'position.bottomAn': 'Bottom of AN',
     'position.depth': '@ Depth',
+    'position.depthSystem': 'System @ Depth',
+    'position.depthUser': 'User @ Depth',
+    'position.depthAssistant': 'AI @ Depth',
+    'position.outlet': 'Outlet',
     'position.fallback': 'position {value}',
     'role.system': 'System',
     'role.user': 'User',
@@ -585,6 +594,10 @@ const TRANSLATIONS = {
     'position.topAn': '作者注释前（↑AN）',
     'position.bottomAn': '作者注释后（↓AN）',
     'position.depth': '[系统] 插入深度 @D',
+    'position.depthSystem': '[系统] 插入深度 @D',
+    'position.depthUser': '[用户] 插入深度 @D',
+    'position.depthAssistant': '[AI] 插入深度 @D',
+    'position.outlet': '锚点',
     'position.fallback': '位置 {value}',
     'role.system': '系统',
     'role.user': '用户',
@@ -1139,6 +1152,10 @@ function ensureLocalWorkbench() {
                     <span data-wbh-i18n="field.depth">${t('field.depth')}</span>
                     <input type="number" data-wbh-field="depth">
                   </label>
+                  <label class="wbh-editor-field wbh-outlet-field hidden">
+                    <span data-wbh-i18n="field.outletName">${t('field.outletName')}</span>
+                    <input type="text" data-wbh-field="outletName">
+                  </label>
                   <label class="wbh-editor-field">
                     <span data-wbh-i18n="field.order">${t('field.order')}</span>
                     <input type="number" data-wbh-field="order">
@@ -1236,10 +1253,6 @@ function ensureLocalWorkbench() {
                   <label class="wbh-editor-field">
                     <span data-wbh-i18n="field.automationId">${t('field.automationId')}</span>
                     <input type="text" data-wbh-field="automationId">
-                  </label>
-                  <label class="wbh-editor-field">
-                    <span data-wbh-i18n="field.outletName">${t('field.outletName')}</span>
-                    <input type="text" data-wbh-field="outletName">
                   </label>
                 </div>
                 <div class="wbh-editor-grid">
@@ -1712,6 +1725,20 @@ function t(key, values = {}) {
 
 function optionLabel(option) {
   return t(option.key);
+}
+
+function positionOptionByValue(value) {
+  return POSITION_OPTIONS.find(option => String(option.value) === String(value));
+}
+
+function positionModeValue(entry) {
+  const position = Number(entry?.position ?? ENTRY_DEFAULTS.position);
+  if (position === POSITION_AT_DEPTH) {
+    const role = Number(entry?.role ?? 0);
+    const safeRole = ROLE_OPTIONS.some(option => option.value === role) ? role : 0;
+    return `${POSITION_AT_DEPTH}:${safeRole}`;
+  }
+  return String(position);
 }
 
 function entriesLabel(count) {
@@ -2627,6 +2654,8 @@ function setEditorInputValues(inputs, entry) {
     const value = entry[field];
     if (input.type === 'checkbox') {
       input.checked = Boolean(value);
+    } else if (field === 'position') {
+      input.value = positionModeValue(entry);
     } else if (LIST_FIELDS.has(field)) {
       input.value = listField(value);
     } else if (TRI_STATE_BOOLEAN_FIELDS.has(field)) {
@@ -2637,7 +2666,21 @@ function setEditorInputValues(inputs, entry) {
       input.value = stringField(value);
     }
   }
+  updatePositionDependentControls(entry);
+}
+
+function updatePositionDependentControls(entry) {
+  updatePositionControl(entry);
   updateRoleControl(entry);
+  updateOutletControl(entry);
+}
+
+function updatePositionControl(entry) {
+  const root = document.querySelector('#wbh-workbench');
+  const position = root?.querySelector('[data-wbh-field="position"]');
+  if (!position) return;
+
+  position.value = positionModeValue(entry);
 }
 
 function updateRoleControl(entry) {
@@ -2645,7 +2688,7 @@ function updateRoleControl(entry) {
   const role = root?.querySelector('[data-wbh-field="role"]');
   if (!role) return;
 
-  const atDepth = Number(entry?.position) === 4;
+  const atDepth = Number(entry?.position) === POSITION_AT_DEPTH;
   role.disabled = !atDepth;
   role.title = atDepth ? '' : t('tooltip.roleDepthOnly');
   if (!atDepth) {
@@ -2655,9 +2698,20 @@ function updateRoleControl(entry) {
   }
 }
 
+function updateOutletControl(entry) {
+  const root = document.querySelector('#wbh-workbench');
+  const field = root?.querySelector('.wbh-outlet-field');
+  if (!field) return;
+
+  const isOutlet = Number(entry?.position) === POSITION_OUTLET;
+  field.classList.toggle('hidden', !isOutlet);
+  const input = field.querySelector('[data-wbh-field="outletName"]');
+  if (input) input.disabled = !isOutlet;
+}
+
 function normalizeEntryRole(entry) {
   if (!entry) return;
-  if (Number(entry.position) === 4) {
+  if (Number(entry.position) === POSITION_AT_DEPTH) {
     if (entry.role === undefined || entry.role === null || entry.role === '') entry.role = 0;
     return;
   }
@@ -2694,6 +2748,26 @@ function updateActiveEntryFromEditor(input) {
   const field = input.dataset.wbhField;
   if (!field) return;
 
+  if (field === 'position') {
+    const option = positionOptionByValue(input.value);
+    const nextPosition = option ? option.position : readEditorInputValue(input);
+    const nextRole = option && Object.prototype.hasOwnProperty.call(option, 'role') ? option.role : null;
+    const nextMode = option ? String(option.value) : String(nextPosition);
+    if (positionModeValue(record.entry) === nextMode) return;
+
+    beginInputHistory(input);
+    record.entry.position = nextPosition;
+    if (Number(nextPosition) === POSITION_AT_DEPTH) {
+      record.entry.role = nextRole ?? record.entry.role ?? 0;
+    }
+    normalizeEntryRole(record.entry);
+
+    setEditorDirty(true);
+    document.querySelector('#wbh-entry-meta').textContent = entryMeta(record.entry);
+    updatePositionDependentControls(record.entry);
+    return;
+  }
+
   const nextValue = readEditorInputValue(input);
   if (comparableField(record.entry[field]) === comparableField(nextValue)) return;
 
@@ -2706,7 +2780,7 @@ function updateActiveEntryFromEditor(input) {
     document.querySelector('#wbh-entry-title').textContent = entryTitle(record.entry);
   }
   document.querySelector('#wbh-entry-meta').textContent = entryMeta(record.entry);
-  if (field === 'position') updateRoleControl(record.entry);
+  if (field === 'role') updatePositionDependentControls(record.entry);
 }
 
 function readEditorInputValue(input) {
@@ -2718,6 +2792,7 @@ function readEditorInputValue(input) {
     return input.value === 'true';
   }
   if (NUMBER_FIELDS.has(field)) {
+    if (field === 'position') return positionOptionByValue(input.value)?.position ?? Number(input.value);
     if (field === 'role' && input.value === '') return null;
     if (input.value === '') return NULLABLE_NUMBER_FIELDS.has(field) ? null : 0;
     return Number(input.value);
@@ -3669,7 +3744,7 @@ function comparableEntryField(entry, field) {
 
   if (field === 'role') {
     const isBlank = value === undefined || value === null || value === '';
-    if (isBlank) return Number(entry?.position) === 4 ? '0' : '';
+    if (isBlank) return Number(entry?.position) === POSITION_AT_DEPTH ? '0' : '';
   }
   if (field === 'disable' || BOOLEAN_DIFF_FIELDS.has(field)) {
     return truthyString(value) ? 'true' : 'false';
@@ -3808,14 +3883,17 @@ function entryMeta(entry) {
   const parts = [];
   if (entry?.constant) parts.push(t('flag.constant').toLowerCase());
   if (entry?.disable) parts.push(t('flag.disabled').toLowerCase());
-  if (entry?.position !== undefined) parts.push(positionLabel(entry.position));
-  if (Number(entry?.position) === 4) parts.push(t('role.depth', { role: roleLabel(entry.role), depth: entry?.depth ?? 0 }));
+  if (entry?.position !== undefined) parts.push(positionLabel(entry.position, entry.role));
+  if (Number(entry?.position) === POSITION_AT_DEPTH) parts.push(t('role.depth', { role: roleLabel(entry.role), depth: entry?.depth ?? 0 }));
   if (entry?.order !== undefined) parts.push(`${t('field.order').toLowerCase()} ${entry.order}`);
   return parts.join(' | ') || t('value.entry');
 }
 
-function positionLabel(value) {
-  const option = POSITION_OPTIONS.find(item => item.value === Number(value));
+function positionLabel(value, role = null) {
+  const position = Number(value);
+  const selectedRole = role === null || role === undefined || role === '' ? 0 : Number(role);
+  const option = POSITION_OPTIONS.find(item => item.position === position && (position !== POSITION_AT_DEPTH || item.role === selectedRole))
+    || POSITION_OPTIONS.find(item => item.position === position);
   return option ? optionLabel(option) : t('position.fallback', { value });
 }
 
