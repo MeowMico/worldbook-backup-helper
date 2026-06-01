@@ -1,118 +1,123 @@
-# Worldbook Backup Helper
+# Worldbook Workbench
 
-Local version workbench for SillyTavern worldbooks.
+[中文说明](README.zh-CN.md)
 
-## What It Does
+Worldbook Workbench is a SillyTavern extension for editing, versioning, comparing, restoring, and exporting worldbooks/lorebooks.
 
-- Lists SillyTavern worldbooks for the current user.
-- Provides an in-extension workbench for editing common worldbook entry fields.
-- Supports local Undo / Redo while editing in the workbench.
-- Finds exact keywords inside entries, jumps between matches, selects the text in-place, and supports replace / replace all.
-- Keeps entry `Role` blank unless the insertion position is `@ Depth`, matching SillyTavern's native editor behavior.
-- Automatically captures an `Origin` snapshot the first time the workbench sees each worldbook.
-- Creates timestamped JSON snapshots under the current user's backups directory.
-- Lets you name versions, compare a snapshot against the current worldbook, and restore a snapshot.
-- Can compare a selected snapshot against its previous snapshot.
-- Adds an experiment workflow for RP-driven edits: Start captures a baseline, Finish captures the edited result, Name can rename an existing experiment, Note can store longer observations, JSON can export an experiment with its baseline/after versions, search can find experiment notes, Keep/Reject marks the attempt, and Baseline/After can restore either point.
-- Includes an optional third-party extension that adds a menu entry and creates automatic before/after snapshots around `/api/worldinfo/edit` saves.
+It is designed for creators who test roleplay output while actively revising worldbuilding, character notes, rules, or setting entries. Instead of manually exporting a JSON file before every change, you can work inside SillyTavern and keep a local history of your worldbook edits.
 
-The plugin only works with worldbooks/lorebooks. It does not read character descriptions or chats.
+## Features
 
-## Recommended: Install As a UI Extension
+- Edit SillyTavern worldbooks directly in an in-Tavern workbench.
+- Automatically save an `Origin` snapshot the first time a worldbook is opened.
+- Create named experiments with baseline/after snapshots for testing a specific change.
+- Compare current, previous, baseline, after, and saved versions with highlighted diffs.
+- Restore the origin, an experiment result, or any saved version.
+- Find keywords across worldbook entries, jump between matches, replace matches, or delete matches.
+- Rename experiments, add experiment notes, and search experiment history.
+- Export a single experiment/version JSON or export the full local history for one worldbook.
+- Supports English and Chinese UI.
+- Includes light and dark themes.
 
-This repository has a root `manifest.json`, so it can be installed from SillyTavern's third-party extension installer.
+The extension only works with worldbooks/lorebooks. It does not read chats or character descriptions.
 
-Open SillyTavern:
+## Installation
+
+Open SillyTavern and install this repository as a third-party extension:
 
 ```text
 Extensions -> Install extension -> paste this repository URL
 ```
 
-In extension-only mode, snapshots are stored in the browser's IndexedDB. This gives you an in-Tavern workbench, entry editing, automatic before/after snapshots, labels, diff, and restore without installing a server plugin.
+Repository URL:
+
+```text
+https://github.com/MeowMico/worldbook-backup-helper
+```
+
+After installing, open the extension from the SillyTavern extensions menu.
+
+## Recommended Workflow
+
+1. Open `Worldbook Workbench`.
+2. Select a worldbook.
+3. Click `Start` and name the experiment, such as `trim mechanical wording` or `make the city rules stricter`.
+4. Edit entries in the workbench.
+5. Click `Save` to write the worldbook back to SillyTavern.
+6. Use `Diff` to compare the baseline and after version.
+7. Mark the experiment as `Keep` or `Reject`, add a note if useful, or restore a previous version.
+
+If you edit in SillyTavern's native worldbook editor instead of the workbench, click `Finish` after the change to capture the after snapshot.
 
 ## Workbench Editing
 
-The `Edit` tab reads the selected worldbook through SillyTavern's worldbook API and lets you create, duplicate, delete, and edit entries directly in the extension:
+The `Edit` tab supports common SillyTavern worldbook entry fields, including:
 
 - title/comment
 - content
 - primary and secondary keys
 - constant, disabled, selective, vectorized
-- position, role, depth, order, probability
-- recursion, matching, grouping, character filters, triggers, and sticky/cooldown/delay fields
+- insertion position, role, depth, order, probability
+- recursion, grouping, scanning, triggers, character filters, and match sources
+- sticky, cooldown, delay, automation ID, and outlet/anchor fields
 
-Click `Save` to write the edited worldbook back to SillyTavern. A before-save snapshot and after-save snapshot are created automatically. If an experiment is selected, `Save` also updates that experiment's `After` version, so you do not need to click `Finish` for edits made inside the workbench.
+The first time a worldbook is opened, the current state is saved as `Origin`. The origin snapshot is not overwritten by later edits.
 
-The first time a worldbook is opened in the workbench, the current state is saved as `Origin`. `Origin` is not overwritten by later edits and can be restored from the top experiment controls.
+## Search, Replace, and Delete
 
-Clicking `Origin` or any item in `Versions` loads that saved worldbook state into the editor. You can edit it like a draft; clicking `Save` writes it back to SillyTavern and creates a new version.
+The workbench can search exact keywords across supported entry fields. It can:
 
-Click `Restore` beside `Origin` or a version to roll the live SillyTavern worldbook back to that saved state. A before-restore version is created first.
+- jump to the previous or next match
+- select the matching text in place
+- replace the current match
+- replace all matches
+- delete the current match
+- delete all matches after confirmation
 
-Click `Exp` beside a version to turn that saved version into an experiment after the fact. The previous version is used as the baseline when available.
+Search edits are added to the local undo stack.
 
-Clicking a version opens its `Previous` diff and jumps to the first changed entry. Use `Prev change` / `Next change` to move through changed entries.
+## Experiments
 
-The `Diff` tab shows a full preview of the selected state. Changed entries are marked and changed text lines stay highlighted; unchanged entries still show their content instead of an empty `No changes` panel.
+Experiments are meant for small, testable changes.
 
-## Experiment Workflow
+`Start` captures the baseline. `Save` or `Finish` captures the after version. Each experiment can have:
 
-Use this when you are testing a worldbook change against a specific RP problem:
+- a name
+- a note
+- a baseline snapshot
+- an after snapshot
+- a keep/reject status
 
-1. Open `Worldbook Backups` from the extensions menu.
-2. Select the worldbook.
-3. Click `Start` and name the problem or attempt. This captures the current worldbook as the baseline.
-4. Edit the worldbook in the workbench and click `Save`, or edit it in SillyTavern as usual.
-5. If you edited in SillyTavern's native worldbook panel, click `Finish` and write a short note. If you edited in the workbench, `Save` already captures the after version.
-6. Use the experiment diff to compare baseline against after, then mark the attempt as `Keep` or `Reject`.
+Experiment names and notes are searchable in the history sidebar.
 
-`Baseline` restores the worldbook to the version before the attempt. `After` restores the finished attempt. Manual snapshots and automatic before/after snapshots still remain available in the Versions list.
+## Export
 
-## Optional: Install As Server Plugin
+You can export:
 
-Copy or clone this folder into:
+- a single experiment JSON
+- a single saved version JSON
+- all local history for the selected worldbook
 
-```text
-SillyTavern/plugins/worldbook-backup-helper/
-```
+This can be useful for organizing creative files or sharing a specific revision.
 
-In `config.yaml`, server plugins must be enabled:
+## Storage and Privacy
 
-```yaml
-enableServerPlugins: true
-```
+In extension-only mode, snapshots and experiments are stored locally in the browser's IndexedDB for the current SillyTavern browser profile.
 
-Restart SillyTavern, then open:
+The extension reads and writes worldbooks through SillyTavern's worldbook API. It does not read chats, cookies, API keys, browser profiles, or unrelated local files.
 
-```text
-http://127.0.0.1:8000/api/plugins/worldbook-backup-helper/ui
-```
+## Compatibility
 
-Use your SillyTavern port if it is not `8000`.
+Built and tested against SillyTavern `1.17.0` public source.
 
-When the server plugin is present, the UI extension will open the server-backed workbench instead of the browser-only workbench.
+The project uses the standard SillyTavern third-party extension format with a root `manifest.json`.
 
-## Backup Location
+## Known Limits
 
-Server-plugin snapshots are stored under the current user's backup directory:
+- Extension-only snapshots are browser-local. If browser data is cleared, local history may be lost.
+- Importing external experiment archives is not implemented yet.
+- The extension focuses on worldbooks/lorebooks, not character card description editing.
 
-```text
-data/<user>/backups/worldbook-backup-helper/<worldbook-name>/
-```
+## License
 
-Each file is named with a timestamp and a content hash:
-
-```text
-2026-05-30_21-14-03-123__abcdef1234.json
-```
-
-Extension-only snapshots are stored in browser IndexedDB and are not visible as files.
-
-## Compatibility Notes
-
-Checked against SillyTavern `1.17.0` public source:
-
-- Worldbooks are read and written through the user's `directories.worlds`.
-- Native worldbook saves use `/api/worldinfo/edit`.
-- Server plugin routes are mounted at `/api/plugins/{id}/...`.
-- Third-party extensions are loaded from the current user's extensions directory.
+MIT License. See [LICENSE](LICENSE).

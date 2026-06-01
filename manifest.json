@@ -1,12 +1,12 @@
 {
-  "display_name": "Worldbook Backup Helper",
+  "display_name": "Worldbook Workbench",
   "loading_order": 120,
   "requires": [],
   "optional": [],
   "js": "extension/index.js",
   "css": "extension/style.css",
-  "author": "",
-  "version": "0.5.24",
+  "author": "MeowMico",
+  "version": "0.5.25",
   "homePage": "https://github.com/MeowMico/worldbook-backup-helper",
   "auto_update": true
 }

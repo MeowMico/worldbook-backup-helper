@@ -155,8 +155,8 @@ const BOOLEAN_DIFF_FIELDS = new Set([
 
 const TRANSLATIONS = {
   en: {
-    'app.title': 'Worldbook Backup Helper',
-    'menu.open': 'Worldbook Backups',
+    'app.title': 'Worldbook Workbench',
+    'menu.open': 'Worldbook Workbench',
     'status.extensionMode': 'Extension-only mode: snapshots are stored in this browser.',
     'status.ready': 'Ready',
     'status.refreshing': 'Refreshing',
@@ -413,8 +413,8 @@ const TRANSLATIONS = {
     'diff.changed': 'CHANGED',
   },
   zh: {
-    'app.title': '世界书备份助手',
-    'menu.open': '世界书备份',
+    'app.title': '世界书工作台',
+    'menu.open': '世界书工作台',
     'status.extensionMode': '本地扩展模式：快照会保存在此浏览器中。',
     'status.ready': '就绪',
     'status.refreshing': '正在刷新',
@@ -899,7 +899,7 @@ async function snapshotBeforeSave(body) {
       skipDuplicate: true,
     });
   } catch (error) {
-    console.warn('[Worldbook Backup Helper] Auto snapshot failed.', error);
+    console.warn('[Worldbook Workbench] Auto snapshot failed.', error);
   } finally {
     app.snapshotInFlight = false;
   }
@@ -948,7 +948,7 @@ async function snapshotAfterSave(body) {
     });
     await syncWorkbenchFromSavedWorldbook(name, data);
   } catch (error) {
-    console.warn('[Worldbook Backup Helper] Post-save snapshot failed.', error);
+    console.warn('[Worldbook Workbench] Post-save snapshot failed.', error);
   }
 }
 
@@ -1488,7 +1488,7 @@ async function refreshNativeWorldInfoEditor(name) {
       select.dispatchEvent(new Event('change', { bubbles: true }));
     }
   } catch (error) {
-    console.warn('[Worldbook Backup Helper] Native worldbook editor refresh failed.', error);
+    console.warn('[Worldbook Workbench] Native worldbook editor refresh failed.', error);
   }
 }
 

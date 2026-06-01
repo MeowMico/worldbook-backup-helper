@@ -24,7 +24,7 @@ const MIME_TYPES = {
 
 const info = {
   id: PLUGIN_ID,
-  name: 'Worldbook Backup Helper',
+  name: 'Worldbook Workbench',
   description: 'Local timestamped snapshots, labels, diffs, and restores for SillyTavern worldbooks.',
 };
 

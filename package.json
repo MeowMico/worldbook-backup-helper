@@ -1,10 +1,10 @@
 {
   "name": "worldbook-backup-helper",
-  "version": "0.1.0",
-  "description": "SillyTavern worldbook snapshot workbench with local timestamped backups.",
+  "version": "0.5.25",
+  "description": "SillyTavern worldbook workbench for editing, versioning, diffing, restoring, and exporting worldbooks.",
   "main": "index.js",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "check": "node --check index.js"
   },
@@ -12,6 +12,8 @@
     "sillytavern",
     "worldbook",
     "lorebook",
-    "backup"
+    "backup",
+    "diff",
+    "versioning"
   ]
 }
