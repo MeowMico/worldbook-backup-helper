@@ -14,6 +14,7 @@ It is designed for creators who test roleplay output while actively revising wor
 - Compare current, previous, baseline, after, and saved versions with highlighted diffs.
 - Restore the origin, an experiment result, or any saved version.
 - Find keywords across worldbook entries, jump between matches, replace matches, or delete matches.
+- Multi-select entries and copy them to another worldbook while keeping entry content and settings.
 - Rename experiments, add experiment notes, and search experiment history.
 - Export a single experiment/version JSON or export the full local history for one worldbook.
 - Supports English and Chinese UI.
@@ -79,6 +80,14 @@ The workbench can search exact keywords across supported entry fields. It can:
 - delete all matches after confirmation
 
 Search edits are added to the local undo stack.
+
+## Copy Entries Between Worldbooks
+
+In the `Edit` tab, select one or more entries with the checkboxes in the entry list, then click `Copy to...`.
+
+Copied entries keep their content, keys, insertion position, role, depth, order, toggles, probability, grouping, triggers, filters, match sources, and other supported settings. New UIDs are generated in the target worldbook, so existing entries are not overwritten.
+
+The target worldbook gets before-copy and after-copy snapshots automatically, so you can restore it if the copy was not what you wanted.
 
 ## Experiments
 

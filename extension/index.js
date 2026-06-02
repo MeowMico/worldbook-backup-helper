@@ -197,6 +197,9 @@ const TRANSLATIONS = {
     'status.restored': 'Restored',
     'status.restoredLabel': 'Restored {label}',
     'status.changedEntries': '{current}/{total} changed entries',
+    'status.copyingEntries': 'Copying entries',
+    'status.copiedEntries': 'Copied {count} selected entries to {target}',
+    'status.copyFailed': 'Copy failed',
     'theme.label': 'Theme',
     'theme.auto': 'Auto',
     'theme.light': 'Light',
@@ -231,6 +234,9 @@ const TRANSLATIONS = {
     'action.redo': 'Redo',
     'action.new': 'New',
     'action.duplicate': 'Duplicate',
+    'action.copyTo': 'Copy to...',
+    'action.copy': 'Copy',
+    'action.cancel': 'Cancel',
     'action.delete': 'Delete',
     'action.reload': 'Reload',
     'action.save': 'Save',
@@ -261,6 +267,7 @@ const TRANSLATIONS = {
     'section.logic': 'Logic',
     'section.timingFilters': 'Timing and Filters',
     'section.matchSources': 'Match Sources',
+    'section.copyEntries': 'Copy entries',
     'empty.noWorldbookSelected': 'No worldbook selected',
     'empty.noExperimentSelected': 'No experiment selected',
     'empty.noEntrySelected': 'No entry selected',
@@ -270,6 +277,7 @@ const TRANSLATIONS = {
     'empty.noWorldbookLoaded': 'No worldbook loaded',
     'empty.noEntries': 'No entries',
     'empty.noVersionsYet': 'No versions yet',
+    'empty.noCopyTargets': 'No other worldbooks available',
     'empty.selectSnapshot': 'Select a snapshot',
     'empty.noPreviousVersion': 'No previous version',
     'empty.noBaseline': 'No baseline',
@@ -290,6 +298,7 @@ const TRANSLATIONS = {
     'tooltip.restoreExperimentReady': 'Restore this experiment result',
     'tooltip.restoreExperimentDisabled': 'Save or finish the experiment before restoring its result',
     'tooltip.roleDepthOnly': 'Role is only used for @ Depth entries',
+    'tooltip.copyEntries': 'Copy selected entries to another worldbook',
     'field.title': 'Title',
     'field.content': 'Content',
     'field.keys': 'Keys',
@@ -320,6 +329,7 @@ const TRANSLATIONS = {
     'field.matchDepthPrompt': 'Depth Prompt',
     'field.matchScenario': 'Scenario',
     'field.matchCreatorNotes': 'Creator Notes',
+    'field.targetWorldbook': 'Target worldbook',
     'field.enabled': 'Enabled',
     'flag.constant': 'Constant',
     'flag.disabled': 'Disabled',
@@ -339,6 +349,7 @@ const TRANSLATIONS = {
     'value.blank': '(blank)',
     'value.untitled': '(untitled)',
     'value.entry': 'entry',
+    'value.selectedEntries': '{count} selected',
     'value.normal': 'Normal',
     'position.beforeChar': 'Before Char Defs',
     'position.afterChar': 'After Char Defs',
@@ -375,6 +386,7 @@ const TRANSLATIONS = {
     'confirm.replaceMatches': 'Replace {count} {noun}?',
     'confirm.deleteMatches': 'Delete {count} {noun}?',
     'confirm.deleteEntry': 'Delete "{title}"?',
+    'confirm.copyUnsavedEntries': 'Current worldbook has unsaved edits. Copy selected entries from the workbench draft?',
     'confirm.discardEdits': 'Discard unsaved workbench edits?',
     'confirm.saveBeforeFinish': 'Save workbench edits before finishing this experiment?',
     'confirm.restoreExperimentPoint': 'Restore "{book}" to {point} of "{title}"?',
@@ -395,6 +407,8 @@ const TRANSLATIONS = {
     'label.baseline': 'Baseline: {title}',
     'label.after': 'After: {title}',
     'label.originSnapshot': 'Origin: {name}',
+    'label.beforeCopyFrom': 'Before copy from {source}',
+    'label.afterCopyFrom': 'After copy from {source}',
     'label.beforeRestore': 'Before restore {date}',
     'label.beforeRestoreTo': 'Before restore to {label} {date}',
     'label.experimentResult': 'experiment result: {title}',
@@ -455,6 +469,9 @@ const TRANSLATIONS = {
     'status.restored': '已回溯',
     'status.restoredLabel': '已回溯到 {label}',
     'status.changedEntries': '{current}/{total} 个变更条目',
+    'status.copyingEntries': '正在复制条目',
+    'status.copiedEntries': '已复制 {count} 个选中条目到“{target}”',
+    'status.copyFailed': '复制失败',
     'theme.label': '主题',
     'theme.auto': '自动',
     'theme.light': '浅色',
@@ -489,6 +506,9 @@ const TRANSLATIONS = {
     'action.redo': '重做',
     'action.new': '新建',
     'action.duplicate': '复制',
+    'action.copyTo': '复制到…',
+    'action.copy': '复制',
+    'action.cancel': '取消',
     'action.delete': '删除',
     'action.reload': '重新读取',
     'action.save': '保存',
@@ -519,6 +539,7 @@ const TRANSLATIONS = {
     'section.logic': '逻辑',
     'section.timingFilters': '额外匹配来源',
     'section.matchSources': '筛选生成触发器',
+    'section.copyEntries': '复制条目',
     'empty.noWorldbookSelected': '未选择世界书',
     'empty.noExperimentSelected': '未选择实验',
     'empty.noEntrySelected': '未选择条目',
@@ -528,6 +549,7 @@ const TRANSLATIONS = {
     'empty.noWorldbookLoaded': '未读取世界书',
     'empty.noEntries': '暂无条目',
     'empty.noVersionsYet': '暂无版本',
+    'empty.noCopyTargets': '没有可复制到的其他世界书',
     'empty.selectSnapshot': '请选择一个快照',
     'empty.noPreviousVersion': '没有上一版',
     'empty.noBaseline': '没有改前版本',
@@ -548,6 +570,7 @@ const TRANSLATIONS = {
     'tooltip.restoreExperimentReady': '回溯到此实验结果',
     'tooltip.restoreExperimentDisabled': '请先保存或完成实验，再回溯实验结果',
     'tooltip.roleDepthOnly': '只有“插入深度 @D”条目会使用 Role',
+    'tooltip.copyEntries': '把选中的条目复制到另一本世界书',
     'field.title': '标题（备忘）',
     'field.content': '内容',
     'field.keys': '主要关键字',
@@ -578,6 +601,7 @@ const TRANSLATIONS = {
     'field.matchDepthPrompt': '深度提示词',
     'field.matchScenario': '场景',
     'field.matchCreatorNotes': '作者备注',
+    'field.targetWorldbook': '目标世界书',
     'field.enabled': '启用状态',
     'flag.constant': '常驻',
     'flag.disabled': '禁用',
@@ -597,6 +621,7 @@ const TRANSLATIONS = {
     'value.blank': '（空）',
     'value.untitled': '（未命名）',
     'value.entry': '条目',
+    'value.selectedEntries': '已选择 {count} 个',
     'value.normal': '普通',
     'position.beforeChar': '角色定义前（↑Char）',
     'position.afterChar': '角色定义后（↓Char）',
@@ -633,6 +658,7 @@ const TRANSLATIONS = {
     'confirm.replaceMatches': '替换 {count} 个匹配项吗？',
     'confirm.deleteMatches': '删除 {count} 个匹配项吗？',
     'confirm.deleteEntry': '删除“{title}”吗？',
+    'confirm.copyUnsavedEntries': '当前世界书有未保存编辑。要从工作台草稿复制选中的条目吗？',
     'confirm.discardEdits': '放弃未保存的工作台编辑吗？',
     'confirm.saveBeforeFinish': '完成实验前保存工作台编辑吗？',
     'confirm.restoreExperimentPoint': '把“{book}”回溯到“{title}”的{point}吗？',
@@ -653,6 +679,8 @@ const TRANSLATIONS = {
     'label.baseline': '改前：{title}',
     'label.after': '改后：{title}',
     'label.originSnapshot': '原版：{name}',
+    'label.beforeCopyFrom': '复制自 {source} 前',
+    'label.afterCopyFrom': '复制自 {source} 后',
     'label.beforeRestore': '回溯前 {date}',
     'label.beforeRestoreTo': '回溯到 {label} 前 {date}',
     'label.experimentResult': '实验结果：{title}',
@@ -730,6 +758,7 @@ const app = {
   activeDataHash: '',
   editorSourceLabel: '',
   activeEntryId: null,
+  selectedEntryIds: new Set(),
   activeSnapshot: null,
   activeExperiment: null,
   activeView: 'snapshot',
@@ -1062,6 +1091,7 @@ function ensureLocalWorkbench() {
               <button id="wbh-editor-redo" type="button" disabled data-wbh-i18n="action.redo">${t('action.redo')}</button>
               <button id="wbh-entry-new" type="button" data-wbh-i18n="action.new">${t('action.new')}</button>
               <button id="wbh-entry-duplicate" type="button" disabled data-wbh-i18n="action.duplicate">${t('action.duplicate')}</button>
+              <button id="wbh-entry-copy-to" type="button" disabled title="${t('tooltip.copyEntries')}" data-wbh-i18n="action.copyTo">${t('action.copyTo')}</button>
               <button id="wbh-entry-delete" type="button" class="danger" disabled data-wbh-i18n="action.delete">${t('action.delete')}</button>
               <button id="wbh-editor-reload" type="button" data-wbh-i18n="action.reload">${t('action.reload')}</button>
               <button id="wbh-editor-save" type="button" disabled data-wbh-i18n="action.save">${t('action.save')}</button>
@@ -1365,6 +1395,20 @@ function ensureLocalWorkbench() {
           </div>
         </section>
       </main>
+      <div id="wbh-copy-dialog" class="wbh-modal hidden" role="dialog" aria-modal="true" aria-labelledby="wbh-copy-title">
+        <div class="wbh-modal-card">
+          <h3 id="wbh-copy-title" data-wbh-i18n="section.copyEntries">${t('section.copyEntries')}</h3>
+          <p id="wbh-copy-summary"></p>
+          <label class="wbh-editor-field">
+            <span data-wbh-i18n="field.targetWorldbook">${t('field.targetWorldbook')}</span>
+            <select id="wbh-copy-target"></select>
+          </label>
+          <div class="wbh-modal-actions">
+            <button id="wbh-copy-cancel" type="button" data-wbh-i18n="action.cancel">${t('action.cancel')}</button>
+            <button id="wbh-copy-confirm" type="button" data-wbh-i18n="action.copy">${t('action.copy')}</button>
+          </div>
+        </div>
+      </div>
     </div>
   `;
   document.body.append(root);
@@ -1398,6 +1442,7 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-editor-redo').addEventListener('click', redoEditorChange);
   root.querySelector('#wbh-entry-new').addEventListener('click', createEntry);
   root.querySelector('#wbh-entry-duplicate').addEventListener('click', duplicateEntry);
+  root.querySelector('#wbh-entry-copy-to').addEventListener('click', openCopyEntriesDialog);
   root.querySelector('#wbh-entry-delete').addEventListener('click', deleteEntry);
   root.querySelector('#wbh-editor-reload').addEventListener('click', reloadEditorWorldbook);
   root.querySelector('#wbh-editor-save').addEventListener('click', saveEditorWorldbook);
@@ -1424,6 +1469,11 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-change-prev').addEventListener('click', () => navigateDiffChange(-1));
   root.querySelector('#wbh-change-next').addEventListener('click', () => navigateDiffChange(1));
   root.querySelector('#wbh-restore').addEventListener('click', restoreLocalSnapshot);
+  root.querySelector('#wbh-copy-cancel').addEventListener('click', closeCopyEntriesDialog);
+  root.querySelector('#wbh-copy-confirm').addEventListener('click', copySelectedEntriesToTarget);
+  root.querySelector('#wbh-copy-dialog').addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) closeCopyEntriesDialog();
+  });
   root.querySelectorAll('[data-wbh-field]').forEach(input => {
     const eventName = input.type === 'checkbox' ? 'change' : 'input';
     input.addEventListener('blur', finishInputHistory);
@@ -1439,6 +1489,7 @@ async function refreshLocalWorkbench() {
   if (!await confirmDiscardEditorChanges()) return;
   setStatus(t('status.refreshing'));
   app.books = await listWorldbooks();
+  app.selectedEntryIds.clear();
   app.activeBook = app.activeBook
     ? app.books.find(book => book.name === app.activeBook.name) || app.books[0] || null
     : app.books[0] || null;
@@ -1498,6 +1549,7 @@ async function loadEditorWorldbook({ force = false } = {}) {
     app.activeDataHash = '';
     app.editorSourceLabel = '';
     app.activeEntryId = null;
+    app.selectedEntryIds.clear();
     app.editorDirty = false;
     resetEditorHistory({ render: false });
     renderEditor();
@@ -1513,6 +1565,7 @@ async function loadEditorWorldbook({ force = false } = {}) {
   app.activeData = cloneValue(data);
   app.activeDataHash = await hashObject(app.activeData);
   app.editorSourceLabel = 'Current';
+  app.selectedEntryIds.clear();
   await ensureOriginSnapshot(app.activeBook.name, app.activeData);
   app.editorDirty = false;
   resetEditorHistory({ render: false });
@@ -1559,6 +1612,7 @@ function renderBooks() {
         app.activeData = null;
         app.activeDataHash = '';
         app.activeEntryId = null;
+        app.selectedEntryIds.clear();
         app.editorDirty = false;
         resetEditorHistory({ render: false });
         app.activeSnapshot = null;
@@ -2342,6 +2396,10 @@ function renderEditorState() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
 
+  pruneSelectedEntryIds();
+  const selectedCount = app.selectedEntryIds.size;
+  const hasCopyTarget = Boolean(app.activeBook) && app.books.some(book => book.name !== app.activeBook.name);
+
   root.querySelector('#wbh-tab-edit').classList.toggle('active', app.mainTab === 'edit');
   root.querySelector('#wbh-tab-diff').classList.toggle('active', app.mainTab === 'diff');
   root.querySelector('#wbh-mode-current').classList.toggle('active', app.diffMode === 'current');
@@ -2354,6 +2412,10 @@ function renderEditorState() {
   root.querySelector('#wbh-editor-reload').disabled = !app.activeBook;
   root.querySelector('#wbh-entry-new').disabled = !app.activeBook || !app.activeData;
   root.querySelector('#wbh-entry-duplicate').disabled = !getActiveEntryRecord();
+  const copyButton = root.querySelector('#wbh-entry-copy-to');
+  copyButton.disabled = !app.activeBook || !app.activeData || !selectedCount || !hasCopyTarget;
+  copyButton.textContent = selectedCount ? `${t('action.copyTo')} (${selectedCount})` : t('action.copyTo');
+  copyButton.title = hasCopyTarget ? t('tooltip.copyEntries') : t('empty.noCopyTargets');
   root.querySelector('#wbh-entry-delete').disabled = !getActiveEntryRecord();
   renderLayoutMode();
   renderFindControls();
@@ -2381,6 +2443,7 @@ function renderEntryList() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
   const list = root.querySelector('#wbh-entries');
+  pruneSelectedEntryIds();
   refreshFindMatches();
   const search = app.findQuery.trim();
   const matchesByEntry = getFindCountsByEntry();
@@ -2411,6 +2474,23 @@ function renderEntryList() {
   const activeMatch = getActiveFindMatch();
   list.replaceChildren(...entries.map(record => {
     const matchCount = matchesByEntry.get(record.id) || 0;
+    const selected = app.selectedEntryIds.has(record.id);
+    const row = document.createElement('div');
+    row.className = `wbh-entry-row ${selected ? 'selected' : ''}`;
+
+    const selectWrap = document.createElement('label');
+    selectWrap.className = 'wbh-entry-select-wrap';
+    selectWrap.title = t('tooltip.copyEntries');
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'wbh-entry-select';
+    checkbox.checked = selected;
+    checkbox.setAttribute('aria-label', entryTitle(record.entry));
+    checkbox.addEventListener('click', event => event.stopPropagation());
+    checkbox.addEventListener('change', () => toggleEntrySelection(record.id, checkbox.checked));
+    selectWrap.append(checkbox);
+
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `wbh-row ${app.activeEntryId === record.id ? 'active' : ''} ${activeMatch?.entryId === record.id ? 'find-active' : ''}`;
@@ -2427,9 +2507,129 @@ function renderEntryList() {
       renderEntryEditor();
       if (firstMatch >= 0) queueFocusActiveFindMatch();
     });
-    return button;
+    row.append(selectWrap, button);
+    return row;
   }));
   renderFindControls();
+  renderEditorState();
+}
+
+function toggleEntrySelection(entryId, selected) {
+  if (selected) {
+    app.selectedEntryIds.add(entryId);
+  } else {
+    app.selectedEntryIds.delete(entryId);
+  }
+  renderEntryList();
+  renderEditorState();
+}
+
+function pruneSelectedEntryIds() {
+  if (!app.selectedEntryIds.size) return;
+  const valid = new Set(getEntryRecords(app.activeData).map(record => record.id));
+  for (const entryId of [...app.selectedEntryIds]) {
+    if (!valid.has(entryId)) app.selectedEntryIds.delete(entryId);
+  }
+}
+
+function getSelectedEntryRecords() {
+  pruneSelectedEntryIds();
+  if (!app.selectedEntryIds.size) return [];
+  return getSortedEntryRecords(app.activeData).filter(record => app.selectedEntryIds.has(record.id));
+}
+
+function openCopyEntriesDialog() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root || !app.activeBook) return;
+
+  const selected = getSelectedEntryRecords();
+  if (!selected.length) return;
+
+  const targets = app.books.filter(book => book.name !== app.activeBook.name);
+  const select = root.querySelector('#wbh-copy-target');
+  const summary = root.querySelector('#wbh-copy-summary');
+  const confirm = root.querySelector('#wbh-copy-confirm');
+  select.replaceChildren(...targets.map(book => {
+    const option = document.createElement('option');
+    option.value = book.name;
+    option.textContent = book.title || book.name;
+    return option;
+  }));
+  summary.textContent = targets.length
+    ? t('value.selectedEntries', { count: selected.length })
+    : t('empty.noCopyTargets');
+  confirm.disabled = !targets.length;
+  root.querySelector('#wbh-copy-dialog').classList.remove('hidden');
+  select.focus();
+}
+
+function closeCopyEntriesDialog() {
+  document.querySelector('#wbh-copy-dialog')?.classList.add('hidden');
+}
+
+async function copySelectedEntriesToTarget() {
+  const root = document.querySelector('#wbh-workbench');
+  const targetName = root?.querySelector('#wbh-copy-target')?.value || '';
+  const targetBook = app.books.find(book => book.name === targetName);
+  const sourceBook = app.activeBook;
+  const entriesToCopy = getSelectedEntryRecords().map(record => cloneValue(record.entry));
+  if (!sourceBook || !targetBook || !entriesToCopy.length) return;
+
+  if (app.editorDirty && !window.confirm(t('confirm.copyUnsavedEntries'))) return;
+
+  closeCopyEntriesDialog();
+  setStatus(t('status.copyingEntries'));
+
+  try {
+    const sourceTitle = sourceBook.title || sourceBook.name;
+    const targetData = await loadWorldbook(targetBook.name);
+    await ensureOriginSnapshot(targetBook.name, targetData);
+    await createLocalSnapshotFromData(targetBook.name, targetData, {
+      label: t('label.beforeCopyFrom', { source: sourceTitle }),
+      reason: 'copy-before',
+      skipDuplicate: false,
+    });
+
+    const nextData = cloneValue(targetData);
+    let activeCopiedId = '';
+    for (const sourceEntry of entriesToCopy) {
+      const uid = getFreeEntryUid(nextData);
+      const copiedEntry = {
+        ...sourceEntry,
+        uid,
+      };
+      normalizeEntryRole(copiedEntry);
+      insertEntry(nextData, copiedEntry);
+      if (!activeCopiedId) activeCopiedId = String(uid);
+    }
+
+    await saveWorldbook(targetBook.name, nextData);
+    const savedTarget = await loadWorldbook(targetBook.name);
+    await createLocalSnapshotFromData(targetBook.name, savedTarget, {
+      label: t('label.afterCopyFrom', { source: sourceTitle }),
+      reason: 'copy-after',
+      skipDuplicate: false,
+    });
+
+    if (app.activeBook?.name === targetBook.name) {
+      app.activeData = cloneValue(savedTarget);
+      app.activeDataHash = await hashObject(app.activeData);
+      app.activeEntryId = activeCopiedId;
+      app.selectedEntryIds.clear();
+      app.editorDirty = false;
+      resetEditorHistory({ render: false });
+      renderEditor();
+      await loadLocalSnapshots();
+    }
+
+    setStatus(t('status.copiedEntries', {
+      count: entriesToCopy.length,
+      target: targetBook.title || targetBook.name,
+    }));
+  } catch (error) {
+    console.warn('[Worldbook Workbench] Copy entries failed.', error);
+    setStatus(t('status.copyFailed'));
+  }
 }
 
 function renderEntryEditor() {

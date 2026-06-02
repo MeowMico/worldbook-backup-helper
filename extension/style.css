@@ -415,6 +415,43 @@
   background: var(--wbh-accent-soft);
 }
 
+.wbh-entry-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: stretch;
+  border-bottom: 1px solid var(--wbh-border);
+  background: var(--wbh-surface-1);
+}
+
+.wbh-entry-row .wbh-row {
+  border-bottom: 0;
+  padding-left: 4px;
+}
+
+.wbh-entry-row.selected {
+  background: var(--wbh-accent-soft);
+}
+
+.wbh-entry-row.selected .wbh-row {
+  box-shadow: inset 3px 0 0 var(--wbh-accent);
+}
+
+.wbh-entry-select-wrap {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  border-right: 1px solid var(--wbh-border);
+  cursor: pointer;
+}
+
+.wbh-entry-select {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--wbh-accent);
+}
+
 .wbh-row.find-active {
   box-shadow: inset 3px 0 0 var(--wbh-focus);
 }
@@ -819,6 +856,7 @@
 .wbh-entry-pane-head button,
 .wbh-findbar button,
 .wbh-toolbar button,
+.wbh-modal-actions button,
 .wbh-icon-button,
 .wbh-mini,
 .wbh-history-actions summary {
@@ -841,6 +879,7 @@
 .wbh-entry-pane-head button:hover,
 .wbh-findbar button:hover,
 .wbh-toolbar button:hover,
+.wbh-modal-actions button:hover,
 .wbh-icon-button:hover,
 .wbh-mini:hover,
 .wbh-history-actions summary:hover {
@@ -868,6 +907,7 @@
 .wbh-entry-pane-head button:focus-visible,
 .wbh-findbar button:focus-visible,
 .wbh-toolbar button:focus-visible,
+.wbh-modal-actions button:focus-visible,
 .wbh-icon-button:focus-visible,
 .wbh-mini:focus-visible,
 .wbh-history-actions summary:focus-visible,
@@ -883,7 +923,8 @@
 .wbh-form button,
 #wbh-start-experiment,
 #wbh-finish-experiment,
-#wbh-editor-save {
+#wbh-editor-save,
+#wbh-copy-confirm {
   background: var(--wbh-accent);
   border-color: var(--wbh-accent);
   color: var(--wbh-accent-text);
@@ -897,7 +938,8 @@
 .wbh-form button:hover,
 #wbh-start-experiment:hover,
 #wbh-finish-experiment:hover,
-#wbh-editor-save:hover {
+#wbh-editor-save:hover,
+#wbh-copy-confirm:hover {
   background: var(--wbh-accent-strong);
   border-color: var(--wbh-accent-strong);
   color: var(--wbh-accent-text);
@@ -931,6 +973,7 @@
 .wbh-entry-pane-head button:disabled,
 .wbh-findbar button:disabled,
 .wbh-toolbar button:disabled,
+.wbh-modal-actions button:disabled,
 .wbh-icon-button:disabled,
 .wbh-mini:disabled,
 .wbh-history-menu button:disabled {
@@ -949,6 +992,7 @@
 .wbh-entry-pane-head button:disabled:hover,
 .wbh-findbar button:disabled:hover,
 .wbh-toolbar button:disabled:hover,
+.wbh-modal-actions button:disabled:hover,
 .wbh-icon-button:disabled:hover,
 .wbh-mini:disabled:hover,
 .wbh-history-menu button:disabled:hover {
@@ -1039,6 +1083,43 @@
 
 .wbh-history-menu-item {
   text-align: left;
+}
+
+.wbh-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgb(15 23 42 / 36%);
+}
+
+.wbh-modal-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--wbh-border-strong);
+  border-radius: 10px;
+  padding: 18px;
+  background: var(--wbh-surface-1);
+  box-shadow: 0 18px 50px rgb(16 24 40 / 24%);
+}
+
+.wbh-modal-card h3,
+.wbh-modal-card p {
+  margin: 0;
+}
+
+.wbh-modal-card p {
+  color: var(--wbh-muted);
+  font-size: 13px;
+}
+
+.wbh-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .wbh-diff-entry {
