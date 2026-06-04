@@ -125,6 +125,8 @@ Built and tested against SillyTavern `1.17.0` public source.
 
 The project uses the standard SillyTavern third-party extension format with a root `manifest.json`.
 
+TauriTavern is supported through the same repository link. The extension detects the TauriTavern host and marks the workbench as a fullscreen mobile/desktop surface so the panel can respect TauriTavern viewport and safe-area behavior.
+
 ## Known Limits
 
 - Extension-only snapshots are browser-local. If browser data is cleared, local history may be lost.

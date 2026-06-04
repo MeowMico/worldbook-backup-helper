@@ -45,6 +45,10 @@ const THEME_MODES = ['auto', 'light', 'dark'];
 const THEME_QUERY = window.matchMedia?.('(prefers-color-scheme: dark)');
 const THEME_BACKGROUND_VARS = ['--SmartThemeBodyColor', '--SmartThemeBlurTintColor', '--SmartThemeChatTintColor'];
 const LANGUAGE_MODES = ['auto', 'en', 'zh'];
+const TAURITAVERN_SURFACES = {
+  backdrop: 'backdrop',
+  fullscreenWindow: 'fullscreen-window',
+};
 const DIFF_ENTRY_FIELDS = [
   'comment',
   'content',
@@ -782,15 +786,37 @@ const app = {
 
 const ORIGINAL_FETCH = window.fetch.bind(window);
 
-init();
+void init();
 
-function init() {
+async function init() {
   if (app.installed) return;
   app.installed = true;
+  await waitForTauriTavernReady();
   installThemeListener();
   installLanguageListener();
   installWorkbenchButton();
   installWorldbookEditInterceptor();
+}
+
+function isTauriTavernHost() {
+  return Boolean(window.__TAURITAVERN__ || window.__TAURITAVERN_MAIN_READY__ || window.__TAURI_RUNNING__);
+}
+
+async function waitForTauriTavernReady() {
+  if (!isTauriTavernHost()) return;
+  try {
+    await (window.__TAURITAVERN__?.ready || window.__TAURITAVERN_MAIN_READY__ || Promise.resolve());
+  } catch (error) {
+    console.warn('[Worldbook Workbench] TauriTavern host ready wait failed.', error);
+  }
+}
+
+function applyTauriTavernCompatibility(root) {
+  if (!root || !isTauriTavernHost()) return;
+  root.dataset.wbhHost = 'tauritavern';
+  root.dataset.ttMobileSurface = TAURITAVERN_SURFACES.backdrop;
+  const panel = root.querySelector('.wbh-panel');
+  if (panel) panel.dataset.ttMobileSurface = TAURITAVERN_SURFACES.fullscreenWindow;
 }
 
 function installThemeListener() {
@@ -1411,6 +1437,7 @@ function ensureLocalWorkbench() {
       </div>
     </div>
   `;
+  applyTauriTavernCompatibility(root);
   document.body.append(root);
 
   root.querySelector('#wbh-close').addEventListener('click', () => root.classList.remove('open'));

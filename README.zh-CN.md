@@ -125,6 +125,8 @@ https://github.com/MeowMico/worldbook-backup-helper
 
 项目使用 SillyTavern 第三方扩展的标准格式，根目录包含 `manifest.json`。
 
+TauriTavern 也可以使用同一个仓库链接安装。扩展会自动检测 TauriTavern 宿主，并把工作台标记为全屏移动端/桌面 surface，以适配 TauriTavern 的视口和安全区域行为。
+
 ## 已知限制
 
 - 纯扩展模式的历史记录保存在浏览器本地。如果清理浏览器数据，本地历史可能丢失。

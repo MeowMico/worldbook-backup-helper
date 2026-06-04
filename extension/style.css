@@ -138,6 +138,14 @@
   place-items: center;
 }
 
+#wbh-workbench[data-wbh-host="tauritavern"].open {
+  padding:
+    max(var(--tt-inset-top, 0px), 0px)
+    max(var(--tt-inset-right, 0px), 0px)
+    max(var(--tt-viewport-bottom-inset, var(--tt-inset-bottom, 0px)), 0px)
+    max(var(--tt-inset-left, 0px), 0px);
+}
+
 .wbh-panel {
   width: min(1560px, calc(100vw - 16px));
   height: min(880px, calc(100vh - 16px));
@@ -148,6 +156,17 @@
   overflow: hidden;
   background: var(--wbh-panel-bg);
   box-shadow: var(--wbh-shadow);
+}
+
+#wbh-workbench[data-wbh-host="tauritavern"] .wbh-panel {
+  width: min(1560px, calc(100vw - max(var(--tt-inset-left, 0px), 0px) - max(var(--tt-inset-right, 0px), 0px) - 16px));
+  height: min(880px, calc(var(--tt-base-viewport-height, 100vh) - max(var(--tt-inset-top, 0px), 0px) - max(var(--tt-viewport-bottom-inset, var(--tt-inset-bottom, 0px)), 0px) - 16px));
+}
+
+#wbh-workbench[data-wbh-host="tauritavern"] .wbh-list,
+#wbh-workbench[data-wbh-host="tauritavern"] .wbh-diff,
+#wbh-workbench[data-wbh-host="tauritavern"] .wbh-entry-editor {
+  scroll-padding-bottom: max(var(--tt-viewport-bottom-inset, var(--tt-inset-bottom, 0px)), 0px);
 }
 
 .wbh-header {

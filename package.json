@@ -1,6 +1,6 @@
 {
   "name": "worldbook-backup-helper",
-  "version": "0.5.27",
+  "version": "0.5.28",
   "description": "SillyTavern worldbook workbench for editing, versioning, diffing, restoring, and exporting worldbooks.",
   "main": "index.js",
   "private": true,
