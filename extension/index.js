@@ -890,6 +890,8 @@ const app = {
   mvuAutoInjectBookName: readStringSetting(MVU_AUTO_INJECT_BOOK_KEY, ''),
   mvuAutoInjectTimer: 0,
   mvuAutoInjectInFlight: false,
+  mvuOpeningsWatchTimer: 0,
+  mvuOpeningsSignature: '',
   mvuLastInjectSignature: '',
   mvuAutoInjectNoticeKey: '',
   mvuInjectStatus: { type: '', message: '' },
@@ -1011,6 +1013,7 @@ async function openWorkbench() {
   ensureLocalWorkbench();
   await refreshLocalWorkbench();
   document.querySelector('#wbh-workbench').classList.add('open');
+  updateMvuOpeningsWatchMonitor();
 }
 
 async function hasServerPlugin() {
@@ -1610,7 +1613,10 @@ function ensureLocalWorkbench() {
   applyTauriTavernCompatibility(root);
   document.body.append(root);
 
-  root.querySelector('#wbh-close').addEventListener('click', () => root.classList.remove('open'));
+  root.querySelector('#wbh-close').addEventListener('click', () => {
+    root.classList.remove('open');
+    updateMvuOpeningsWatchMonitor();
+  });
   root.querySelector('#wbh-refresh').addEventListener('click', refreshLocalWorkbench);
   root.querySelector('#wbh-export-all').addEventListener('click', exportActiveBookArchive);
   root.querySelectorAll('[data-wbh-theme]').forEach(button => {
@@ -1693,6 +1699,7 @@ function ensureLocalWorkbench() {
   renderLayoutMode();
   renderMvuAutoInjectState(root);
   if (app.mvuAutoInjectEnabled) startMvuAutoInjectMonitor();
+  updateMvuOpeningsWatchMonitor();
 }
 
 async function refreshLocalWorkbench() {
@@ -2618,6 +2625,7 @@ function setMainTab(tab) {
   renderEditorState();
   if (tab === 'diff') void renderDiff();
   if (tab === 'mvu') renderMvuInitView();
+  updateMvuOpeningsWatchMonitor();
 }
 
 function renderEditor() {
@@ -3363,17 +3371,23 @@ function deleteEntry() {
 function scanMvuOpeningsFromUi() {
   app.mvuTouched = true;
   refreshMvuOpenings({ render: false, force: true });
+  app.mvuOpeningsSignature = mvuOpeningsSourceSignature(app.mvuOpenings);
   maintainMvuInitDraft({ silent: true });
   renderMvuInitView();
   setStatus(t('status.mvuScannedOpenings', { count: app.mvuOpenings.length }));
 }
 
 function refreshMvuOpenings({ render = true, force = false } = {}) {
-  if (force || app.mvuTouched || app.mainTab === 'mvu') {
-    app.mvuOpenings = collectMvuOpenings();
-  } else {
-    app.mvuOpenings = [];
-  }
+  const openings = force || app.mvuTouched || app.mainTab === 'mvu'
+    ? collectMvuOpenings()
+    : [];
+  applyMvuOpenings(openings);
+  if (openings.length) app.mvuOpeningsSignature = mvuOpeningsSourceSignature(openings);
+  if (render) renderMvuInitView();
+}
+
+function applyMvuOpenings(openings) {
+  app.mvuOpenings = openings;
   if (!app.mvuOpenings.some(opening => opening.id === app.mvuSelectedOpeningId)) {
     app.mvuSelectedOpeningId = app.mvuOpenings[0]?.id || '';
   }
@@ -3390,8 +3404,63 @@ function refreshMvuOpenings({ render = true, force = false } = {}) {
   } else if (!presetIds.has(app.mvuActivePresetId)) {
     app.mvuActivePresetId = presets[0]?.id || '';
   }
+}
 
-  if (render) renderMvuInitView();
+function shouldWatchMvuOpenings() {
+  const root = document.querySelector('#wbh-workbench');
+  const mvuTabVisible = Boolean(root?.classList.contains('open') && app.mainTab === 'mvu');
+  return app.mvuAutoInjectEnabled || mvuTabVisible;
+}
+
+function updateMvuOpeningsWatchMonitor() {
+  if (shouldWatchMvuOpenings()) {
+    startMvuOpeningsWatchMonitor();
+  } else {
+    stopMvuOpeningsWatchMonitor();
+  }
+}
+
+function startMvuOpeningsWatchMonitor() {
+  if (app.mvuOpeningsWatchTimer) return;
+  app.mvuOpeningsSignature = '';
+  app.mvuOpeningsWatchTimer = window.setInterval(checkMvuOpeningsSourceChange, 750);
+  checkMvuOpeningsSourceChange();
+}
+
+function stopMvuOpeningsWatchMonitor() {
+  if (!app.mvuOpeningsWatchTimer) return;
+  window.clearInterval(app.mvuOpeningsWatchTimer);
+  app.mvuOpeningsWatchTimer = 0;
+  app.mvuOpeningsSignature = '';
+}
+
+function checkMvuOpeningsSourceChange() {
+  if (!shouldWatchMvuOpenings()) {
+    stopMvuOpeningsWatchMonitor();
+    return;
+  }
+
+  const openings = collectMvuOpenings();
+  const signature = mvuOpeningsSourceSignature(openings);
+  if (signature === app.mvuOpeningsSignature) return;
+  app.mvuOpeningsSignature = signature;
+  app.mvuLastInjectSignature = '';
+
+  const root = document.querySelector('#wbh-workbench');
+  if (!root?.classList.contains('open') || app.mainTab !== 'mvu') return;
+  app.mvuTouched = true;
+  applyMvuOpenings(openings);
+  renderMvuInitView();
+}
+
+function mvuOpeningsSourceSignature(openings) {
+  return stableStringify((openings || []).map(opening => ({
+    id: opening.id,
+    source: opening.source,
+    index: opening.index,
+    hash: opening.hash,
+    normalizedHash: opening.normalizedHash,
+  })));
 }
 
 function renderMvuInitView() {
@@ -3582,14 +3651,17 @@ function setMvuAutoInjectEnabled(enabled) {
   renderMvuAutoInjectState();
   if (app.mvuAutoInjectEnabled) {
     startMvuAutoInjectMonitor();
+    startMvuOpeningsWatchMonitor();
     setMvuInjectStatus('info', t('status.mvuAutoInjectEnabled'));
   } else {
     stopMvuAutoInjectMonitor();
+    updateMvuOpeningsWatchMonitor();
     setMvuInjectStatus('info', t('status.mvuAutoInjectDisabled'));
   }
 }
 
 function startMvuAutoInjectMonitor() {
+  startMvuOpeningsWatchMonitor();
   if (app.mvuAutoInjectTimer) return;
   app.mvuAutoInjectTimer = window.setInterval(() => {
     void maybeAutoInjectMvuInitVar();
