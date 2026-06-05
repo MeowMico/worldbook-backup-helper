@@ -13,7 +13,7 @@ const MVU_MAP_COMMENT = '[MVU_INIT_MAP]';
 const MVU_INITVAR_COMMENT = '[initvar]变量初始化勿开';
 const MVU_MAP_TYPE = 'worldbook-backup-helper.mvu-init-map';
 const MVU_MAP_VERSION = 1;
-const MVU_DISABLED_ORDER = 900000;
+const MVU_DISABLED_ORDER = 9000;
 const POSITION_AT_DEPTH = 4;
 const POSITION_OUTLET = 7;
 
@@ -3622,7 +3622,7 @@ function createMvuPreset() {
   mutateMvuDraft(t('action.newPreset'), () => {
     ensureMvuSystemEntries(app.activeData);
     const id = getFreeMvuPresetId(app.activeData);
-    const entry = createMvuDisabledEntry(app.activeData, `[MVU_INIT_PRESET:${id}]`, '', MVU_DISABLED_ORDER + 10 + nextNumber);
+    const entry = createMvuDisabledEntry(app.activeData, `[MVU_INIT_PRESET:${id}]`, '', MVU_DISABLED_ORDER);
     setMvuPresetName(entry, name);
     insertEntry(app.activeData, entry);
     app.mvuActivePresetId = id;
@@ -4047,6 +4047,15 @@ function ensureMvuSystemEntries(data) {
   let changed = false;
   changed = ensureSingleMvuMapEntry(data).changed || changed;
   changed = ensureSingleMvuInitVarEntry(data).changed || changed;
+  changed = ensureMvuPresetEntryFields(data) || changed;
+  return changed;
+}
+
+function ensureMvuPresetEntryFields(data) {
+  let changed = false;
+  for (const preset of getMvuPresetRecords(data)) {
+    changed = ensureMvuDisabledEntryFields(preset.entry, `[MVU_INIT_PRESET:${preset.id}]`, MVU_DISABLED_ORDER) || changed;
+  }
   return changed;
 }
 
@@ -4077,7 +4086,7 @@ function ensureSingleMvuInitVarEntry(data) {
   let changed = false;
   let record = records[0] || null;
   if (!record) {
-    const entry = createMvuDisabledEntry(data, MVU_INITVAR_COMMENT, '', MVU_DISABLED_ORDER + 1);
+    const entry = createMvuDisabledEntry(data, MVU_INITVAR_COMMENT, '', MVU_DISABLED_ORDER);
     insertEntry(data, entry);
     record = getEntryRecords(data).find(item => item.entry === entry);
     changed = true;
@@ -4092,7 +4101,7 @@ function ensureSingleMvuInitVarEntry(data) {
     changed = true;
   }
 
-  changed = ensureMvuDisabledEntryFields(record.entry, MVU_INITVAR_COMMENT, MVU_DISABLED_ORDER + 1) || changed;
+  changed = ensureMvuDisabledEntryFields(record.entry, MVU_INITVAR_COMMENT, MVU_DISABLED_ORDER) || changed;
   return { record, changed };
 }
 
@@ -4141,6 +4150,8 @@ function ensureMvuDisabledEntryFields(entry, comment, order) {
   changed = setEntryIfChanged(entry, 'vectorized', false) || changed;
   changed = setEntryIfChanged(entry, 'order', order) || changed;
   changed = setEntryIfChanged(entry, 'position', 0) || changed;
+  changed = setEntryIfChanged(entry, 'probability', 100) || changed;
+  changed = setEntryIfChanged(entry, 'useProbability', true) || changed;
   normalizeEntryRole(entry);
   return changed;
 }
