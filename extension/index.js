@@ -7,12 +7,12 @@ const DB_NAME = 'worldbook-backup-helper';
 const DB_VERSION = 2;
 const SNAPSHOT_STORE = 'snapshots';
 const EXPERIMENT_STORE = 'experiments';
-const MVU_PRESET_COMMENT_PREFIX = '[MVU_INIT_PRESET:';
 const MVU_PRESET_COMMENT_PATTERN = /^\[MVU_INIT_PRESET:([A-Za-z0-9_-]+)\]$/;
 const MVU_MAP_COMMENT = '[MVU_INIT_MAP]';
 const MVU_INITVAR_COMMENT = '[initvar]变量初始化勿开';
 const MVU_MAP_TYPE = 'worldbook-backup-helper.mvu-init-map';
 const MVU_MAP_VERSION = 1;
+const MVU_WORKFLOW_VERSION = 2;
 const MVU_DISABLED_ORDER = 9000;
 const MVU_AUTO_INJECT_BOOK_KEY = 'wbh-mvu-auto-inject-book';
 const POSITION_AT_DEPTH = 4;
@@ -227,6 +227,7 @@ const TRANSLATIONS = {
     'status.mvuPresetSaved': 'MVU preset saved',
     'status.mvuNoPresetSelected': 'Select an MVU preset first',
     'status.mvuSyncedInitVar': 'Preset synced to [initvar]',
+    'status.mvuStorageMigrated': 'MVU preset storage migrated; save to apply',
     'status.mvuAutoInjectEnabled': 'MVU auto inject enabled',
     'status.mvuAutoInjectDisabled': 'MVU auto inject disabled',
     'status.mvuAutoInjected': 'Injected {name} to [initvar]',
@@ -548,6 +549,7 @@ const TRANSLATIONS = {
     'status.mvuPresetSaved': 'MVU preset 已保存',
     'status.mvuNoPresetSelected': '请先选择一个 MVU preset',
     'status.mvuSyncedInitVar': '已同步 preset 到 [initvar]',
+    'status.mvuStorageMigrated': 'MVU preset 存储已迁移，请保存以应用',
     'status.mvuAutoInjectEnabled': 'MVU 自动注入已开启',
     'status.mvuAutoInjectDisabled': 'MVU 自动注入已关闭',
     'status.mvuAutoInjected': '已注入 {name} 到 [initvar]',
@@ -1137,7 +1139,7 @@ async function syncWorkbenchFromSavedWorldbook(name, data) {
   if (app.activeBook?.name !== name || app.editorDirty) return;
   if (app.editorSourceLabel && app.editorSourceLabel !== 'Current') return;
   app.activeData = cloneValue(data);
-  app.activeDataHash = await hashObject(app.activeData);
+  app.activeDataHash = await hashObject(data);
   app.editorSourceLabel = 'Current';
   ensureActiveEntry();
   renderEditor();
@@ -1704,7 +1706,7 @@ async function refreshLocalWorkbench() {
   await loadEditorWorldbook({ force: true });
   renderBooks();
   await loadLocalSnapshots();
-  setStatus(t('status.ready'));
+  setStatus(app.editorDirty ? t('status.mvuStorageMigrated') : t('status.ready'));
 }
 
 async function listWorldbooks() {
@@ -1778,15 +1780,19 @@ async function loadEditorWorldbook({ force = false } = {}) {
   const data = await loadWorldbook(app.activeBook.name);
   rememberMvuAutoInjectBook(app.activeBook.name);
   app.activeData = cloneValue(data);
-  app.activeDataHash = await hashObject(app.activeData);
+  const migratedMvuStorage = hasLegacyMvuStorageEntries(app.activeData)
+    ? ensureMvuSystemEntries(app.activeData)
+    : false;
+  app.activeDataHash = await hashObject(data);
   app.editorSourceLabel = 'Current';
   app.selectedEntryIds.clear();
-  await ensureOriginSnapshot(app.activeBook.name, app.activeData);
-  app.editorDirty = false;
+  await ensureOriginSnapshot(app.activeBook.name, data);
+  app.editorDirty = migratedMvuStorage;
   resetEditorHistory({ render: false });
   ensureActiveEntry();
   refreshMvuOpenings({ render: false });
   renderEditor();
+  if (migratedMvuStorage) setStatus(t('status.mvuStorageMigrated'));
 }
 
 async function loadLocalSnapshots() {
@@ -3375,8 +3381,9 @@ function refreshMvuOpenings({ render = true, force = false } = {}) {
   const presets = getMvuPresetRecords(app.activeData);
   const presetIds = new Set(presets.map(preset => preset.id));
   const map = readMvuMapData(app.activeData);
-  const selectedBinding = app.mvuSelectedOpeningId
-    ? map.bindings?.[app.mvuSelectedOpeningId]?.presetId || ''
+  const selectedOpening = app.mvuOpenings.find(opening => opening.id === app.mvuSelectedOpeningId);
+  const selectedBinding = selectedOpening
+    ? findMvuBindingForOpening(map, selectedOpening, presetIds)?.binding?.presetId || ''
     : '';
   if (selectedBinding && presetIds.has(selectedBinding)) {
     app.mvuActivePresetId = selectedBinding;
@@ -3496,7 +3503,7 @@ function renderMvuPresetList(root, presets = getMvuPresetRecords(app.activeData)
     button.className = `wbh-row ${preset.id === app.mvuActivePresetId ? 'active' : ''}`;
     button.innerHTML = '<span></span><small></small>';
     button.querySelector('span').textContent = mvuPresetDisplayName(preset);
-    button.querySelector('small').textContent = `[MVU_INIT_PRESET:${preset.id}]`;
+    button.querySelector('small').textContent = preset.id;
     button.addEventListener('click', () => {
       app.mvuActivePresetId = preset.id;
       renderMvuInitView();
@@ -3769,9 +3776,9 @@ function createMvuPreset() {
   mutateMvuDraft(t('action.newPreset'), () => {
     ensureMvuSystemEntries(app.activeData);
     const id = getFreeMvuPresetId(app.activeData);
-    const entry = createMvuDisabledEntry(app.activeData, `[MVU_INIT_PRESET:${id}]`, '', MVU_DISABLED_ORDER);
-    setMvuPresetName(entry, name);
-    insertEntry(app.activeData, entry);
+    const workflow = getMvuWorkflow(app.activeData, { create: true });
+    workflow.presets.push(createMvuPresetStorageEntry(id, name, ''));
+    workflow.updatedAt = new Date().toISOString();
     app.mvuActivePresetId = id;
   });
   setStatus(t('status.mvuPresetCreated'));
@@ -3786,15 +3793,13 @@ function deleteActiveMvuPreset() {
   if (!ok) return;
 
   mutateMvuDraft(t('action.deletePreset'), () => {
-    removeEntry(app.activeData, preset.record);
-    const mapRecord = getMvuMapRecord(app.activeData);
-    if (mapRecord) {
-      const map = readMvuMapDataFromEntry(mapRecord.entry);
-      for (const [openingId, binding] of Object.entries(map.bindings)) {
-        if (binding?.presetId === preset.id) delete map.bindings[openingId];
-      }
-      writeMvuMapDataToEntry(mapRecord.entry, map);
+    ensureMvuSystemEntries(app.activeData);
+    removeMvuPresetById(app.activeData, preset.id);
+    const map = readMvuMapData(app.activeData);
+    for (const [openingId, binding] of Object.entries(map.bindings)) {
+      if (binding?.presetId === preset.id) delete map.bindings[openingId];
     }
+    writeMvuMapData(app.activeData, map);
     const remaining = getMvuPresetRecords(app.activeData);
     app.mvuActivePresetId = remaining[0]?.id || '';
   });
@@ -3811,28 +3816,30 @@ function bindMvuOpeningPreset(openingId, presetId) {
 
   mutateMvuDraft(t('status.mvuBindingSaved'), () => {
     ensureMvuSystemEntries(app.activeData);
-    const mapRecord = getMvuMapRecord(app.activeData);
-    const map = readMvuMapDataFromEntry(mapRecord.entry);
+    const map = readMvuMapData(app.activeData);
     if (presetId) {
       map.bindings[opening.id] = createMvuBinding(opening, presetId);
       app.mvuActivePresetId = presetId;
     } else {
       delete map.bindings[opening.id];
     }
-    writeMvuMapDataToEntry(mapRecord.entry, map);
+    writeMvuMapData(app.activeData, map);
     app.mvuSelectedOpeningId = opening.id;
   });
   setStatus(t('status.mvuBindingSaved'));
 }
 
 function updateActiveMvuPresetName(value) {
+  if (!app.activeData) return;
+  ensureMvuSystemEntries(app.activeData);
   const preset = getMvuPresetRecords(app.activeData).find(item => item.id === app.mvuActivePresetId);
   if (!preset) return;
   const nextName = cleanText(value);
   if (mvuPresetName(preset) === nextName) return;
   beginMvuInputHistory(`preset:${preset.id}:name`, t('field.presetName'));
-  ensureMvuSystemEntries(app.activeData);
   setMvuPresetName(preset.entry, nextName);
+  const workflow = getMvuWorkflow(app.activeData, { create: true });
+  workflow.updatedAt = new Date().toISOString();
   app.mvuTouched = true;
   setEditorDirty(true);
   renderMvuPresetList(document.querySelector('#wbh-workbench'));
@@ -3840,12 +3847,15 @@ function updateActiveMvuPresetName(value) {
 }
 
 function updateActiveMvuPresetContent(value) {
+  if (!app.activeData) return;
+  ensureMvuSystemEntries(app.activeData);
   const preset = getMvuPresetRecords(app.activeData).find(item => item.id === app.mvuActivePresetId);
   if (!preset || preset.entry.content === value) return;
   beginMvuInputHistory(`preset:${preset.id}:content`, t('field.initVarContent'));
-  ensureMvuSystemEntries(app.activeData);
   preset.entry.content = value;
   setMvuPresetUpdatedAt(preset.entry);
+  const workflow = getMvuWorkflow(app.activeData, { create: true });
+  workflow.updatedAt = new Date().toISOString();
   app.mvuTouched = true;
   setEditorDirty(true);
   setStatus(t('status.mvuPresetSaved'));
@@ -3857,6 +3867,7 @@ function syncActiveMvuPresetToInitVar() {
     return;
   }
 
+  ensureMvuSystemEntries(app.activeData);
   const preset = getMvuPresetRecords(app.activeData).find(item => item.id === app.mvuActivePresetId);
   if (!preset) {
     setStatus(t('status.mvuNoPresetSelected'));
@@ -4280,25 +4291,46 @@ function firstFiniteNumber(...values) {
 }
 
 function getMvuPresetRecords(data) {
-  return getEntryRecords(data)
-    .map(record => {
-      const id = mvuPresetId(record.entry);
-      return id ? { id, record, entry: record.entry } : null;
-    })
-    .filter(Boolean)
+  const seen = new Set();
+  const records = [];
+  const workflow = getMvuWorkflow(data);
+  if (workflow) {
+    workflow.presets = normalizeMvuPresetStorageList(workflow.presets);
+    workflow.presets.forEach((entry, index) => {
+      const id = mvuPresetId(entry);
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      records.push({ id, record: null, entry, embedded: true, index });
+    });
+  }
+
+  for (const record of getLegacyMvuPresetRecords(data)) {
+    const id = mvuPresetId(record.entry);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    records.push({ id, record, entry: record.entry, embedded: false, index: record.index });
+  }
+
+  return records
     .sort((left, right) => {
       const orderDiff = numericSort(left.entry?.order) - numericSort(right.entry?.order);
       if (orderDiff) return orderDiff;
-      return left.record.index - right.record.index;
+      return left.index - right.index;
     });
 }
 
+function getLegacyMvuPresetRecords(data) {
+  return getEntryRecords(data).filter(record => mvuPresetId(record.entry));
+}
+
 function mvuPresetId(entry) {
-  return cleanText(entry?.comment).match(MVU_PRESET_COMMENT_PATTERN)?.[1] || '';
+  return cleanText(entry?.comment).match(MVU_PRESET_COMMENT_PATTERN)?.[1]
+    || cleanText(entry?.extensions?.[PLUGIN_EXTENSION_KEY]?.mvuInitPreset?.id)
+    || '';
 }
 
 function mvuPresetName(preset) {
-  return cleanText(preset?.entry?.extensions?.[PLUGIN_EXTENSION_KEY]?.mvuInitPreset?.name || '');
+  return cleanText(preset?.entry?.extensions?.[PLUGIN_EXTENSION_KEY]?.mvuInitPreset?.name || preset?.entry?.name || '');
 }
 
 function mvuPresetDisplayName(preset) {
@@ -4324,6 +4356,79 @@ function setMvuPresetUpdatedAt(entry) {
   };
 }
 
+function createMvuPresetStorageEntry(id, name = '', content = '', updatedAt = '') {
+  const entry = {
+    content: String(content ?? ''),
+    extensions: {},
+  };
+  const ext = ensureEntryPluginExtension(entry);
+  ext.mvuInitPreset = {
+    id: cleanText(id),
+    name: cleanText(name),
+    updatedAt: cleanText(updatedAt) || new Date().toISOString(),
+  };
+  return entry;
+}
+
+function normalizeMvuPresetStorageList(value) {
+  const seen = new Set();
+  return (Array.isArray(value) ? value : [])
+    .map(normalizeMvuPresetStorageEntry)
+    .filter(entry => {
+      const id = mvuPresetId(entry);
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+}
+
+function normalizeMvuPresetStorageEntry(value) {
+  if (!value || typeof value !== 'object') return null;
+  const presetExt = value.extensions?.[PLUGIN_EXTENSION_KEY]?.mvuInitPreset || {};
+  const id = cleanText(value.id || presetExt.id || mvuPresetId(value));
+  if (!id) return null;
+  const name = cleanText(value.name || presetExt.name);
+  const updatedAt = cleanText(value.updatedAt || presetExt.updatedAt);
+  return createMvuPresetStorageEntry(id, name, value.content || '', updatedAt);
+}
+
+function mergeMvuPresetStorageEntries(existing, incoming) {
+  const merged = new Map();
+  const add = entry => {
+    const normalized = normalizeMvuPresetStorageEntry(entry);
+    const id = mvuPresetId(normalized);
+    if (!id) return;
+    if (!merged.has(id)) {
+      merged.set(id, normalized);
+      return;
+    }
+
+    const current = merged.get(id);
+    if (!cleanText(current.content) && cleanText(normalized.content)) current.content = normalized.content;
+    if (!mvuPresetName({ entry: current }) && mvuPresetName({ entry: normalized })) {
+      setMvuPresetName(current, mvuPresetName({ entry: normalized }));
+    }
+  };
+
+  normalizeMvuPresetStorageList(existing).forEach(add);
+  incoming.forEach(add);
+  return [...merged.values()];
+}
+
+function removeMvuPresetById(data, presetId) {
+  const id = cleanText(presetId);
+  if (!id) return false;
+  const workflow = getMvuWorkflow(data, { create: true });
+  const before = workflow.presets.length;
+  workflow.presets = normalizeMvuPresetStorageList(workflow.presets)
+    .filter(entry => mvuPresetId(entry) !== id);
+  const legacy = getLegacyMvuPresetRecords(data).filter(record => mvuPresetId(record.entry) === id);
+  if (legacy.length) removeEntryRecords(data, legacy);
+  const changed = workflow.presets.length !== before || legacy.length > 0;
+  if (changed) workflow.updatedAt = new Date().toISOString();
+  return changed;
+}
+
 function getFreeMvuPresetId(data) {
   const used = new Set(getMvuPresetRecords(data).map(preset => preset.id));
   let id = `preset-${randomId()}`;
@@ -4333,40 +4438,12 @@ function getFreeMvuPresetId(data) {
 
 function ensureMvuSystemEntries(data) {
   let changed = false;
-  changed = ensureSingleMvuMapEntry(data).changed || changed;
-  changed = ensureSingleMvuInitVarEntry(data).changed || changed;
-  changed = ensureMvuPresetEntryFields(data) || changed;
+  const initVar = ensureSingleMvuInitVarEntry(data);
+  changed = initVar.changed || changed;
+  const workflow = getMvuWorkflow(data, { create: true });
+  changed = migrateMvuWorkflowStorage(data, workflow) || changed;
+  changed = normalizeMvuWorkflow(workflow) || changed;
   return changed;
-}
-
-function ensureMvuPresetEntryFields(data) {
-  let changed = false;
-  for (const preset of getMvuPresetRecords(data)) {
-    changed = ensureMvuDisabledEntryFields(preset.entry, `[MVU_INIT_PRESET:${preset.id}]`, MVU_DISABLED_ORDER) || changed;
-  }
-  return changed;
-}
-
-function ensureSingleMvuMapEntry(data) {
-  const records = getEntryRecords(data).filter(record => cleanText(record.entry?.comment) === MVU_MAP_COMMENT);
-  let changed = false;
-  let record = records[0] || null;
-  if (!record) {
-    const entry = createMvuDisabledEntry(data, MVU_MAP_COMMENT, formatMvuMapData(defaultMvuMapData()), MVU_DISABLED_ORDER);
-    insertEntry(data, entry);
-    record = getEntryRecords(data).find(item => item.entry === entry);
-    changed = true;
-  }
-
-  if (records.length > 1) {
-    const merged = mergeMvuMapEntries(records.map(item => item.entry));
-    record.entry.content = formatMvuMapData(merged);
-    removeEntryRecords(data, records.slice(1));
-    changed = true;
-  }
-
-  changed = ensureMvuDisabledEntryFields(record.entry, MVU_MAP_COMMENT, MVU_DISABLED_ORDER) || changed;
-  return { record, changed };
 }
 
 function ensureSingleMvuInitVarEntry(data) {
@@ -4381,10 +4458,19 @@ function ensureSingleMvuInitVarEntry(data) {
   }
 
   if (records.length > 1) {
+    const targetWorkflow = getMvuWorkflowFromEntry(record.entry, { create: true });
     if (!cleanText(record.entry.content)) {
       const contentSource = records.slice(1).find(item => cleanText(item.entry?.content));
       if (contentSource) record.entry.content = contentSource.entry.content;
     }
+    targetWorkflow.presets = mergeMvuPresetStorageEntries(
+      targetWorkflow.presets,
+      records.slice(1).flatMap(item => getMvuWorkflowFromEntry(item.entry)?.presets || []),
+    );
+    targetWorkflow.map = mergeMvuMapData([
+      ...records.slice(1).map(item => getMvuWorkflowFromEntry(item.entry)?.map),
+      targetWorkflow.map,
+    ]);
     removeEntryRecords(data, records.slice(1));
     changed = true;
   }
@@ -4393,14 +4479,79 @@ function ensureSingleMvuInitVarEntry(data) {
   return { record, changed };
 }
 
-function getMvuMapRecord(data) {
-  ensureSingleMvuMapEntry(data);
-  return getEntryRecords(data).find(record => cleanText(record.entry?.comment) === MVU_MAP_COMMENT) || null;
-}
-
 function getMvuInitVarRecord(data) {
   ensureSingleMvuInitVarEntry(data);
+  return findMvuInitVarRecord(data);
+}
+
+function findMvuInitVarRecord(data) {
   return getEntryRecords(data).find(record => cleanText(record.entry?.comment) === MVU_INITVAR_COMMENT) || null;
+}
+
+function getMvuWorkflow(data, { create = false } = {}) {
+  const record = create ? getMvuInitVarRecord(data) : findMvuInitVarRecord(data);
+  return getMvuWorkflowFromEntry(record?.entry, { create });
+}
+
+function getMvuWorkflowFromEntry(entry, { create = false } = {}) {
+  if (!entry) return null;
+  const ext = create ? ensureEntryPluginExtension(entry) : entry.extensions?.[PLUGIN_EXTENSION_KEY];
+  if (!ext || typeof ext !== 'object') return null;
+  if (!ext.mvuInitVarWorkflow || typeof ext.mvuInitVarWorkflow !== 'object' || Array.isArray(ext.mvuInitVarWorkflow)) {
+    if (!create) return null;
+    ext.mvuInitVarWorkflow = {};
+  }
+  const workflow = ext.mvuInitVarWorkflow;
+  if (create) {
+    workflow.managed = true;
+    workflow.storage = 'initvar-extension';
+    workflow.version = MVU_WORKFLOW_VERSION;
+    if (!Array.isArray(workflow.presets)) workflow.presets = [];
+    if (!workflow.map || typeof workflow.map !== 'object' || Array.isArray(workflow.map)) workflow.map = defaultMvuMapData();
+  }
+  return workflow;
+}
+
+function normalizeMvuWorkflow(workflow) {
+  if (!workflow || typeof workflow !== 'object') return false;
+  const before = stableStringify(sortValue(workflow));
+  workflow.managed = true;
+  workflow.storage = 'initvar-extension';
+  workflow.version = MVU_WORKFLOW_VERSION;
+  workflow.presets = normalizeMvuPresetStorageList(workflow.presets);
+  workflow.map = normalizeMvuMapData(workflow.map);
+  if (!workflow.updatedAt) workflow.updatedAt = new Date().toISOString();
+  return stableStringify(sortValue(workflow)) !== before;
+}
+
+function migrateMvuWorkflowStorage(data, workflow) {
+  if (!workflow) return false;
+  const legacyPresetRecords = getLegacyMvuPresetRecords(data);
+  const legacyMapRecords = getLegacyMvuMapRecords(data);
+  const before = stableStringify(sortValue({
+    presets: workflow.presets,
+    map: workflow.map,
+  }));
+
+  workflow.presets = mergeMvuPresetStorageEntries(
+    workflow.presets,
+    legacyPresetRecords.map(record => record.entry),
+  );
+  workflow.map = mergeMvuMapData([
+    ...legacyMapRecords.map(record => readMvuMapDataFromEntry(record.entry)),
+    workflow.map,
+  ]);
+
+  if (legacyPresetRecords.length || legacyMapRecords.length) {
+    removeEntryRecords(data, [...legacyPresetRecords, ...legacyMapRecords]);
+  }
+
+  const changed = before !== stableStringify(sortValue({
+    presets: workflow.presets,
+    map: workflow.map,
+  })) || legacyPresetRecords.length > 0 || legacyMapRecords.length > 0;
+  if (changed) workflow.updatedAt = new Date().toISOString();
+  return changed;
 }
 
 function createMvuDisabledEntry(data, comment, content, order) {
@@ -4457,8 +4608,8 @@ function removeEntryRecords(data, records) {
 }
 
 function syncMvuMapOpenings(data, openings) {
-  const mapRecord = getMvuMapRecord(data);
-  const map = readMvuMapDataFromEntry(mapRecord.entry);
+  ensureMvuSystemEntries(data);
+  const map = readMvuMapData(data);
   const presetIds = new Set(getMvuPresetRecords(data).map(preset => preset.id));
   map.openings = openings.map(mvuOpeningSnapshot);
   for (const opening of openings) {
@@ -4471,7 +4622,7 @@ function syncMvuMapOpenings(data, openings) {
     const binding = map.bindings[opening.id];
     if (binding?.presetId && !presetIds.has(binding.presetId)) delete map.bindings[opening.id];
   }
-  return writeMvuMapDataToEntry(mapRecord.entry, map);
+  return writeMvuMapData(data, map);
 }
 
 function createMvuBinding(opening, presetId) {
@@ -4503,12 +4654,19 @@ function mvuOpeningSnapshot(opening) {
 }
 
 function readMvuMapData(data) {
-  const record = getEntryRecords(data).find(item => cleanText(item.entry?.comment) === MVU_MAP_COMMENT);
-  return record ? readMvuMapDataFromEntry(record.entry) : defaultMvuMapData();
+  const workflow = getMvuWorkflow(data);
+  return mergeMvuMapData([
+    ...getLegacyMvuMapRecords(data).map(record => readMvuMapDataFromEntry(record.entry)),
+    workflow?.map,
+  ]);
 }
 
 function readMvuMapDataFromEntry(entry) {
   return normalizeMvuMapData(parseMvuMapContent(entry?.content));
+}
+
+function getLegacyMvuMapRecords(data) {
+  return getEntryRecords(data).filter(record => cleanText(record.entry?.comment) === MVU_MAP_COMMENT);
 }
 
 function parseMvuMapContent(content) {
@@ -4571,17 +4729,33 @@ function defaultMvuMapData() {
   };
 }
 
-function mergeMvuMapEntries(entries) {
+function mergeMvuMapData(maps) {
   const merged = defaultMvuMapData();
-  for (const entry of entries) {
-    const map = readMvuMapDataFromEntry(entry);
-    merged.openings = map.openings.length ? map.openings : merged.openings;
+  for (const value of maps) {
+    const map = normalizeMvuMapData(value);
+    if (map.openings.length) merged.openings = map.openings;
     merged.bindings = {
-      ...map.bindings,
       ...merged.bindings,
+      ...map.bindings,
     };
+    if (map.updatedAt) merged.updatedAt = map.updatedAt;
   }
   return merged;
+}
+
+function mergeMvuMapEntries(entries) {
+  return mergeMvuMapData(entries.map(entry => readMvuMapDataFromEntry(entry)));
+}
+
+function writeMvuMapData(data, map) {
+  const workflow = getMvuWorkflow(data, { create: true });
+  const normalized = normalizeMvuMapData(map);
+  const current = normalizeMvuMapData(workflow.map);
+  if (stableStringify(mvuMapComparable(current)) === stableStringify(mvuMapComparable(normalized))) return false;
+  normalized.updatedAt = new Date().toISOString();
+  workflow.map = normalized;
+  workflow.updatedAt = normalized.updatedAt;
+  return true;
 }
 
 function writeMvuMapDataToEntry(entry, map) {
@@ -4619,6 +4793,13 @@ function hasMvuInitEntries(data) {
     return comment === MVU_MAP_COMMENT
       || comment === MVU_INITVAR_COMMENT
       || MVU_PRESET_COMMENT_PATTERN.test(comment);
+  });
+}
+
+function hasLegacyMvuStorageEntries(data) {
+  return getEntryRecords(data).some(record => {
+    const comment = cleanText(record.entry?.comment);
+    return comment === MVU_MAP_COMMENT || MVU_PRESET_COMMENT_PATTERN.test(comment);
   });
 }
 
