@@ -234,6 +234,8 @@ const TRANSLATIONS = {
     'status.mvuAutoInjectSaveFirst': 'Save MVU mappings before auto injecting',
     'status.mvuAutoInjectAlreadyCurrent': '[initvar] already matches {name}',
     'status.mvuAutoInjectFailed': 'MVU auto inject failed',
+    'toast.mvuInitVar': 'Workbench MVU InitVar',
+    'toast.dismiss': 'Dismiss notification',
     'theme.label': 'Theme',
     'theme.auto': 'Auto',
     'theme.light': 'Light',
@@ -551,6 +553,8 @@ const TRANSLATIONS = {
     'status.mvuAutoInjectSaveFirst': '请先保存 MVU 映射，再自动注入',
     'status.mvuAutoInjectAlreadyCurrent': '[initvar] 已经是 {name}',
     'status.mvuAutoInjectFailed': 'MVU 自动注入失败',
+    'toast.mvuInitVar': 'Workbench MVU InitVar',
+    'toast.dismiss': '关闭通知',
     'theme.label': '主题',
     'theme.auto': '自动',
     'theme.light': '浅色',
@@ -3527,10 +3531,11 @@ function renderMvuInjectStatus(root = document.querySelector('#wbh-workbench')) 
   box.textContent = message;
 }
 
-function setMvuInjectStatus(type, message) {
+function setMvuInjectStatus(type, message, { toast = false } = {}) {
   app.mvuInjectStatus = { type, message };
   renderMvuInjectStatus();
   if (message) setStatus(message);
+  if (toast && message) showWorkbenchToast(type, t('toast.mvuInitVar'), message);
 }
 
 function setMvuAutoInjectEnabled(enabled) {
@@ -3642,7 +3647,7 @@ async function maybeAutoInjectMvuInitVar() {
 
     app.mvuLastInjectSignature = signature;
     app.mvuAutoInjectNoticeKey = '';
-    setMvuInjectStatus('success', t('status.mvuAutoInjected', { name: mvuPresetDisplayName(match.preset) }));
+    setMvuInjectStatus('success', t('status.mvuAutoInjected', { name: mvuPresetDisplayName(match.preset) }), { toast: true });
   } catch (error) {
     console.warn('[Worldbook Workbench] MVU auto inject failed.', error);
     noticeMvuAutoInject('failed', 'error', t('status.mvuAutoInjectFailed'));
@@ -3654,7 +3659,67 @@ async function maybeAutoInjectMvuInitVar() {
 function noticeMvuAutoInject(key, type, message) {
   if (app.mvuAutoInjectNoticeKey === key) return;
   app.mvuAutoInjectNoticeKey = key;
-  setMvuInjectStatus(type, message);
+  setMvuInjectStatus(type, message, { toast: true });
+}
+
+function showWorkbenchToast(type, title, message, { duration = 5200 } = {}) {
+  const text = cleanText(message);
+  if (!text) return;
+  const root = ensureWorkbenchToastRoot();
+  const toast = document.createElement('div');
+  const safeType = ['success', 'warning', 'error', 'info'].includes(type) ? type : 'info';
+  toast.className = `wbh-toast ${safeType}`;
+  toast.setAttribute('role', safeType === 'error' ? 'alert' : 'status');
+
+  const icon = document.createElement('div');
+  icon.className = 'wbh-toast-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = toastIconForType(safeType);
+
+  const body = document.createElement('div');
+  body.className = 'wbh-toast-body';
+  const heading = document.createElement('strong');
+  heading.textContent = cleanText(title) || t('toast.mvuInitVar');
+  const copy = document.createElement('p');
+  copy.textContent = text;
+  body.append(heading, copy);
+
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'wbh-toast-close';
+  close.setAttribute('aria-label', t('toast.dismiss'));
+  close.title = t('toast.dismiss');
+  close.textContent = 'x';
+  close.addEventListener('click', () => dismissWorkbenchToast(toast));
+
+  toast.append(icon, body, close);
+  root.prepend(toast);
+  while (root.children.length > 3) root.lastElementChild?.remove();
+  window.setTimeout(() => dismissWorkbenchToast(toast), duration);
+}
+
+function ensureWorkbenchToastRoot() {
+  let root = document.querySelector('#wbh-toast-root');
+  if (root) return root;
+  root = document.createElement('div');
+  root.id = 'wbh-toast-root';
+  root.setAttribute('aria-live', 'polite');
+  root.setAttribute('aria-atomic', 'false');
+  document.body.append(root);
+  return root;
+}
+
+function dismissWorkbenchToast(toast) {
+  if (!toast || toast.classList.contains('leaving')) return;
+  toast.classList.add('leaving');
+  window.setTimeout(() => toast.remove(), 180);
+}
+
+function toastIconForType(type) {
+  if (type === 'success') return 'OK';
+  if (type === 'warning') return '!';
+  if (type === 'error') return '!';
+  return 'i';
 }
 
 function createMvuPreset() {
