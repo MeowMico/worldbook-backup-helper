@@ -277,6 +277,7 @@ const TRANSLATIONS = {
     'action.snapshot': 'Snapshot',
     'action.scanOpenings': 'Scan',
     'action.newPreset': 'New preset',
+    'action.createFirstPreset': 'Create first preset',
     'action.deletePreset': 'Delete preset',
     'action.syncInitVar': 'Sync to [initvar]',
     'action.autoInjectInitVar': 'Auto inject at opening',
@@ -589,6 +590,7 @@ const TRANSLATIONS = {
     'action.snapshot': '快照',
     'action.scanOpenings': '扫描',
     'action.newPreset': '新 preset',
+    'action.createFirstPreset': '新建第一个 preset',
     'action.deletePreset': '删除 preset',
     'action.syncInitVar': '同步到 [initvar]',
     'action.autoInjectInitVar': '开场自动注入',
@@ -1517,7 +1519,7 @@ function ensureLocalWorkbench() {
                     <input id="wbh-mvu-auto-inject" type="checkbox">
                     <span data-wbh-i18n="action.autoInjectInitVar">${t('action.autoInjectInitVar')}</span>
                   </label>
-                  <button id="wbh-mvu-new-preset" type="button" data-wbh-i18n="action.newPreset">${t('action.newPreset')}</button>
+                  <button id="wbh-mvu-new-preset" class="wbh-primary-action" type="button" data-wbh-i18n="action.newPreset">${t('action.newPreset')}</button>
                   <button id="wbh-mvu-delete-preset" type="button" class="danger" data-wbh-i18n="action.deletePreset">${t('action.deletePreset')}</button>
                   <button id="wbh-mvu-sync-initvar" type="button" title="${t('tooltip.syncInitVar')}" data-wbh-i18n="action.syncInitVar" data-wbh-i18n-title="tooltip.syncInitVar">${t('action.syncInitVar')}</button>
                 </div>
@@ -3445,8 +3447,16 @@ function renderMvuPresetList(root, presets = getMvuPresetRecords(app.activeData)
   const list = root.querySelector('#wbh-mvu-presets');
   if (!presets.length) {
     const empty = document.createElement('div');
-    empty.className = 'wbh-empty';
-    empty.textContent = t('empty.noMvuPresets');
+    empty.className = 'wbh-empty wbh-mvu-empty-presets';
+    const text = document.createElement('span');
+    text.textContent = t('empty.noMvuPresets');
+    const create = document.createElement('button');
+    create.type = 'button';
+    create.className = 'wbh-primary-action';
+    create.textContent = t('action.createFirstPreset');
+    create.disabled = !app.activeBook || !app.activeData;
+    create.addEventListener('click', createMvuPreset);
+    empty.append(text, create);
     list.replaceChildren(empty);
     return;
   }

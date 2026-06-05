@@ -687,6 +687,29 @@
   outline-offset: 1px;
 }
 
+.wbh-mvu-empty-presets {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.wbh-mvu-empty-presets button {
+  min-height: 32px;
+  border: 1px solid var(--wbh-accent);
+  border-radius: 6px;
+  padding: 0 10px;
+  background: var(--wbh-accent);
+  color: var(--wbh-accent-text);
+  cursor: pointer;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 8%), inset 0 -1px 0 rgb(0 0 0 / 12%);
+}
+
+.wbh-mvu-empty-presets button:hover {
+  background: var(--wbh-accent-strong);
+  border-color: var(--wbh-accent-strong);
+}
+
 .wbh-mvu-preset-layout {
   min-height: 0;
   flex: 1;
@@ -1118,6 +1141,7 @@
 .wbh-tabs button.active,
 .wbh-theme-toggle button.active,
 .wbh-language-toggle button.active,
+.wbh-mvu-actions button.wbh-primary-action,
 .wbh-form button,
 #wbh-start-experiment,
 #wbh-finish-experiment,
@@ -1133,6 +1157,7 @@
 .wbh-tabs button.active:hover,
 .wbh-theme-toggle button.active:hover,
 .wbh-language-toggle button.active:hover,
+.wbh-mvu-actions button.wbh-primary-action:hover,
 .wbh-form button:hover,
 #wbh-start-experiment:hover,
 #wbh-finish-experiment:hover,
