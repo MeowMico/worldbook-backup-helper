@@ -1,13 +1,27 @@
-import { getRequestHeaders } from '/script.js';
+import * as stScript from '/script.js';
 import { saveWorldInfo } from '/scripts/world-info.js';
 
 const PLUGIN_ROOT = '/api/plugins/worldbook-backup-helper';
+const PLUGIN_EXTENSION_KEY = 'worldbookBackupHelper';
 const DB_NAME = 'worldbook-backup-helper';
 const DB_VERSION = 2;
 const SNAPSHOT_STORE = 'snapshots';
 const EXPERIMENT_STORE = 'experiments';
+const MVU_PRESET_COMMENT_PREFIX = '[MVU_INIT_PRESET:';
+const MVU_PRESET_COMMENT_PATTERN = /^\[MVU_INIT_PRESET:([A-Za-z0-9_-]+)\]$/;
+const MVU_MAP_COMMENT = '[MVU_INIT_MAP]';
+const MVU_INITVAR_COMMENT = '[initvar]变量初始化勿开';
+const MVU_MAP_TYPE = 'worldbook-backup-helper.mvu-init-map';
+const MVU_MAP_VERSION = 1;
+const MVU_DISABLED_ORDER = 900000;
 const POSITION_AT_DEPTH = 4;
 const POSITION_OUTLET = 7;
+
+function getRequestHeaders() {
+  return typeof stScript.getRequestHeaders === 'function'
+    ? stScript.getRequestHeaders()
+    : { 'Content-Type': 'application/json' };
+}
 
 const POSITION_OPTIONS = [
   { value: '0', position: 0, key: 'position.beforeChar' },
@@ -204,6 +218,20 @@ const TRANSLATIONS = {
     'status.copyingEntries': 'Copying entries',
     'status.copiedEntries': 'Copied {count} selected entries to {target}',
     'status.copyFailed': 'Copy failed',
+    'status.mvuMaintained': 'MVU InitVar entries maintained',
+    'status.mvuScannedOpenings': 'Scanned {count} openings',
+    'status.mvuPresetCreated': 'MVU preset created',
+    'status.mvuPresetDeleted': 'MVU preset deleted',
+    'status.mvuBindingSaved': 'MVU opening binding saved',
+    'status.mvuPresetSaved': 'MVU preset saved',
+    'status.mvuNoPresetSelected': 'Select an MVU preset first',
+    'status.mvuSyncedInitVar': 'Preset synced to [initvar]',
+    'status.mvuAutoInjectEnabled': 'MVU auto inject enabled',
+    'status.mvuAutoInjectDisabled': 'MVU auto inject disabled',
+    'status.mvuAutoInjected': 'Injected {name} to [initvar]',
+    'status.mvuAutoInjectOpeningOnly': 'Auto inject waits for a 0-turn opening chat',
+    'status.mvuAutoInjectNoBinding': 'No MVU preset binding for the current opening',
+    'status.mvuAutoInjectSaveFirst': 'Save MVU mappings before auto injecting',
     'theme.label': 'Theme',
     'theme.auto': 'Auto',
     'theme.light': 'Light',
@@ -229,6 +257,7 @@ const TRANSLATIONS = {
     'action.after': 'After',
     'action.edit': 'Edit',
     'action.diff': 'Diff',
+    'action.mvuInitVar': 'MVU InitVar',
     'action.history': 'History',
     'action.showHistory': 'Show history',
     'action.hideHistory': 'Hide history',
@@ -246,6 +275,11 @@ const TRANSLATIONS = {
     'action.save': 'Save',
     'action.saveNote': 'Save note',
     'action.snapshot': 'Snapshot',
+    'action.scanOpenings': 'Scan',
+    'action.newPreset': 'New preset',
+    'action.deletePreset': 'Delete preset',
+    'action.syncInitVar': 'Sync to [initvar]',
+    'action.autoInjectInitVar': 'Auto inject at opening',
     'action.current': 'Current',
     'action.previous': 'Previous',
     'action.prev': 'Prev',
@@ -272,6 +306,8 @@ const TRANSLATIONS = {
     'section.timingFilters': 'Timing and Filters',
     'section.matchSources': 'Match Sources',
     'section.copyEntries': 'Copy entries',
+    'section.mvuOpenings': 'Openings',
+    'section.mvuPresets': 'InitVar presets',
     'empty.noWorldbookSelected': 'No worldbook selected',
     'empty.noExperimentSelected': 'No experiment selected',
     'empty.noEntrySelected': 'No entry selected',
@@ -282,6 +318,8 @@ const TRANSLATIONS = {
     'empty.noEntries': 'No entries',
     'empty.noVersionsYet': 'No versions yet',
     'empty.noCopyTargets': 'No other worldbooks available',
+    'empty.noMvuOpenings': 'No openings found',
+    'empty.noMvuPresets': 'No presets',
     'empty.selectSnapshot': 'Select a snapshot',
     'empty.noPreviousVersion': 'No previous version',
     'empty.noBaseline': 'No baseline',
@@ -293,6 +331,8 @@ const TRANSLATIONS = {
     'placeholder.note': 'Experiment note, e.g. This version is better for Claude than Gemini',
     'placeholder.noteDisabled': 'Select an experiment to write a note',
     'placeholder.snapshotNote': 'Note, e.g. trimmed xxx',
+    'placeholder.mvuPresetName': 'Preset name',
+    'placeholder.mvuPresetContent': '[initvar] content for this opening',
     'tooltip.hideWorldbooks': 'Hide worldbooks',
     'tooltip.showWorldbooks': 'Show worldbooks',
     'tooltip.history': 'Show or hide the history sidebar',
@@ -303,6 +343,8 @@ const TRANSLATIONS = {
     'tooltip.restoreExperimentDisabled': 'Save or finish the experiment before restoring its result',
     'tooltip.roleDepthOnly': 'Role is only used for @ Depth entries',
     'tooltip.copyEntries': 'Copy selected entries to another worldbook',
+    'tooltip.syncInitVar': 'Copy the selected preset into the disabled [initvar] entry for local author testing',
+    'tooltip.autoInjectInitVar': 'Author test mode: while the current chat is still at the opening, swiping openings writes the bound preset into the single disabled [initvar] entry',
     'field.title': 'Title',
     'field.content': 'Content',
     'field.keys': 'Keys',
@@ -334,6 +376,9 @@ const TRANSLATIONS = {
     'field.matchScenario': 'Scenario',
     'field.matchCreatorNotes': 'Creator Notes',
     'field.targetWorldbook': 'Target worldbook',
+    'field.preset': 'Preset',
+    'field.presetName': 'Preset name',
+    'field.initVarContent': 'InitVar content',
     'field.enabled': 'Enabled',
     'flag.constant': 'Constant',
     'flag.disabled': 'Disabled',
@@ -395,6 +440,7 @@ const TRANSLATIONS = {
     'confirm.saveBeforeFinish': 'Save workbench edits before finishing this experiment?',
     'confirm.restoreExperimentPoint': 'Restore "{book}" to {point} of "{title}"?',
     'confirm.restoreSnapshot': 'Restore "{book}" to "{label}"?',
+    'confirm.deleteMvuPreset': 'Delete MVU preset "{name}"?',
     'label.current': 'Current',
     'label.version': 'Version',
     'label.origin': 'Origin',
@@ -421,6 +467,14 @@ const TRANSLATIONS = {
     'label.savedFromWorkbench': 'Saved from workbench',
     'label.change': 'change',
     'label.workbenchEdit': 'Workbench edit',
+    'label.mvuMaintain': 'MVU InitVar maintenance',
+    'label.mvuPreset': 'Preset {number}',
+    'label.mvuNoPreset': 'No preset',
+    'label.mvuOpeningFirstMes': 'first_mes',
+    'label.mvuOpeningAlternate': 'alternate_greetings #{number}',
+    'label.mvuOpeningChatSwipe': 'chat opening swipe #{number}',
+    'label.mvuOpeningCurrentChat': 'current chat',
+    'label.mvuUnknownCharacter': 'current character',
     'label.rangeAfter': 'Baseline -> After',
     'label.rangeCurrent': 'Baseline -> Current',
     'diff.summary': '+{added} -{removed} ~{changed} unchanged {unchanged}',
@@ -476,6 +530,20 @@ const TRANSLATIONS = {
     'status.copyingEntries': '正在复制条目',
     'status.copiedEntries': '已复制 {count} 个选中条目到“{target}”',
     'status.copyFailed': '复制失败',
+    'status.mvuMaintained': '已维护 MVU InitVar 条目',
+    'status.mvuScannedOpenings': '已扫描 {count} 个开场',
+    'status.mvuPresetCreated': 'MVU preset 已创建',
+    'status.mvuPresetDeleted': 'MVU preset 已删除',
+    'status.mvuBindingSaved': '开场 preset 绑定已保存',
+    'status.mvuPresetSaved': 'MVU preset 已保存',
+    'status.mvuNoPresetSelected': '请先选择一个 MVU preset',
+    'status.mvuSyncedInitVar': '已同步 preset 到 [initvar]',
+    'status.mvuAutoInjectEnabled': 'MVU 自动注入已开启',
+    'status.mvuAutoInjectDisabled': 'MVU 自动注入已关闭',
+    'status.mvuAutoInjected': '已注入 {name} 到 [initvar]',
+    'status.mvuAutoInjectOpeningOnly': '自动注入只等待 0 层开场聊天',
+    'status.mvuAutoInjectNoBinding': '当前开场没有绑定 MVU preset',
+    'status.mvuAutoInjectSaveFirst': '请先保存 MVU 映射，再自动注入',
     'theme.label': '主题',
     'theme.auto': '自动',
     'theme.light': '浅色',
@@ -501,6 +569,7 @@ const TRANSLATIONS = {
     'action.after': '改后',
     'action.edit': '编辑',
     'action.diff': '对比',
+    'action.mvuInitVar': 'MVU InitVar',
     'action.history': '历史',
     'action.showHistory': '显示历史',
     'action.hideHistory': '隐藏历史',
@@ -518,6 +587,11 @@ const TRANSLATIONS = {
     'action.save': '保存',
     'action.saveNote': '保存备注',
     'action.snapshot': '快照',
+    'action.scanOpenings': '扫描',
+    'action.newPreset': '新 preset',
+    'action.deletePreset': '删除 preset',
+    'action.syncInitVar': '同步到 [initvar]',
+    'action.autoInjectInitVar': '开场自动注入',
     'action.current': '当前',
     'action.previous': '上一版',
     'action.prev': '上一个',
@@ -544,6 +618,8 @@ const TRANSLATIONS = {
     'section.timingFilters': '额外匹配来源',
     'section.matchSources': '筛选生成触发器',
     'section.copyEntries': '复制条目',
+    'section.mvuOpenings': '开场',
+    'section.mvuPresets': 'InitVar presets',
     'empty.noWorldbookSelected': '未选择世界书',
     'empty.noExperimentSelected': '未选择实验',
     'empty.noEntrySelected': '未选择条目',
@@ -554,6 +630,8 @@ const TRANSLATIONS = {
     'empty.noEntries': '暂无条目',
     'empty.noVersionsYet': '暂无版本',
     'empty.noCopyTargets': '没有可复制到的其他世界书',
+    'empty.noMvuOpenings': '未找到开场',
+    'empty.noMvuPresets': '暂无 presets',
     'empty.selectSnapshot': '请选择一个快照',
     'empty.noPreviousVersion': '没有上一版',
     'empty.noBaseline': '没有改前版本',
@@ -565,6 +643,8 @@ const TRANSLATIONS = {
     'placeholder.note': '实验备注，例如：这个版本不太适配 Gemini，下次用 Claude 试试',
     'placeholder.noteDisabled': '选择实验后可写备注',
     'placeholder.snapshotNote': '备注，例如：删减了 xxx',
+    'placeholder.mvuPresetName': 'Preset 名称',
+    'placeholder.mvuPresetContent': '这个开场对应的 [initvar] 内容',
     'tooltip.hideWorldbooks': '隐藏世界书列表',
     'tooltip.showWorldbooks': '显示世界书列表',
     'tooltip.history': '显示或隐藏历史栏',
@@ -575,6 +655,8 @@ const TRANSLATIONS = {
     'tooltip.restoreExperimentDisabled': '请先保存或完成实验，再回溯实验结果',
     'tooltip.roleDepthOnly': '只有“插入深度 @D”条目会使用 Role',
     'tooltip.copyEntries': '把选中的条目复制到另一本世界书',
+    'tooltip.syncInitVar': '把选中的 preset 复制到禁用的 [initvar] 条目，供作者本地测试',
+    'tooltip.autoInjectInitVar': '作者测试模式：当前聊天仍在开场时，滑动开场会把绑定 preset 写进唯一禁用 [initvar] 条目',
     'field.title': '标题（备忘）',
     'field.content': '内容',
     'field.keys': '主要关键字',
@@ -606,6 +688,9 @@ const TRANSLATIONS = {
     'field.matchScenario': '场景',
     'field.matchCreatorNotes': '作者备注',
     'field.targetWorldbook': '目标世界书',
+    'field.preset': 'Preset',
+    'field.presetName': 'Preset 名称',
+    'field.initVarContent': 'InitVar 内容',
     'field.enabled': '启用状态',
     'flag.constant': '常驻',
     'flag.disabled': '禁用',
@@ -667,6 +752,7 @@ const TRANSLATIONS = {
     'confirm.saveBeforeFinish': '完成实验前保存工作台编辑吗？',
     'confirm.restoreExperimentPoint': '把“{book}”回溯到“{title}”的{point}吗？',
     'confirm.restoreSnapshot': '把“{book}”回溯到“{label}”吗？',
+    'confirm.deleteMvuPreset': '删除 MVU preset “{name}”吗？',
     'label.current': '当前',
     'label.version': '版本',
     'label.origin': '原版',
@@ -693,6 +779,14 @@ const TRANSLATIONS = {
     'label.savedFromWorkbench': '从工作台保存',
     'label.change': '改动',
     'label.workbenchEdit': '工作台编辑',
+    'label.mvuMaintain': 'MVU InitVar 维护',
+    'label.mvuPreset': 'Preset {number}',
+    'label.mvuNoPreset': '不绑定 preset',
+    'label.mvuOpeningFirstMes': 'first_mes',
+    'label.mvuOpeningAlternate': 'alternate_greetings #{number}',
+    'label.mvuOpeningChatSwipe': '聊天开场 swipe #{number}',
+    'label.mvuOpeningCurrentChat': '当前聊天',
+    'label.mvuUnknownCharacter': '当前角色',
     'label.rangeAfter': '改前 -> 改后',
     'label.rangeCurrent': '改前 -> 当前',
     'diff.summary': '+{added} -{removed} ~{changed} 未变 {unchanged}',
@@ -767,6 +861,15 @@ const app = {
   activeExperiment: null,
   activeView: 'snapshot',
   mainTab: 'edit',
+  mvuOpenings: [],
+  mvuActivePresetId: '',
+  mvuSelectedOpeningId: '',
+  mvuTouched: false,
+  mvuAutoInjectEnabled: readBooleanSetting('wbh-mvu-auto-inject'),
+  mvuAutoInjectTimer: 0,
+  mvuAutoInjectInFlight: false,
+  mvuLastInjectSignature: '',
+  mvuAutoInjectNoticeKey: '',
   editorDirty: false,
   findQuery: '',
   replaceText: '',
@@ -775,6 +878,7 @@ const app = {
   undoStack: [],
   redoStack: [],
   pendingInputHistoryKey: '',
+  pendingMvuInputHistoryKey: '',
   diffChangeIndex: -1,
   booksCollapsed: readBooleanSetting('wbh-books-collapsed'),
   historyCollapsed: readBooleanSetting('wbh-history-collapsed'),
@@ -1108,6 +1212,7 @@ function ensureLocalWorkbench() {
             <div class="wbh-tabs">
               <button id="wbh-tab-edit" type="button" class="active" data-wbh-i18n="action.edit">${t('action.edit')}</button>
               <button id="wbh-tab-diff" type="button" data-wbh-i18n="action.diff">${t('action.diff')}</button>
+              <button id="wbh-tab-mvu" type="button" data-wbh-i18n="action.mvuInitVar">${t('action.mvuInitVar')}</button>
             </div>
             <div class="wbh-view-options">
               <button id="wbh-toggle-history" type="button" title="${t('tooltip.history')}">${t('action.history')}</button>
@@ -1395,6 +1500,43 @@ function ensureLocalWorkbench() {
             <div id="wbh-diff-summary" class="wbh-diff-summary"></div>
             <div id="wbh-diff" class="wbh-diff">${t('empty.selectSnapshot')}</div>
           </div>
+          <div id="wbh-mvu-view" class="wbh-mvu-view hidden">
+            <aside class="wbh-mvu-openings-pane">
+              <div class="wbh-entry-pane-head">
+                <strong data-wbh-i18n="section.mvuOpenings">${t('section.mvuOpenings')}</strong>
+                <button id="wbh-mvu-scan" type="button" data-wbh-i18n="action.scanOpenings">${t('action.scanOpenings')}</button>
+              </div>
+              <div id="wbh-mvu-scan-meta" class="wbh-mvu-meta"></div>
+              <div id="wbh-mvu-openings" class="wbh-list"></div>
+            </aside>
+            <section class="wbh-mvu-preset-pane">
+              <div class="wbh-mvu-preset-head">
+                <strong data-wbh-i18n="section.mvuPresets">${t('section.mvuPresets')}</strong>
+                <div class="wbh-mvu-actions">
+                  <label class="wbh-mvu-toggle" title="${t('tooltip.autoInjectInitVar')}" data-wbh-i18n-title="tooltip.autoInjectInitVar">
+                    <input id="wbh-mvu-auto-inject" type="checkbox">
+                    <span data-wbh-i18n="action.autoInjectInitVar">${t('action.autoInjectInitVar')}</span>
+                  </label>
+                  <button id="wbh-mvu-new-preset" type="button" data-wbh-i18n="action.newPreset">${t('action.newPreset')}</button>
+                  <button id="wbh-mvu-delete-preset" type="button" class="danger" data-wbh-i18n="action.deletePreset">${t('action.deletePreset')}</button>
+                  <button id="wbh-mvu-sync-initvar" type="button" title="${t('tooltip.syncInitVar')}" data-wbh-i18n="action.syncInitVar" data-wbh-i18n-title="tooltip.syncInitVar">${t('action.syncInitVar')}</button>
+                </div>
+              </div>
+              <div class="wbh-mvu-preset-layout">
+                <div id="wbh-mvu-presets" class="wbh-list"></div>
+                <div class="wbh-mvu-preset-editor">
+                  <label class="wbh-editor-field">
+                    <span data-wbh-i18n="field.presetName">${t('field.presetName')}</span>
+                    <input id="wbh-mvu-preset-name" type="text" placeholder="${t('placeholder.mvuPresetName')}" data-wbh-i18n-placeholder="placeholder.mvuPresetName">
+                  </label>
+                  <label class="wbh-editor-field wbh-editor-field-wide">
+                    <span data-wbh-i18n="field.initVarContent">${t('field.initVarContent')}</span>
+                    <textarea id="wbh-mvu-preset-content" rows="16" placeholder="${t('placeholder.mvuPresetContent')}" data-wbh-i18n-placeholder="placeholder.mvuPresetContent"></textarea>
+                  </label>
+                </div>
+              </div>
+            </section>
+          </div>
         </section>
         <section class="wbh-pane wbh-side-stack">
           <div class="wbh-side-section wbh-origin-section">
@@ -1465,6 +1607,7 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-delete-all-matches').addEventListener('click', deleteAllFindMatches);
   root.querySelector('#wbh-tab-edit').addEventListener('click', () => setMainTab('edit'));
   root.querySelector('#wbh-tab-diff').addEventListener('click', () => setMainTab('diff'));
+  root.querySelector('#wbh-tab-mvu').addEventListener('click', () => setMainTab('mvu'));
   root.querySelector('#wbh-editor-undo').addEventListener('click', undoEditorChange);
   root.querySelector('#wbh-editor-redo').addEventListener('click', redoEditorChange);
   root.querySelector('#wbh-entry-new').addEventListener('click', createEntry);
@@ -1496,6 +1639,15 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-change-prev').addEventListener('click', () => navigateDiffChange(-1));
   root.querySelector('#wbh-change-next').addEventListener('click', () => navigateDiffChange(1));
   root.querySelector('#wbh-restore').addEventListener('click', restoreLocalSnapshot);
+  root.querySelector('#wbh-mvu-auto-inject').addEventListener('change', event => setMvuAutoInjectEnabled(event.currentTarget.checked));
+  root.querySelector('#wbh-mvu-scan').addEventListener('click', scanMvuOpeningsFromUi);
+  root.querySelector('#wbh-mvu-new-preset').addEventListener('click', createMvuPreset);
+  root.querySelector('#wbh-mvu-delete-preset').addEventListener('click', deleteActiveMvuPreset);
+  root.querySelector('#wbh-mvu-sync-initvar').addEventListener('click', syncActiveMvuPresetToInitVar);
+  root.querySelector('#wbh-mvu-preset-name').addEventListener('input', event => updateActiveMvuPresetName(event.currentTarget.value));
+  root.querySelector('#wbh-mvu-preset-name').addEventListener('blur', finishMvuInputHistory);
+  root.querySelector('#wbh-mvu-preset-content').addEventListener('input', event => updateActiveMvuPresetContent(event.currentTarget.value));
+  root.querySelector('#wbh-mvu-preset-content').addEventListener('blur', finishMvuInputHistory);
   root.querySelector('#wbh-copy-cancel').addEventListener('click', closeCopyEntriesDialog);
   root.querySelector('#wbh-copy-confirm').addEventListener('click', copySelectedEntriesToTarget);
   root.querySelector('#wbh-copy-dialog').addEventListener('click', (event) => {
@@ -1510,6 +1662,8 @@ function ensureLocalWorkbench() {
   renderLanguageMode();
   renderThemeMode();
   renderLayoutMode();
+  renderMvuAutoInjectState(root);
+  if (app.mvuAutoInjectEnabled) startMvuAutoInjectMonitor();
 }
 
 async function refreshLocalWorkbench() {
@@ -1577,6 +1731,12 @@ async function loadEditorWorldbook({ force = false } = {}) {
     app.editorSourceLabel = '';
     app.activeEntryId = null;
     app.selectedEntryIds.clear();
+    app.mvuOpenings = [];
+    app.mvuActivePresetId = '';
+    app.mvuSelectedOpeningId = '';
+    app.mvuTouched = false;
+    app.mvuLastInjectSignature = '';
+    app.mvuAutoInjectNoticeKey = '';
     app.editorDirty = false;
     resetEditorHistory({ render: false });
     renderEditor();
@@ -1597,6 +1757,7 @@ async function loadEditorWorldbook({ force = false } = {}) {
   app.editorDirty = false;
   resetEditorHistory({ render: false });
   ensureActiveEntry();
+  refreshMvuOpenings({ render: false });
   renderEditor();
 }
 
@@ -1640,6 +1801,12 @@ function renderBooks() {
         app.activeDataHash = '';
         app.activeEntryId = null;
         app.selectedEntryIds.clear();
+        app.mvuOpenings = [];
+        app.mvuActivePresetId = '';
+        app.mvuSelectedOpeningId = '';
+        app.mvuTouched = app.mainTab === 'mvu';
+        app.mvuLastInjectSignature = '';
+        app.mvuAutoInjectNoticeKey = '';
         app.editorDirty = false;
         resetEditorHistory({ render: false });
         app.activeSnapshot = null;
@@ -2408,8 +2575,14 @@ async function loadSnapshotIntoEditor(snapshot, sourceName = t('label.version'))
 
 function setMainTab(tab) {
   app.mainTab = tab;
+  if (tab === 'mvu') {
+    app.mvuTouched = true;
+    refreshMvuOpenings({ render: false });
+    maintainMvuInitDraft({ silent: true });
+  }
   renderEditorState();
   if (tab === 'diff') void renderDiff();
+  if (tab === 'mvu') renderMvuInitView();
 }
 
 function renderEditor() {
@@ -2417,6 +2590,7 @@ function renderEditor() {
   renderEditorState();
   renderEntryList();
   renderEntryEditor();
+  renderMvuInitView();
 }
 
 function renderEditorState() {
@@ -2429,10 +2603,12 @@ function renderEditorState() {
 
   root.querySelector('#wbh-tab-edit').classList.toggle('active', app.mainTab === 'edit');
   root.querySelector('#wbh-tab-diff').classList.toggle('active', app.mainTab === 'diff');
+  root.querySelector('#wbh-tab-mvu').classList.toggle('active', app.mainTab === 'mvu');
   root.querySelector('#wbh-mode-current').classList.toggle('active', app.diffMode === 'current');
   root.querySelector('#wbh-mode-previous').classList.toggle('active', app.diffMode === 'previous');
   root.querySelector('#wbh-editor-view').classList.toggle('hidden', app.mainTab !== 'edit');
   root.querySelector('#wbh-diff-view').classList.toggle('hidden', app.mainTab !== 'diff');
+  root.querySelector('#wbh-mvu-view').classList.toggle('hidden', app.mainTab !== 'mvu');
   root.querySelector('#wbh-editor-undo').disabled = !app.activeData || !app.undoStack.length;
   root.querySelector('#wbh-editor-redo').disabled = !app.activeData || !app.redoStack.length;
   root.querySelector('#wbh-editor-save').disabled = !app.activeBook || !app.activeData || !app.editorDirty;
@@ -3149,6 +3325,998 @@ function deleteEntry() {
   renderEditor();
 }
 
+function scanMvuOpeningsFromUi() {
+  app.mvuTouched = true;
+  refreshMvuOpenings({ render: false, force: true });
+  maintainMvuInitDraft({ silent: true });
+  renderMvuInitView();
+  setStatus(t('status.mvuScannedOpenings', { count: app.mvuOpenings.length }));
+}
+
+function refreshMvuOpenings({ render = true, force = false } = {}) {
+  if (force || app.mvuTouched || app.mainTab === 'mvu') {
+    app.mvuOpenings = collectMvuOpenings();
+  } else {
+    app.mvuOpenings = [];
+  }
+  if (!app.mvuOpenings.some(opening => opening.id === app.mvuSelectedOpeningId)) {
+    app.mvuSelectedOpeningId = app.mvuOpenings[0]?.id || '';
+  }
+
+  const presets = getMvuPresetRecords(app.activeData);
+  const presetIds = new Set(presets.map(preset => preset.id));
+  const map = readMvuMapData(app.activeData);
+  const selectedBinding = app.mvuSelectedOpeningId
+    ? map.bindings?.[app.mvuSelectedOpeningId]?.presetId || ''
+    : '';
+  if (selectedBinding && presetIds.has(selectedBinding)) {
+    app.mvuActivePresetId = selectedBinding;
+  } else if (!presetIds.has(app.mvuActivePresetId)) {
+    app.mvuActivePresetId = presets[0]?.id || '';
+  }
+
+  if (render) renderMvuInitView();
+}
+
+function renderMvuInitView() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+
+  const openings = app.mvuOpenings;
+  const presets = getMvuPresetRecords(app.activeData);
+  const map = readMvuMapData(app.activeData);
+  const activePreset = presets.find(preset => preset.id === app.mvuActivePresetId) || presets[0] || null;
+  if (activePreset && activePreset.id !== app.mvuActivePresetId) app.mvuActivePresetId = activePreset.id;
+
+  root.querySelector('#wbh-mvu-scan').disabled = !app.activeBook;
+  root.querySelector('#wbh-mvu-new-preset').disabled = !app.activeBook || !app.activeData;
+  root.querySelector('#wbh-mvu-delete-preset').disabled = !activePreset;
+  root.querySelector('#wbh-mvu-sync-initvar').disabled = !activePreset;
+  renderMvuAutoInjectState(root);
+  root.querySelector('#wbh-mvu-scan-meta').textContent = app.activeBook
+    ? t('status.mvuScannedOpenings', { count: openings.length })
+    : t('empty.noWorldbookSelected');
+
+  renderMvuOpeningList(root, openings, presets, map);
+  renderMvuPresetList(root, presets);
+  renderMvuPresetEditor(root, activePreset);
+}
+
+function renderMvuOpeningList(root, openings, presets, map) {
+  const list = root.querySelector('#wbh-mvu-openings');
+  if (!openings.length) {
+    const empty = document.createElement('div');
+    empty.className = 'wbh-empty';
+    empty.textContent = t('empty.noMvuOpenings');
+    list.replaceChildren(empty);
+    return;
+  }
+
+  const presetIds = new Set(presets.map(preset => preset.id));
+  list.replaceChildren(...openings.map(opening => {
+    const binding = map.bindings?.[opening.id] || null;
+    const selectedPresetId = binding && presetIds.has(binding.presetId) ? binding.presetId : '';
+    const selectedPreset = presets.find(preset => preset.id === selectedPresetId) || null;
+    const row = document.createElement('div');
+    row.className = `wbh-mvu-opening-row ${app.mvuSelectedOpeningId === opening.id ? 'active' : ''}`;
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'wbh-row';
+    button.innerHTML = '<span></span><small></small>';
+    button.querySelector('span').textContent = opening.label;
+    button.querySelector('small').textContent = [
+      opening.scopeLabel,
+      selectedPreset ? mvuPresetDisplayName(selectedPreset) : t('label.mvuNoPreset'),
+    ].filter(Boolean).join(' | ');
+    button.addEventListener('click', () => {
+      app.mvuSelectedOpeningId = opening.id;
+      if (selectedPresetId) app.mvuActivePresetId = selectedPresetId;
+      renderMvuInitView();
+    });
+
+    const preview = document.createElement('pre');
+    preview.className = 'wbh-mvu-opening-preview';
+    preview.textContent = opening.text;
+
+    const select = document.createElement('select');
+    select.className = 'wbh-mvu-binding-select';
+    select.setAttribute('aria-label', t('field.preset'));
+    select.disabled = !app.activeData;
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = t('label.mvuNoPreset');
+    select.append(none);
+    for (const preset of presets) {
+      const option = document.createElement('option');
+      option.value = preset.id;
+      option.textContent = mvuPresetDisplayName(preset);
+      select.append(option);
+    }
+    select.value = selectedPresetId;
+    select.addEventListener('change', () => bindMvuOpeningPreset(opening.id, select.value));
+
+    row.append(button, preview, select);
+    return row;
+  }));
+}
+
+function renderMvuPresetList(root, presets = getMvuPresetRecords(app.activeData)) {
+  const list = root.querySelector('#wbh-mvu-presets');
+  if (!presets.length) {
+    const empty = document.createElement('div');
+    empty.className = 'wbh-empty';
+    empty.textContent = t('empty.noMvuPresets');
+    list.replaceChildren(empty);
+    return;
+  }
+
+  list.replaceChildren(...presets.map(preset => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `wbh-row ${preset.id === app.mvuActivePresetId ? 'active' : ''}`;
+    button.innerHTML = '<span></span><small></small>';
+    button.querySelector('span').textContent = mvuPresetDisplayName(preset);
+    button.querySelector('small').textContent = `[MVU_INIT_PRESET:${preset.id}]`;
+    button.addEventListener('click', () => {
+      app.mvuActivePresetId = preset.id;
+      renderMvuInitView();
+    });
+    return button;
+  }));
+}
+
+function renderMvuPresetEditor(root, preset) {
+  const name = root.querySelector('#wbh-mvu-preset-name');
+  const content = root.querySelector('#wbh-mvu-preset-content');
+  const disabled = !preset;
+  name.disabled = disabled;
+  content.disabled = disabled;
+  if (document.activeElement !== name) name.value = preset ? mvuPresetName(preset) : '';
+  if (document.activeElement !== content) content.value = preset?.entry?.content || '';
+}
+
+function renderMvuAutoInjectState(root = document.querySelector('#wbh-workbench')) {
+  const input = root?.querySelector('#wbh-mvu-auto-inject');
+  const label = root?.querySelector('.wbh-mvu-toggle');
+  if (!input || !label) return;
+  input.checked = app.mvuAutoInjectEnabled;
+  label.classList.toggle('active', app.mvuAutoInjectEnabled);
+}
+
+function setMvuAutoInjectEnabled(enabled) {
+  app.mvuAutoInjectEnabled = Boolean(enabled);
+  app.mvuLastInjectSignature = '';
+  app.mvuAutoInjectNoticeKey = '';
+  writeBooleanSetting('wbh-mvu-auto-inject', app.mvuAutoInjectEnabled);
+  renderMvuAutoInjectState();
+  if (app.mvuAutoInjectEnabled) {
+    startMvuAutoInjectMonitor();
+    setStatus(t('status.mvuAutoInjectEnabled'));
+  } else {
+    stopMvuAutoInjectMonitor();
+    setStatus(t('status.mvuAutoInjectDisabled'));
+  }
+}
+
+function startMvuAutoInjectMonitor() {
+  if (app.mvuAutoInjectTimer) return;
+  app.mvuAutoInjectTimer = window.setInterval(() => {
+    void maybeAutoInjectMvuInitVar();
+  }, 900);
+  void maybeAutoInjectMvuInitVar();
+}
+
+function stopMvuAutoInjectMonitor() {
+  if (!app.mvuAutoInjectTimer) return;
+  window.clearInterval(app.mvuAutoInjectTimer);
+  app.mvuAutoInjectTimer = 0;
+}
+
+async function maybeAutoInjectMvuInitVar() {
+  if (!app.mvuAutoInjectEnabled || app.mvuAutoInjectInFlight || !app.activeBook) return;
+
+  const opening = getCurrentOpeningSwipeState();
+  if (!opening?.openingStage) {
+    noticeMvuAutoInject('opening-only', t('status.mvuAutoInjectOpeningOnly'));
+    return;
+  }
+
+  if (app.editorDirty) {
+    noticeMvuAutoInject('save-first', t('status.mvuAutoInjectSaveFirst'));
+    return;
+  }
+
+  app.mvuAutoInjectInFlight = true;
+  try {
+    const name = app.activeBook.name;
+    const data = await loadWorldbook(name);
+    const match = findMvuPresetForOpening(data, opening);
+    if (!match) {
+      noticeMvuAutoInject(`no-binding:${opening.hash}`, t('status.mvuAutoInjectNoBinding'));
+      app.mvuLastInjectSignature = '';
+      return;
+    }
+
+    const presetContent = match.preset.entry.content || '';
+    const signature = `${name}:${match.openingId}:${match.preset.id}:${shortMvuHash(presetContent)}`;
+    if (signature === app.mvuLastInjectSignature) return;
+
+    const existingInitVar = getEntryRecords(data).find(record => cleanText(record.entry?.comment) === MVU_INITVAR_COMMENT);
+    const existingExt = existingInitVar?.entry?.extensions?.[PLUGIN_EXTENSION_KEY] || null;
+    const alreadyInjected = existingInitVar?.entry?.content === presetContent
+      && existingExt?.mvuInitVar?.sourcePresetId === match.preset.id;
+    if (alreadyInjected) {
+      app.mvuLastInjectSignature = signature;
+      return;
+    }
+
+    await createLocalSnapshotFromData(name, data, {
+      label: `Before MVU initvar inject: ${mvuPresetDisplayName(match.preset)}`,
+      reason: 'mvu-initvar-inject-before',
+      skipDuplicate: true,
+    });
+
+    ensureMvuSystemEntries(data);
+    const initVar = getMvuInitVarRecord(data);
+    const ext = ensureEntryPluginExtension(initVar.entry);
+    initVar.entry.content = presetContent;
+    initVar.entry.disable = true;
+    initVar.entry.comment = MVU_INITVAR_COMMENT;
+    ext.mvuInitVar = {
+      sourcePresetId: match.preset.id,
+      sourcePresetName: mvuPresetDisplayName(match.preset),
+      sourceOpeningId: match.openingId,
+      sourceOpeningHash: opening.hash,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await saveWorldbook(name, data);
+    const saved = await loadWorldbook(name);
+    await createLocalSnapshotFromData(name, saved, {
+      label: `After MVU initvar inject: ${mvuPresetDisplayName(match.preset)}`,
+      reason: 'mvu-initvar-inject-after',
+      skipDuplicate: false,
+    });
+
+    if (app.activeBook?.name === name && !app.editorDirty) {
+      app.activeData = cloneValue(saved);
+      app.activeDataHash = await hashObject(app.activeData);
+      app.editorSourceLabel = 'Current';
+      ensureActiveEntry();
+      refreshMvuOpenings({ render: false, force: app.mainTab === 'mvu' || app.mvuTouched });
+      await loadLocalSnapshots();
+      renderEditor();
+    }
+
+    app.mvuLastInjectSignature = signature;
+    app.mvuAutoInjectNoticeKey = '';
+    setStatus(t('status.mvuAutoInjected', { name: mvuPresetDisplayName(match.preset) }));
+  } catch (error) {
+    console.warn('[Worldbook Workbench] MVU auto inject failed.', error);
+  } finally {
+    app.mvuAutoInjectInFlight = false;
+  }
+}
+
+function noticeMvuAutoInject(key, message) {
+  if (app.mvuAutoInjectNoticeKey === key) return;
+  app.mvuAutoInjectNoticeKey = key;
+  setStatus(message);
+}
+
+function createMvuPreset() {
+  if (!app.activeData) return;
+  const nextNumber = getMvuPresetRecords(app.activeData).length + 1;
+  const name = t('label.mvuPreset', { number: nextNumber });
+  mutateMvuDraft(t('action.newPreset'), () => {
+    ensureMvuSystemEntries(app.activeData);
+    const id = getFreeMvuPresetId(app.activeData);
+    const entry = createMvuDisabledEntry(app.activeData, `[MVU_INIT_PRESET:${id}]`, '', MVU_DISABLED_ORDER + 10 + nextNumber);
+    setMvuPresetName(entry, name);
+    insertEntry(app.activeData, entry);
+    app.mvuActivePresetId = id;
+  });
+  setStatus(t('status.mvuPresetCreated'));
+}
+
+function deleteActiveMvuPreset() {
+  if (!app.activeData || !app.mvuActivePresetId) return;
+  const preset = getMvuPresetRecords(app.activeData).find(item => item.id === app.mvuActivePresetId);
+  if (!preset) return;
+
+  const ok = window.confirm(t('confirm.deleteMvuPreset', { name: mvuPresetDisplayName(preset) }));
+  if (!ok) return;
+
+  mutateMvuDraft(t('action.deletePreset'), () => {
+    removeEntry(app.activeData, preset.record);
+    const mapRecord = getMvuMapRecord(app.activeData);
+    if (mapRecord) {
+      const map = readMvuMapDataFromEntry(mapRecord.entry);
+      for (const [openingId, binding] of Object.entries(map.bindings)) {
+        if (binding?.presetId === preset.id) delete map.bindings[openingId];
+      }
+      writeMvuMapDataToEntry(mapRecord.entry, map);
+    }
+    const remaining = getMvuPresetRecords(app.activeData);
+    app.mvuActivePresetId = remaining[0]?.id || '';
+  });
+  setStatus(t('status.mvuPresetDeleted'));
+}
+
+function bindMvuOpeningPreset(openingId, presetId) {
+  if (!app.activeData) return;
+  const opening = app.mvuOpenings.find(item => item.id === openingId);
+  if (!opening) return;
+  const presets = getMvuPresetRecords(app.activeData);
+  const presetExists = !presetId || presets.some(preset => preset.id === presetId);
+  if (!presetExists) return;
+
+  mutateMvuDraft(t('status.mvuBindingSaved'), () => {
+    ensureMvuSystemEntries(app.activeData);
+    const mapRecord = getMvuMapRecord(app.activeData);
+    const map = readMvuMapDataFromEntry(mapRecord.entry);
+    if (presetId) {
+      map.bindings[opening.id] = createMvuBinding(opening, presetId);
+      app.mvuActivePresetId = presetId;
+    } else {
+      delete map.bindings[opening.id];
+    }
+    writeMvuMapDataToEntry(mapRecord.entry, map);
+    app.mvuSelectedOpeningId = opening.id;
+  });
+  setStatus(t('status.mvuBindingSaved'));
+}
+
+function updateActiveMvuPresetName(value) {
+  const preset = getMvuPresetRecords(app.activeData).find(item => item.id === app.mvuActivePresetId);
+  if (!preset) return;
+  const nextName = cleanText(value);
+  if (mvuPresetName(preset) === nextName) return;
+  beginMvuInputHistory(`preset:${preset.id}:name`, t('field.presetName'));
+  ensureMvuSystemEntries(app.activeData);
+  setMvuPresetName(preset.entry, nextName);
+  app.mvuTouched = true;
+  setEditorDirty(true);
+  renderMvuPresetList(document.querySelector('#wbh-workbench'));
+  setStatus(t('status.mvuPresetSaved'));
+}
+
+function updateActiveMvuPresetContent(value) {
+  const preset = getMvuPresetRecords(app.activeData).find(item => item.id === app.mvuActivePresetId);
+  if (!preset || preset.entry.content === value) return;
+  beginMvuInputHistory(`preset:${preset.id}:content`, t('field.initVarContent'));
+  ensureMvuSystemEntries(app.activeData);
+  preset.entry.content = value;
+  setMvuPresetUpdatedAt(preset.entry);
+  app.mvuTouched = true;
+  setEditorDirty(true);
+  setStatus(t('status.mvuPresetSaved'));
+}
+
+function syncActiveMvuPresetToInitVar() {
+  if (!app.activeData || !app.mvuActivePresetId) {
+    setStatus(t('status.mvuNoPresetSelected'));
+    return;
+  }
+
+  const preset = getMvuPresetRecords(app.activeData).find(item => item.id === app.mvuActivePresetId);
+  if (!preset) {
+    setStatus(t('status.mvuNoPresetSelected'));
+    return;
+  }
+
+  mutateMvuDraft(t('action.syncInitVar'), () => {
+    ensureMvuSystemEntries(app.activeData);
+    const initVar = getMvuInitVarRecord(app.activeData);
+    initVar.entry.content = preset.entry.content || '';
+    initVar.entry.disable = true;
+    initVar.entry.comment = MVU_INITVAR_COMMENT;
+    const ext = ensureEntryPluginExtension(initVar.entry);
+    ext.mvuInitVar = {
+      sourcePresetId: preset.id,
+      sourcePresetName: mvuPresetDisplayName(preset),
+      updatedAt: new Date().toISOString(),
+    };
+  });
+  setStatus(t('status.mvuSyncedInitVar'));
+}
+
+function beginMvuInputHistory(key, label) {
+  if (app.pendingMvuInputHistoryKey === key) return;
+  finishInputHistory();
+  captureUndoState(label || t('action.mvuInitVar'));
+  app.pendingMvuInputHistoryKey = key;
+}
+
+function finishMvuInputHistory() {
+  app.pendingMvuInputHistoryKey = '';
+}
+
+function maintainMvuInitDraft({ silent = false } = {}) {
+  if (!app.activeData) return false;
+  const changed = mutateMvuDraft(t('label.mvuMaintain'), () => {
+    ensureMvuSystemEntries(app.activeData);
+    syncMvuMapOpenings(app.activeData, app.mvuOpenings);
+  }, { render: false });
+  if (changed && !silent) setStatus(t('status.mvuMaintained'));
+  return changed;
+}
+
+function mutateMvuDraft(label, mutator, { render = true } = {}) {
+  if (!app.activeData) return false;
+  finishInputHistory();
+  finishMvuInputHistory();
+  const before = stableStringify(app.activeData);
+  captureUndoState(label || t('action.mvuInitVar'));
+  mutator();
+  const changed = stableStringify(app.activeData) !== before;
+  if (!changed) {
+    app.undoStack.pop();
+    renderEditorState();
+    return false;
+  }
+
+  app.mvuTouched = true;
+  refreshMvuOpenings({ render: false });
+  setEditorDirty(true);
+  if (render) renderEditor();
+  return true;
+}
+
+function collectMvuOpenings() {
+  const openings = [];
+  const character = getCurrentCharacterCard();
+  const characterName = currentCharacterName(character);
+  const characterKey = safeMvuKey([
+    character?.avatar,
+    character?.name,
+    character?.data?.name,
+    characterName,
+  ].filter(Boolean).join(':') || 'character');
+  const firstMes = characterGreetingText(character, 'first_mes');
+  if (firstMes) {
+    openings.push(createMvuOpening({
+      id: `character:${characterKey}:first_mes`,
+      source: 'first_mes',
+      label: t('label.mvuOpeningFirstMes'),
+      scopeLabel: characterName,
+      index: 0,
+      text: firstMes,
+      characterName,
+    }));
+  }
+
+  characterAlternateGreetings(character).forEach((text, index) => {
+    openings.push(createMvuOpening({
+      id: `character:${characterKey}:alternate_greetings:${index}`,
+      source: 'alternate_greetings',
+      label: t('label.mvuOpeningAlternate', { number: index + 1 }),
+      scopeLabel: characterName,
+      index,
+      text,
+      characterName,
+    }));
+  });
+
+  getCurrentChatOpeningSwipes().forEach((text, index) => {
+    const hash = shortMvuHash(text);
+    openings.push(createMvuOpening({
+      id: `chat:opening_swipe:${index}:${hash}`,
+      source: 'chat_swipe',
+      label: t('label.mvuOpeningChatSwipe', { number: index + 1 }),
+      scopeLabel: t('label.mvuOpeningCurrentChat'),
+      index,
+      text,
+      characterName,
+    }));
+  });
+
+  return openings;
+}
+
+function createMvuOpening({ id, source, label, scopeLabel, index, text, characterName }) {
+  return {
+    id,
+    source,
+    label,
+    scopeLabel,
+    index,
+    text,
+    characterName: characterName || '',
+    hash: shortMvuHash(text),
+  };
+}
+
+function getCurrentCharacterCard() {
+  const characters = firstArrayValue(
+    stScript.characters,
+    window.characters,
+    window.SillyTavern?.characters,
+  );
+  const index = firstFiniteNumber(
+    stScript.this_chid,
+    stScript.characterId,
+    window.this_chid,
+    window.characterId,
+    window.SillyTavern?.this_chid,
+    window.SillyTavern?.characterId,
+  );
+  if (characters && index >= 0 && characters[index]) return characters[index];
+  return firstObjectValue(
+    stScript.character,
+    window.character,
+    window.currentCharacter,
+    window.SillyTavern?.character,
+    window.SillyTavern?.currentCharacter,
+  );
+}
+
+function currentCharacterName(character) {
+  return cleanText(
+    character?.name
+    || character?.data?.name
+    || stScript.name2
+    || window.name2
+    || t('label.mvuUnknownCharacter'),
+  );
+}
+
+function characterGreetingText(character, field) {
+  return cleanText(character?.[field] ?? character?.data?.[field] ?? character?.json_data?.[field]);
+}
+
+function characterAlternateGreetings(character) {
+  const value = character?.alternate_greetings
+    ?? character?.data?.alternate_greetings
+    ?? character?.json_data?.alternate_greetings
+    ?? [];
+  if (Array.isArray(value)) return value.map(cleanText).filter(Boolean);
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.map(cleanText).filter(Boolean);
+  } catch {
+    return cleanText(value) ? [cleanText(value)] : [];
+  }
+  return [];
+}
+
+function getCurrentChatOpeningSwipes() {
+  const chat = firstArrayValue(stScript.chat, window.chat, window.SillyTavern?.chat);
+  if (!chat) return [];
+  const message = getOpeningChatMessage(chat)?.message;
+  if (!message) return [];
+  const swipes = Array.isArray(message.swipes) ? message.swipes.map(cleanText).filter(Boolean) : [];
+  if (!swipes.length && cleanText(message.mes)) return [cleanText(message.mes)];
+  return swipes;
+}
+
+function getCurrentOpeningSwipeState() {
+  const chat = firstArrayValue(stScript.chat, window.chat, window.SillyTavern?.chat);
+  if (!chat) return null;
+  const opening = getOpeningChatMessage(chat);
+  if (!opening) return { openingStage: false };
+
+  const swipes = Array.isArray(opening.message.swipes)
+    ? opening.message.swipes.map(cleanText).filter(Boolean)
+    : [];
+  const currentText = cleanText(opening.message.mes);
+  let swipeIndex = swipes.findIndex(text => text === currentText);
+  if (swipeIndex < 0 && swipes.length) swipeIndex = normalizeSwipeIndex(opening.message.swipe_id ?? opening.message.swipeId, swipes.length);
+  if (swipeIndex < 0) swipeIndex = 0;
+  const text = swipes[swipeIndex] || currentText;
+  if (!text) return { openingStage: true };
+  const hash = shortMvuHash(text);
+  return {
+    openingStage: true,
+    id: `chat:opening_swipe:${swipeIndex}:${hash}`,
+    source: 'chat_swipe',
+    index: swipeIndex,
+    text,
+    hash,
+  };
+}
+
+function getOpeningChatMessage(chat) {
+  const visible = chat
+    .map((message, index) => ({ message, index }))
+    .filter(item => item.message && !item.message.is_system);
+  if (!visible.length) return null;
+  if (visible.some(item => item.message.is_user === true)) return null;
+
+  const assistantMessages = visible.filter(item => item.message.is_user !== true);
+  if (assistantMessages.length !== 1) return null;
+  const opening = assistantMessages[0];
+  if (!cleanText(opening.message.mes) && !Array.isArray(opening.message.swipes)) return null;
+  return opening;
+}
+
+function normalizeSwipeIndex(value, length) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  if (number >= 0 && number < length) return Math.trunc(number);
+  return Math.max(0, Math.min(length - 1, Math.trunc(number)));
+}
+
+function findMvuPresetForOpening(data, opening) {
+  if (!data || !opening) return null;
+  const map = readMvuMapData(data);
+  const presets = getMvuPresetRecords(data);
+  const presetById = new Map(presets.map(preset => [preset.id, preset]));
+  const direct = map.bindings?.[opening.id];
+  if (direct?.presetId && presetById.has(direct.presetId)) {
+    return { openingId: opening.id, binding: direct, preset: presetById.get(direct.presetId) };
+  }
+
+  for (const savedOpening of map.openings || []) {
+    if (!savedOpening?.hash || savedOpening.hash !== opening.hash) continue;
+    const binding = map.bindings?.[savedOpening.id];
+    if (binding?.presetId && presetById.has(binding.presetId)) {
+      return { openingId: savedOpening.id, binding, preset: presetById.get(binding.presetId) };
+    }
+  }
+
+  for (const [openingId, binding] of Object.entries(map.bindings || {})) {
+    if (binding?.hash !== opening.hash || !binding.presetId || !presetById.has(binding.presetId)) continue;
+    return { openingId, binding, preset: presetById.get(binding.presetId) };
+  }
+
+  return null;
+}
+
+function firstArrayValue(...values) {
+  return values.find(Array.isArray) || null;
+}
+
+function firstObjectValue(...values) {
+  return values.find(value => value && typeof value === 'object' && !Array.isArray(value)) || null;
+}
+
+function firstFiniteNumber(...values) {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number) && number >= 0) return number;
+  }
+  return -1;
+}
+
+function getMvuPresetRecords(data) {
+  return getEntryRecords(data)
+    .map(record => {
+      const id = mvuPresetId(record.entry);
+      return id ? { id, record, entry: record.entry } : null;
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      const orderDiff = numericSort(left.entry?.order) - numericSort(right.entry?.order);
+      if (orderDiff) return orderDiff;
+      return left.record.index - right.record.index;
+    });
+}
+
+function mvuPresetId(entry) {
+  return cleanText(entry?.comment).match(MVU_PRESET_COMMENT_PATTERN)?.[1] || '';
+}
+
+function mvuPresetName(preset) {
+  return cleanText(preset?.entry?.extensions?.[PLUGIN_EXTENSION_KEY]?.mvuInitPreset?.name || '');
+}
+
+function mvuPresetDisplayName(preset) {
+  return mvuPresetName(preset) || preset?.id || t('label.mvuPreset', { number: 1 });
+}
+
+function setMvuPresetName(entry, name) {
+  const ext = ensureEntryPluginExtension(entry);
+  ext.mvuInitPreset = {
+    ...(ext.mvuInitPreset || {}),
+    id: mvuPresetId(entry),
+    name: cleanText(name),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function setMvuPresetUpdatedAt(entry) {
+  const ext = ensureEntryPluginExtension(entry);
+  ext.mvuInitPreset = {
+    ...(ext.mvuInitPreset || {}),
+    id: mvuPresetId(entry),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function getFreeMvuPresetId(data) {
+  const used = new Set(getMvuPresetRecords(data).map(preset => preset.id));
+  let id = `preset-${randomId()}`;
+  while (used.has(id)) id = `preset-${randomId()}`;
+  return id;
+}
+
+function ensureMvuSystemEntries(data) {
+  let changed = false;
+  changed = ensureSingleMvuMapEntry(data).changed || changed;
+  changed = ensureSingleMvuInitVarEntry(data).changed || changed;
+  return changed;
+}
+
+function ensureSingleMvuMapEntry(data) {
+  const records = getEntryRecords(data).filter(record => cleanText(record.entry?.comment) === MVU_MAP_COMMENT);
+  let changed = false;
+  let record = records[0] || null;
+  if (!record) {
+    const entry = createMvuDisabledEntry(data, MVU_MAP_COMMENT, formatMvuMapData(defaultMvuMapData()), MVU_DISABLED_ORDER);
+    insertEntry(data, entry);
+    record = getEntryRecords(data).find(item => item.entry === entry);
+    changed = true;
+  }
+
+  if (records.length > 1) {
+    const merged = mergeMvuMapEntries(records.map(item => item.entry));
+    record.entry.content = formatMvuMapData(merged);
+    removeEntryRecords(data, records.slice(1));
+    changed = true;
+  }
+
+  changed = ensureMvuDisabledEntryFields(record.entry, MVU_MAP_COMMENT, MVU_DISABLED_ORDER) || changed;
+  return { record, changed };
+}
+
+function ensureSingleMvuInitVarEntry(data) {
+  const records = getEntryRecords(data).filter(record => cleanText(record.entry?.comment) === MVU_INITVAR_COMMENT);
+  let changed = false;
+  let record = records[0] || null;
+  if (!record) {
+    const entry = createMvuDisabledEntry(data, MVU_INITVAR_COMMENT, '', MVU_DISABLED_ORDER + 1);
+    insertEntry(data, entry);
+    record = getEntryRecords(data).find(item => item.entry === entry);
+    changed = true;
+  }
+
+  if (records.length > 1) {
+    if (!cleanText(record.entry.content)) {
+      const contentSource = records.slice(1).find(item => cleanText(item.entry?.content));
+      if (contentSource) record.entry.content = contentSource.entry.content;
+    }
+    removeEntryRecords(data, records.slice(1));
+    changed = true;
+  }
+
+  changed = ensureMvuDisabledEntryFields(record.entry, MVU_INITVAR_COMMENT, MVU_DISABLED_ORDER + 1) || changed;
+  return { record, changed };
+}
+
+function getMvuMapRecord(data) {
+  ensureSingleMvuMapEntry(data);
+  return getEntryRecords(data).find(record => cleanText(record.entry?.comment) === MVU_MAP_COMMENT) || null;
+}
+
+function getMvuInitVarRecord(data) {
+  ensureSingleMvuInitVarEntry(data);
+  return getEntryRecords(data).find(record => cleanText(record.entry?.comment) === MVU_INITVAR_COMMENT) || null;
+}
+
+function createMvuDisabledEntry(data, comment, content, order) {
+  const uid = getFreeEntryUid(data);
+  const entry = createEntryTemplate(uid, comment);
+  entry.comment = comment;
+  entry.content = content;
+  entry.key = [];
+  entry.keysecondary = [];
+  entry.constant = false;
+  entry.disable = true;
+  entry.selective = false;
+  entry.vectorized = false;
+  entry.order = order;
+  entry.position = 0;
+  entry.probability = 100;
+  entry.useProbability = true;
+  const ext = ensureEntryPluginExtension(entry);
+  ext.mvuInitVarWorkflow = {
+    managed: true,
+    updatedAt: new Date().toISOString(),
+  };
+  normalizeEntryRole(entry);
+  return entry;
+}
+
+function ensureMvuDisabledEntryFields(entry, comment, order) {
+  let changed = false;
+  changed = setEntryIfChanged(entry, 'comment', comment) || changed;
+  changed = setEntryIfChanged(entry, 'key', []) || changed;
+  changed = setEntryIfChanged(entry, 'keysecondary', []) || changed;
+  changed = setEntryIfChanged(entry, 'constant', false) || changed;
+  changed = setEntryIfChanged(entry, 'disable', true) || changed;
+  changed = setEntryIfChanged(entry, 'selective', false) || changed;
+  changed = setEntryIfChanged(entry, 'vectorized', false) || changed;
+  changed = setEntryIfChanged(entry, 'order', order) || changed;
+  changed = setEntryIfChanged(entry, 'position', 0) || changed;
+  normalizeEntryRole(entry);
+  return changed;
+}
+
+function setEntryIfChanged(entry, field, value) {
+  if (comparableField(entry?.[field]) === comparableField(value)) return false;
+  entry[field] = cloneValue(value);
+  return true;
+}
+
+function removeEntryRecords(data, records) {
+  [...records]
+    .sort((left, right) => right.index - left.index)
+    .forEach(record => removeEntry(data, record));
+}
+
+function syncMvuMapOpenings(data, openings) {
+  const mapRecord = getMvuMapRecord(data);
+  const map = readMvuMapDataFromEntry(mapRecord.entry);
+  map.openings = openings.map(mvuOpeningSnapshot);
+  for (const opening of openings) {
+    if (map.bindings[opening.id]) {
+      map.bindings[opening.id] = createMvuBinding(opening, map.bindings[opening.id].presetId);
+    }
+  }
+  const presetIds = new Set(getMvuPresetRecords(data).map(preset => preset.id));
+  for (const opening of openings) {
+    const binding = map.bindings[opening.id];
+    if (binding?.presetId && !presetIds.has(binding.presetId)) delete map.bindings[opening.id];
+  }
+  return writeMvuMapDataToEntry(mapRecord.entry, map);
+}
+
+function createMvuBinding(opening, presetId) {
+  return {
+    presetId,
+    source: opening.source,
+    index: opening.index,
+    label: opening.label,
+    scopeLabel: opening.scopeLabel,
+    characterName: opening.characterName,
+    hash: opening.hash,
+  };
+}
+
+function mvuOpeningSnapshot(opening) {
+  return {
+    id: opening.id,
+    source: opening.source,
+    index: opening.index,
+    label: opening.label,
+    scopeLabel: opening.scopeLabel,
+    characterName: opening.characterName,
+    hash: opening.hash,
+  };
+}
+
+function readMvuMapData(data) {
+  const record = getEntryRecords(data).find(item => cleanText(item.entry?.comment) === MVU_MAP_COMMENT);
+  return record ? readMvuMapDataFromEntry(record.entry) : defaultMvuMapData();
+}
+
+function readMvuMapDataFromEntry(entry) {
+  return normalizeMvuMapData(parseMvuMapContent(entry?.content));
+}
+
+function parseMvuMapContent(content) {
+  const text = cleanText(content);
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
+function normalizeMvuMapData(value) {
+  const out = defaultMvuMapData();
+  if (!value || typeof value !== 'object') return out;
+  const rawBindings = value.bindings && typeof value.bindings === 'object' ? value.bindings : value;
+  for (const [openingId, binding] of Object.entries(rawBindings || {})) {
+    if (!openingId || openingId === 'type' || openingId === 'version' || openingId === 'openings' || openingId === 'updatedAt') continue;
+    const normalized = typeof binding === 'string'
+      ? { presetId: binding }
+      : binding && typeof binding === 'object'
+        ? { ...binding, presetId: cleanText(binding.presetId) }
+        : null;
+    if (normalized?.presetId) out.bindings[openingId] = normalized;
+  }
+  if (Array.isArray(value.openings)) {
+    out.openings = value.openings
+      .filter(item => item && typeof item === 'object' && cleanText(item.id))
+      .map(item => ({
+        id: cleanText(item.id),
+        source: cleanText(item.source),
+        index: Number.isFinite(Number(item.index)) ? Number(item.index) : 0,
+        label: cleanText(item.label),
+        scopeLabel: cleanText(item.scopeLabel),
+        characterName: cleanText(item.characterName),
+        hash: cleanText(item.hash),
+      }));
+  }
+  if (value.updatedAt) out.updatedAt = cleanText(value.updatedAt);
+  return out;
+}
+
+function defaultMvuMapData() {
+  return {
+    type: MVU_MAP_TYPE,
+    version: MVU_MAP_VERSION,
+    updatedAt: '',
+    openings: [],
+    bindings: {},
+  };
+}
+
+function mergeMvuMapEntries(entries) {
+  const merged = defaultMvuMapData();
+  for (const entry of entries) {
+    const map = readMvuMapDataFromEntry(entry);
+    merged.openings = map.openings.length ? map.openings : merged.openings;
+    merged.bindings = {
+      ...map.bindings,
+      ...merged.bindings,
+    };
+  }
+  return merged;
+}
+
+function writeMvuMapDataToEntry(entry, map) {
+  const normalized = normalizeMvuMapData(map);
+  const current = normalizeMvuMapData(parseMvuMapContent(entry?.content));
+  if (stableStringify(mvuMapComparable(current)) === stableStringify(mvuMapComparable(normalized))) return false;
+  normalized.updatedAt = new Date().toISOString();
+  entry.content = formatMvuMapData(normalized);
+  return true;
+}
+
+function formatMvuMapData(map) {
+  return `${JSON.stringify(sortValue(normalizeMvuMapData(map)), null, 2)}\n`;
+}
+
+function mvuMapComparable(map) {
+  const comparable = cloneValue(normalizeMvuMapData(map));
+  delete comparable.updatedAt;
+  return comparable;
+}
+
+function ensureEntryPluginExtension(entry) {
+  if (!entry.extensions || typeof entry.extensions !== 'object' || Array.isArray(entry.extensions)) {
+    entry.extensions = {};
+  }
+  if (!entry.extensions[PLUGIN_EXTENSION_KEY] || typeof entry.extensions[PLUGIN_EXTENSION_KEY] !== 'object') {
+    entry.extensions[PLUGIN_EXTENSION_KEY] = {};
+  }
+  return entry.extensions[PLUGIN_EXTENSION_KEY];
+}
+
+function hasMvuInitEntries(data) {
+  return getEntryRecords(data).some(record => {
+    const comment = cleanText(record.entry?.comment);
+    return comment === MVU_MAP_COMMENT
+      || comment === MVU_INITVAR_COMMENT
+      || MVU_PRESET_COMMENT_PATTERN.test(comment);
+  });
+}
+
+function safeMvuKey(value) {
+  const text = cleanText(value).toLowerCase();
+  const cleaned = text
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+  return cleaned || shortMvuHash(value);
+}
+
+function shortMvuHash(value) {
+  let hash = 2166136261;
+  const text = String(value || '');
+  for (let index = 0; index < text.length; index++) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 function setEditorDirty(dirty) {
   app.editorDirty = dirty;
   renderActiveBook();
@@ -3220,6 +4388,7 @@ function restoreHistoryState(state) {
   app.activeFindIndex = state.activeFindIndex;
   ensureActiveEntry();
   refreshFindMatches();
+  refreshMvuOpenings({ render: false });
   renderEditor();
   queueFocusActiveFindMatch();
 }
@@ -3237,6 +4406,13 @@ async function saveEditorWorldbook() {
     skipDuplicate: true,
   });
 
+  if (app.mvuTouched) {
+    refreshMvuOpenings({ render: false, force: true });
+  }
+  if (app.mvuTouched || hasMvuInitEntries(app.activeData)) {
+    ensureMvuSystemEntries(app.activeData);
+    if (app.mvuTouched) syncMvuMapOpenings(app.activeData, app.mvuOpenings);
+  }
   normalizeWorldbookRoles(app.activeData);
   await saveWorldbook(name, app.activeData);
   const saved = await loadWorldbook(name);

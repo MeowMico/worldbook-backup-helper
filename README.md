@@ -15,12 +15,13 @@ It is designed for creators who test roleplay output while actively revising wor
 - Restore the origin, an experiment result, or any saved version.
 - Find keywords across worldbook entries, jump between matches, replace matches, or delete matches.
 - Multi-select entries and copy them to another worldbook while keeping entry content and settings.
+- Bind MVU InitVar presets to character greetings and current chat opening swipes for author testing.
 - Rename experiments, add experiment notes, and search experiment history.
 - Export a single experiment/version JSON or export the full local history for one worldbook.
 - Supports English and Chinese UI.
 - Includes light and dark themes.
 
-The extension only works with worldbooks/lorebooks. It does not read chats or character descriptions.
+The standard editing workflow works with worldbooks/lorebooks. The optional `MVU InitVar` tab reads the current character card greetings and current chat opening swipes only when you use that workflow.
 
 ## Installation
 
@@ -89,6 +90,14 @@ Copied entries keep their content, keys, insertion position, role, depth, order,
 
 The target worldbook gets before-copy and after-copy snapshots automatically, so you can restore it if the copy was not what you wanted.
 
+## MVU InitVar Presets
+
+The `MVU InitVar` tab scans the current character card `first_mes`, `alternate_greetings`, and the current chat opening swipes. You can create InitVar presets, bind each opening to a preset, and sync the selected preset into the disabled `[initvar]变量初始化勿开` entry for local author testing.
+
+For author-side testing, `Auto inject at opening` can be enabled while a new chat is still at the opening message. When you swipe to a bound opening, the workbench writes only the matched preset into the single disabled `[initvar]变量初始化勿开` worldbook entry and creates before/after history snapshots.
+
+The workflow stores metadata as disabled worldbook entries: `[MVU_INIT_PRESET:id]`, `[MVU_INIT_MAP]`, and one unique disabled `[initvar]变量初始化勿开`. It does not add player-side runtime behavior.
+
 ## Experiments
 
 Experiments are meant for small, testable changes.
@@ -117,7 +126,7 @@ This can be useful for organizing creative files or sharing a specific revision.
 
 In extension-only mode, snapshots and experiments are stored locally in the browser's IndexedDB for the current SillyTavern browser profile.
 
-The extension reads and writes worldbooks through SillyTavern's worldbook API. It does not read chats, cookies, API keys, browser profiles, or unrelated local files.
+The extension reads and writes worldbooks through SillyTavern's worldbook API. The `MVU InitVar` tab also reads the current in-page character greetings and current chat opening swipes for binding presets. It does not read cookies, API keys, browser profiles, or unrelated local files.
 
 ## Compatibility
 

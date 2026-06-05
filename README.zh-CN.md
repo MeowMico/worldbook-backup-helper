@@ -15,12 +15,13 @@
 - 支持回溯到原版、实验结果或任意历史版本。
 - 支持关键词查找、定位、替换、全部替换、删除、全部删除。
 - 支持多选条目，并一键复制到另一本世界书，同时保留条目内容和设置。
+- 支持作者端 MVU InitVar presets：给角色开场和当前聊天开场 swipes 绑定变量初始化预设。
 - 支持实验改名、实验备注和实验历史搜索。
 - 支持导出单个实验/版本 JSON，也支持导出某本世界书的全部本地历史。
 - 支持中英双语界面。
 - 支持浅色和深色主题。
 
-本扩展只处理世界书/知识书。它不会读取聊天记录，也不会读取角色描述。
+标准编辑流程只处理世界书/知识书。可选的 `MVU InitVar` 页只会在你使用该工作流时读取当前角色卡开场和当前聊天开场 swipes。
 
 ## 安装方式
 
@@ -89,6 +90,14 @@ https://github.com/MeowMico/worldbook-backup-helper
 
 目标世界书会自动生成复制前和复制后的版本记录。如果复制错了，可以从历史栏回溯。
 
+## MVU InitVar Presets
+
+`MVU InitVar` 页会扫描当前角色卡的 `first_mes`、`alternate_greetings`，以及当前聊天开场 swipes。你可以创建 InitVar preset，给每个开场绑定 preset，并把选中的 preset 同步进禁用的 `[initvar]变量初始化勿开` 条目，供作者本地测试。
+
+作者本地测试时，可以开启 `开场自动注入`。当前聊天仍停在开场消息、还没有用户消息时，滑到已绑定的开场后，工作台会只把匹配的 preset 写进唯一禁用的 `[initvar]变量初始化勿开` 世界书条目，并生成写入前/写入后的历史快照。
+
+这个工作流会把数据保存为禁用世界书条目：`[MVU_INIT_PRESET:id]`、`[MVU_INIT_MAP]`，以及唯一禁用的 `[initvar]变量初始化勿开`。它不会添加玩家端 runtime。
+
 ## 实验
 
 实验适合记录一次很小、很具体的改动。
@@ -117,7 +126,7 @@ https://github.com/MeowMico/worldbook-backup-helper
 
 在纯扩展模式下，快照和实验记录会保存在当前浏览器的 IndexedDB 中，也就是本地浏览器数据里。
 
-扩展通过 SillyTavern 的世界书 API 读取和保存世界书。它不会读取聊天记录、cookies、API key、浏览器资料夹或无关的本地文件。
+扩展通过 SillyTavern 的世界书 API 读取和保存世界书。`MVU InitVar` 页还会读取当前页面里的角色开场和当前聊天开场 swipes，用于绑定 preset。它不会读取 cookies、API key、浏览器资料夹或无关的本地文件。
 
 ## 兼容性
 
