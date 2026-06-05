@@ -3424,8 +3424,9 @@ function renderMvuOpeningList(root, openings, presets, map) {
 
   const presetIds = new Set(presets.map(preset => preset.id));
   list.replaceChildren(...openings.map(opening => {
-    const binding = map.bindings?.[opening.id] || null;
-    const selectedPresetId = binding && presetIds.has(binding.presetId) ? binding.presetId : '';
+    const resolvedBinding = findMvuBindingForOpening(map, opening, presetIds);
+    const binding = resolvedBinding?.binding || null;
+    const selectedPresetId = binding?.presetId || '';
     const selectedPreset = presets.find(preset => preset.id === selectedPresetId) || null;
     const row = document.createElement('div');
     row.className = `wbh-mvu-opening-row ${app.mvuSelectedOpeningId === opening.id ? 'active' : ''}`;
@@ -4147,34 +4148,48 @@ function findMvuPresetForOpening(data, opening) {
   const map = readMvuMapData(data);
   const presets = getMvuPresetRecords(data);
   const presetById = new Map(presets.map(preset => [preset.id, preset]));
-  const candidateIds = mvuOpeningCandidateIds(opening);
-  const candidateHashes = mvuOpeningCandidateHashes(opening);
-  for (const openingId of candidateIds) {
+  const match = findMvuBindingForOpening(map, opening, new Set(presetById.keys()));
+  if (!match) return null;
+  return { ...match, preset: presetById.get(match.binding.presetId) };
+}
+
+function findMvuBindingForOpening(map, opening, presetIds) {
+  if (!map || !opening || !presetIds?.size) return null;
+  const hasValidPreset = binding => binding?.presetId && presetIds.has(binding.presetId);
+  const directIds = mvuOpeningCandidateIds(opening);
+  for (const openingId of directIds) {
     const direct = map.bindings?.[openingId];
-    if (direct?.presetId && presetById.has(direct.presetId)) {
-      return { openingId, binding: direct, preset: presetById.get(direct.presetId) };
-    }
+    if (hasValidPreset(direct)) return { openingId, binding: direct, match: 'id' };
   }
 
+  const candidateHashes = mvuOpeningCandidateHashes(opening);
   for (const savedOpening of map.openings || []) {
     if (!mvuOpeningRecordMatches(savedOpening, candidateHashes)) continue;
     const binding = map.bindings?.[savedOpening.id];
-    if (binding?.presetId && presetById.has(binding.presetId)) {
-      return { openingId: savedOpening.id, binding, preset: presetById.get(binding.presetId) };
-    }
+    if (hasValidPreset(binding)) return { openingId: savedOpening.id, binding, match: 'hash' };
   }
 
   for (const scannedOpening of collectMvuOpenings()) {
     if (!mvuOpeningRecordMatches(scannedOpening, candidateHashes)) continue;
     const binding = map.bindings?.[scannedOpening.id];
-    if (binding?.presetId && presetById.has(binding.presetId)) {
-      return { openingId: scannedOpening.id, binding, preset: presetById.get(binding.presetId) };
-    }
+    if (hasValidPreset(binding)) return { openingId: scannedOpening.id, binding, match: 'hash' };
   }
 
   for (const [openingId, binding] of Object.entries(map.bindings || {})) {
-    if (!mvuOpeningRecordMatches(binding, candidateHashes) || !binding.presetId || !presetById.has(binding.presetId)) continue;
-    return { openingId, binding, preset: presetById.get(binding.presetId) };
+    if (!mvuOpeningRecordMatches(binding, candidateHashes) || !hasValidPreset(binding)) continue;
+    return { openingId, binding, match: 'hash' };
+  }
+
+  for (const savedOpening of map.openings || []) {
+    if (!mvuOpeningIndexMatches(savedOpening, opening)) continue;
+    const binding = map.bindings?.[savedOpening.id];
+    if (hasValidPreset(binding)) return { openingId: savedOpening.id, binding, match: 'index' };
+  }
+
+  for (const [openingId, binding] of Object.entries(map.bindings || {})) {
+    const record = mvuOpeningRecordFromBinding(openingId, binding);
+    if (!mvuOpeningIndexMatches(record, opening) || !hasValidPreset(binding)) continue;
+    return { openingId, binding, match: 'index' };
   }
 
   return null;
@@ -4206,6 +4221,46 @@ function mvuOpeningRecordHashes(record) {
     record?.normalizedHash,
     ...(Array.isArray(record?.matchHashes) ? record.matchHashes : []),
   ]);
+}
+
+function mvuOpeningIndexMatches(record, opening) {
+  const left = normalizeMvuOpeningIndexInfo(record);
+  const right = normalizeMvuOpeningIndexInfo(opening);
+  if (!left.source || !right.source) return false;
+  if (left.source === right.source && left.index === right.index) return true;
+  if (right.source === 'chat_swipe' && left.source === 'first_mes') return right.index === 0;
+  if (right.source === 'chat_swipe' && left.source === 'alternate_greetings') return right.index === left.index + 1;
+  if (left.source === 'chat_swipe' && right.source === 'first_mes') return left.index === 0;
+  if (left.source === 'chat_swipe' && right.source === 'alternate_greetings') return left.index === right.index + 1;
+  return false;
+}
+
+function normalizeMvuOpeningIndexInfo(record) {
+  const parsed = parseMvuOpeningId(record?.id);
+  const source = cleanText(record?.source) || parsed.source;
+  const indexValue = Number.isFinite(Number(record?.index)) ? Number(record.index) : parsed.index;
+  return {
+    source,
+    index: Number.isFinite(indexValue) ? Number(indexValue) : 0,
+  };
+}
+
+function mvuOpeningRecordFromBinding(id, binding) {
+  return {
+    id,
+    ...(binding && typeof binding === 'object' ? binding : {}),
+  };
+}
+
+function parseMvuOpeningId(id) {
+  const text = cleanText(id);
+  if (!text) return { source: '', index: 0 };
+  if (text.includes(':first_mes')) return { source: 'first_mes', index: 0 };
+  const alternate = text.match(/:alternate_greetings:(\d+)$/);
+  if (alternate) return { source: 'alternate_greetings', index: Number(alternate[1]) };
+  const chat = text.match(/^chat:opening_swipe:(\d+):/);
+  if (chat) return { source: 'chat_swipe', index: Number(chat[1]) };
+  return { source: '', index: 0 };
 }
 
 function firstArrayValue(...values) {
@@ -4404,13 +4459,14 @@ function removeEntryRecords(data, records) {
 function syncMvuMapOpenings(data, openings) {
   const mapRecord = getMvuMapRecord(data);
   const map = readMvuMapDataFromEntry(mapRecord.entry);
+  const presetIds = new Set(getMvuPresetRecords(data).map(preset => preset.id));
   map.openings = openings.map(mvuOpeningSnapshot);
   for (const opening of openings) {
-    if (map.bindings[opening.id]) {
-      map.bindings[opening.id] = createMvuBinding(opening, map.bindings[opening.id].presetId);
+    const match = findMvuBindingForOpening(map, opening, presetIds);
+    if (match?.binding?.presetId) {
+      map.bindings[opening.id] = createMvuBinding(opening, match.binding.presetId);
     }
   }
-  const presetIds = new Set(getMvuPresetRecords(data).map(preset => preset.id));
   for (const opening of openings) {
     const binding = map.bindings[opening.id];
     if (binding?.presetId && !presetIds.has(binding.presetId)) delete map.bindings[opening.id];
