@@ -14,6 +14,7 @@ const MVU_INITVAR_COMMENT = '[initvar]变量初始化勿开';
 const MVU_MAP_TYPE = 'worldbook-backup-helper.mvu-init-map';
 const MVU_MAP_VERSION = 1;
 const MVU_DISABLED_ORDER = 9000;
+const MVU_AUTO_INJECT_BOOK_KEY = 'wbh-mvu-auto-inject-book';
 const POSITION_AT_DEPTH = 4;
 const POSITION_OUTLET = 7;
 
@@ -231,6 +232,8 @@ const TRANSLATIONS = {
     'status.mvuAutoInjected': 'Injected {name} to [initvar]',
     'status.mvuAutoInjectOpeningOnly': 'Auto inject waits for a 0-turn opening chat',
     'status.mvuAutoInjectNoBinding': 'No MVU preset binding for the current opening',
+    'status.mvuAutoInjectNoBook': 'Choose an MVU auto inject worldbook in Workbench first',
+    'status.mvuAutoInjectEmptyPreset': 'Bound MVU preset is empty; [initvar] was not changed',
     'status.mvuAutoInjectSaveFirst': 'Save MVU mappings before auto injecting',
     'status.mvuAutoInjectAlreadyCurrent': '[initvar] already matches {name}',
     'status.mvuAutoInjectFailed': 'MVU auto inject failed',
@@ -550,6 +553,8 @@ const TRANSLATIONS = {
     'status.mvuAutoInjected': '已注入 {name} 到 [initvar]',
     'status.mvuAutoInjectOpeningOnly': '自动注入只等待 0 层开场聊天',
     'status.mvuAutoInjectNoBinding': '当前开场没有绑定 MVU preset',
+    'status.mvuAutoInjectNoBook': '请先在工作台选择用于 MVU 自动注入的世界书',
+    'status.mvuAutoInjectEmptyPreset': '绑定的 MVU preset 是空的，未写入 [initvar]',
     'status.mvuAutoInjectSaveFirst': '请先保存 MVU 映射，再自动注入',
     'status.mvuAutoInjectAlreadyCurrent': '[initvar] 已经是 {name}',
     'status.mvuAutoInjectFailed': 'MVU 自动注入失败',
@@ -880,6 +885,7 @@ const app = {
   mvuSelectedOpeningId: '',
   mvuTouched: false,
   mvuAutoInjectEnabled: readBooleanSetting('wbh-mvu-auto-inject'),
+  mvuAutoInjectBookName: readStringSetting(MVU_AUTO_INJECT_BOOK_KEY, ''),
   mvuAutoInjectTimer: 0,
   mvuAutoInjectInFlight: false,
   mvuLastInjectSignature: '',
@@ -915,6 +921,7 @@ async function init() {
   installLanguageListener();
   installWorkbenchButton();
   installWorldbookEditInterceptor();
+  if (app.mvuAutoInjectEnabled) startMvuAutoInjectMonitor();
 }
 
 function isTauriTavernHost() {
@@ -1769,6 +1776,7 @@ async function loadEditorWorldbook({ force = false } = {}) {
   }
 
   const data = await loadWorldbook(app.activeBook.name);
+  rememberMvuAutoInjectBook(app.activeBook.name);
   app.activeData = cloneValue(data);
   app.activeDataHash = await hashObject(app.activeData);
   app.editorSourceLabel = 'Current';
@@ -1817,6 +1825,7 @@ function renderBooks() {
       button.addEventListener('click', async () => {
         if (!await confirmDiscardEditorChanges()) return;
         app.activeBook = book;
+        rememberMvuAutoInjectBook(book.name);
         app.activeData = null;
         app.activeDataHash = '';
         app.activeEntryId = null;
@@ -3538,11 +3547,30 @@ function setMvuInjectStatus(type, message, { toast = false } = {}) {
   if (toast && message) showWorkbenchToast(type, t('toast.mvuInitVar'), message);
 }
 
+function rememberMvuAutoInjectBook(name) {
+  const bookName = cleanText(name);
+  if (!bookName) return;
+  app.mvuAutoInjectBookName = bookName;
+  writeStringSetting(MVU_AUTO_INJECT_BOOK_KEY, bookName);
+}
+
+function getMvuAutoInjectBookName() {
+  const activeName = cleanText(app.activeBook?.name);
+  if (activeName) {
+    rememberMvuAutoInjectBook(activeName);
+    return activeName;
+  }
+  const stored = cleanText(app.mvuAutoInjectBookName || readStringSetting(MVU_AUTO_INJECT_BOOK_KEY, ''));
+  if (stored) app.mvuAutoInjectBookName = stored;
+  return stored;
+}
+
 function setMvuAutoInjectEnabled(enabled) {
   app.mvuAutoInjectEnabled = Boolean(enabled);
   app.mvuLastInjectSignature = '';
   app.mvuAutoInjectNoticeKey = '';
   writeBooleanSetting('wbh-mvu-auto-inject', app.mvuAutoInjectEnabled);
+  if (app.mvuAutoInjectEnabled && app.activeBook?.name) rememberMvuAutoInjectBook(app.activeBook.name);
   renderMvuAutoInjectState();
   if (app.mvuAutoInjectEnabled) {
     startMvuAutoInjectMonitor();
@@ -3568,7 +3596,13 @@ function stopMvuAutoInjectMonitor() {
 }
 
 async function maybeAutoInjectMvuInitVar() {
-  if (!app.mvuAutoInjectEnabled || app.mvuAutoInjectInFlight || !app.activeBook) return;
+  if (!app.mvuAutoInjectEnabled || app.mvuAutoInjectInFlight) return;
+
+  const name = getMvuAutoInjectBookName();
+  if (!name) {
+    noticeMvuAutoInject('no-book', 'warning', t('status.mvuAutoInjectNoBook'));
+    return;
+  }
 
   const opening = getCurrentOpeningSwipeState();
   if (!opening?.openingStage) {
@@ -3583,7 +3617,6 @@ async function maybeAutoInjectMvuInitVar() {
 
   app.mvuAutoInjectInFlight = true;
   try {
-    const name = app.activeBook.name;
     const data = await loadWorldbook(name);
     const match = findMvuPresetForOpening(data, opening);
     if (!match) {
@@ -3593,6 +3626,12 @@ async function maybeAutoInjectMvuInitVar() {
     }
 
     const presetContent = match.preset.entry.content || '';
+    if (!cleanText(presetContent)) {
+      noticeMvuAutoInject(`empty-preset:${match.preset.id}`, 'warning', t('status.mvuAutoInjectEmptyPreset'));
+      app.mvuLastInjectSignature = '';
+      return;
+    }
+
     const signature = `${name}:${match.openingId}:${match.preset.id}:${shortMvuHash(presetContent)}`;
     if (signature === app.mvuLastInjectSignature) return;
 
