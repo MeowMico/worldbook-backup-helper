@@ -279,6 +279,7 @@ const TRANSLATIONS = {
     'action.snapshot': 'Snapshot',
     'action.scanOpenings': 'Scan',
     'action.newPreset': 'New preset',
+    'action.renamePreset': 'Rename preset',
     'action.createFirstPreset': 'Create first preset',
     'action.deletePreset': 'Delete preset',
     'action.syncInitVar': 'Sync to [initvar]',
@@ -348,6 +349,7 @@ const TRANSLATIONS = {
     'tooltip.copyEntries': 'Copy selected entries to another worldbook',
     'tooltip.syncInitVar': 'Copy the selected preset into the disabled [initvar] entry for local author testing',
     'tooltip.autoInjectInitVar': 'Author test mode: while the current chat is still at the opening, swiping openings writes the bound preset into the single disabled [initvar] entry',
+    'tooltip.renamePreset': 'Focus the preset name field',
     'field.title': 'Title',
     'field.content': 'Content',
     'field.keys': 'Keys',
@@ -594,6 +596,7 @@ const TRANSLATIONS = {
     'action.snapshot': '快照',
     'action.scanOpenings': '扫描',
     'action.newPreset': '新 preset',
+    'action.renamePreset': '改名 preset',
     'action.createFirstPreset': '新建第一个 preset',
     'action.deletePreset': '删除 preset',
     'action.syncInitVar': '同步到 [initvar]',
@@ -663,6 +666,7 @@ const TRANSLATIONS = {
     'tooltip.copyEntries': '把选中的条目复制到另一本世界书',
     'tooltip.syncInitVar': '把选中的 preset 复制到禁用的 [initvar] 条目，供作者本地测试',
     'tooltip.autoInjectInitVar': '作者测试模式：当前聊天仍在开场时，滑动开场会把绑定 preset 写进唯一禁用 [initvar] 条目',
+    'tooltip.renamePreset': '定位到 preset 名称输入框',
     'field.title': '标题（备忘）',
     'field.content': '内容',
     'field.keys': '主要关键字',
@@ -1533,10 +1537,13 @@ function ensureLocalWorkbench() {
               <div class="wbh-mvu-preset-layout">
                 <div id="wbh-mvu-presets" class="wbh-list"></div>
                 <div class="wbh-mvu-preset-editor">
-                  <label class="wbh-editor-field">
-                    <span data-wbh-i18n="field.presetName">${t('field.presetName')}</span>
+                  <div class="wbh-editor-field wbh-mvu-name-field">
+                    <div class="wbh-field-head">
+                      <span data-wbh-i18n="field.presetName">${t('field.presetName')}</span>
+                      <button id="wbh-mvu-rename-preset" type="button" title="${t('tooltip.renamePreset')}" data-wbh-i18n="action.renamePreset" data-wbh-i18n-title="tooltip.renamePreset">${t('action.renamePreset')}</button>
+                    </div>
                     <input id="wbh-mvu-preset-name" type="text" placeholder="${t('placeholder.mvuPresetName')}" data-wbh-i18n-placeholder="placeholder.mvuPresetName">
-                  </label>
+                  </div>
                   <label class="wbh-editor-field wbh-editor-field-wide">
                     <span data-wbh-i18n="field.initVarContent">${t('field.initVarContent')}</span>
                     <textarea id="wbh-mvu-preset-content" rows="16" placeholder="${t('placeholder.mvuPresetContent')}" data-wbh-i18n-placeholder="placeholder.mvuPresetContent"></textarea>
@@ -1652,6 +1659,7 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-mvu-new-preset').addEventListener('click', createMvuPreset);
   root.querySelector('#wbh-mvu-delete-preset').addEventListener('click', deleteActiveMvuPreset);
   root.querySelector('#wbh-mvu-sync-initvar').addEventListener('click', syncActiveMvuPresetToInitVar);
+  root.querySelector('#wbh-mvu-rename-preset').addEventListener('click', focusMvuPresetName);
   root.querySelector('#wbh-mvu-preset-name').addEventListener('input', event => updateActiveMvuPresetName(event.currentTarget.value));
   root.querySelector('#wbh-mvu-preset-name').addEventListener('blur', finishMvuInputHistory);
   root.querySelector('#wbh-mvu-preset-content').addEventListener('input', event => updateActiveMvuPresetContent(event.currentTarget.value));
@@ -3479,6 +3487,7 @@ function renderMvuPresetList(root, presets = getMvuPresetRecords(app.activeData)
       app.mvuActivePresetId = preset.id;
       renderMvuInitView();
     });
+    button.addEventListener('dblclick', focusMvuPresetName);
     return button;
   }));
 }
@@ -3486,11 +3495,20 @@ function renderMvuPresetList(root, presets = getMvuPresetRecords(app.activeData)
 function renderMvuPresetEditor(root, preset) {
   const name = root.querySelector('#wbh-mvu-preset-name');
   const content = root.querySelector('#wbh-mvu-preset-content');
+  const rename = root.querySelector('#wbh-mvu-rename-preset');
   const disabled = !preset;
   name.disabled = disabled;
   content.disabled = disabled;
+  if (rename) rename.disabled = disabled;
   if (document.activeElement !== name) name.value = preset ? mvuPresetName(preset) : '';
   if (document.activeElement !== content) content.value = preset?.entry?.content || '';
+}
+
+function focusMvuPresetName() {
+  const input = document.querySelector('#wbh-mvu-preset-name');
+  if (!input || input.disabled) return;
+  input.focus();
+  input.select();
 }
 
 function renderMvuAutoInjectState(root = document.querySelector('#wbh-workbench')) {
@@ -3833,7 +3851,7 @@ function collectMvuOpenings() {
     }));
   });
 
-  getCurrentChatOpeningSwipes().forEach((text, index) => {
+  getCurrentChatOpeningSwipes().forEach(({ text, index }) => {
     const hash = shortMvuHash(text);
     openings.push(createMvuOpening({
       id: `chat:opening_swipe:${index}:${hash}`,
@@ -3850,15 +3868,18 @@ function collectMvuOpenings() {
 }
 
 function createMvuOpening({ id, source, label, scopeLabel, index, text, characterName }) {
+  const clean = cleanText(text);
   return {
     id,
     source,
     label,
     scopeLabel,
     index,
-    text,
+    text: clean,
     characterName: characterName || '',
-    hash: shortMvuHash(text),
+    hash: shortMvuHash(clean),
+    normalizedHash: shortMvuHash(normalizeMvuOpeningText(clean)),
+    matchHashes: mvuOpeningMatchHashes(clean, characterName),
   };
 }
 
@@ -3896,6 +3917,10 @@ function currentCharacterName(character) {
   );
 }
 
+function currentUserName() {
+  return cleanText(stScript.name1 || window.name1 || window.SillyTavern?.name1);
+}
+
 function characterGreetingText(character, field) {
   return cleanText(character?.[field] ?? character?.data?.[field] ?? character?.json_data?.[field]);
 }
@@ -3921,9 +3946,12 @@ function getCurrentChatOpeningSwipes() {
   if (!chat) return [];
   const message = getOpeningChatMessage(chat)?.message;
   if (!message) return [];
-  const swipes = Array.isArray(message.swipes) ? message.swipes.map(cleanText).filter(Boolean) : [];
-  if (!swipes.length && cleanText(message.mes)) return [cleanText(message.mes)];
-  return swipes;
+  const swipes = Array.isArray(message.swipes) ? message.swipes.map(cleanText) : [];
+  const items = swipes
+    .map((text, index) => ({ text, index }))
+    .filter(item => item.text);
+  if (!items.length && cleanText(message.mes)) return [{ text: cleanText(message.mes), index: 0 }];
+  return items;
 }
 
 function getCurrentOpeningSwipeState() {
@@ -3933,22 +3961,43 @@ function getCurrentOpeningSwipeState() {
   if (!opening) return { openingStage: false };
 
   const swipes = Array.isArray(opening.message.swipes)
-    ? opening.message.swipes.map(cleanText).filter(Boolean)
+    ? opening.message.swipes.map(cleanText)
     : [];
   const currentText = cleanText(opening.message.mes);
+  const character = getCurrentCharacterCard();
+  const characterName = currentCharacterName(character);
   let swipeIndex = swipes.length ? currentSwipeIndex(opening.message, swipes.length) : -1;
-  if (swipeIndex < 0) swipeIndex = swipes.findIndex(text => text === currentText);
-  if (swipeIndex < 0) swipeIndex = 0;
-  const text = swipes[swipeIndex] || currentText;
-  if (!text) return { openingStage: true };
-  const hash = shortMvuHash(text);
+  const exactTextIndex = swipes.findIndex(text => text && text === currentText);
+  if (swipeIndex < 0) swipeIndex = exactTextIndex;
+
+  const candidates = [];
+  const addCandidate = (text, index) => {
+    const clean = cleanText(text);
+    if (!clean) return;
+    const hash = shortMvuHash(clean);
+    const safeIndex = Number.isFinite(Number(index)) ? Math.max(0, Math.trunc(Number(index))) : 0;
+    if (candidates.some(candidate => candidate.hash === hash && candidate.index === safeIndex)) return;
+    candidates.push({
+      id: `chat:opening_swipe:${safeIndex}:${hash}`,
+      source: 'chat_swipe',
+      index: safeIndex,
+      text: clean,
+      hash,
+      normalizedHash: shortMvuHash(normalizeMvuOpeningText(clean)),
+      matchHashes: mvuOpeningMatchHashes(clean, characterName),
+    });
+  };
+
+  if (swipeIndex >= 0) addCandidate(swipes[swipeIndex], swipeIndex);
+  if (exactTextIndex >= 0) addCandidate(currentText, exactTextIndex);
+  addCandidate(currentText, swipeIndex >= 0 ? swipeIndex : 0);
+
+  const primary = candidates[0];
+  if (!primary) return { openingStage: true };
   return {
     openingStage: true,
-    id: `chat:opening_swipe:${swipeIndex}:${hash}`,
-    source: 'chat_swipe',
-    index: swipeIndex,
-    text,
-    hash,
+    ...primary,
+    candidates,
   };
 }
 
@@ -3994,25 +4043,65 @@ function findMvuPresetForOpening(data, opening) {
   const map = readMvuMapData(data);
   const presets = getMvuPresetRecords(data);
   const presetById = new Map(presets.map(preset => [preset.id, preset]));
-  const direct = map.bindings?.[opening.id];
-  if (direct?.presetId && presetById.has(direct.presetId)) {
-    return { openingId: opening.id, binding: direct, preset: presetById.get(direct.presetId) };
+  const candidateIds = mvuOpeningCandidateIds(opening);
+  const candidateHashes = mvuOpeningCandidateHashes(opening);
+  for (const openingId of candidateIds) {
+    const direct = map.bindings?.[openingId];
+    if (direct?.presetId && presetById.has(direct.presetId)) {
+      return { openingId, binding: direct, preset: presetById.get(direct.presetId) };
+    }
   }
 
   for (const savedOpening of map.openings || []) {
-    if (!savedOpening?.hash || savedOpening.hash !== opening.hash) continue;
+    if (!mvuOpeningRecordMatches(savedOpening, candidateHashes)) continue;
     const binding = map.bindings?.[savedOpening.id];
     if (binding?.presetId && presetById.has(binding.presetId)) {
       return { openingId: savedOpening.id, binding, preset: presetById.get(binding.presetId) };
     }
   }
 
+  for (const scannedOpening of collectMvuOpenings()) {
+    if (!mvuOpeningRecordMatches(scannedOpening, candidateHashes)) continue;
+    const binding = map.bindings?.[scannedOpening.id];
+    if (binding?.presetId && presetById.has(binding.presetId)) {
+      return { openingId: scannedOpening.id, binding, preset: presetById.get(binding.presetId) };
+    }
+  }
+
   for (const [openingId, binding] of Object.entries(map.bindings || {})) {
-    if (binding?.hash !== opening.hash || !binding.presetId || !presetById.has(binding.presetId)) continue;
+    if (!mvuOpeningRecordMatches(binding, candidateHashes) || !binding.presetId || !presetById.has(binding.presetId)) continue;
     return { openingId, binding, preset: presetById.get(binding.presetId) };
   }
 
   return null;
+}
+
+function mvuOpeningCandidateIds(opening) {
+  return uniqueStrings([
+    opening?.id,
+    ...(Array.isArray(opening?.candidates) ? opening.candidates.map(candidate => candidate?.id) : []),
+  ]);
+}
+
+function mvuOpeningCandidateHashes(opening) {
+  const values = [
+    opening,
+    ...(Array.isArray(opening?.candidates) ? opening.candidates : []),
+  ];
+  return new Set(uniqueStrings(values.flatMap(mvuOpeningRecordHashes)));
+}
+
+function mvuOpeningRecordMatches(record, candidateHashes) {
+  if (!record || !candidateHashes?.size) return false;
+  return mvuOpeningRecordHashes(record).some(hash => candidateHashes.has(hash));
+}
+
+function mvuOpeningRecordHashes(record) {
+  return uniqueStrings([
+    record?.hash,
+    record?.normalizedHash,
+    ...(Array.isArray(record?.matchHashes) ? record.matchHashes : []),
+  ]);
 }
 
 function firstArrayValue(...values) {
@@ -4234,6 +4323,8 @@ function createMvuBinding(opening, presetId) {
     scopeLabel: opening.scopeLabel,
     characterName: opening.characterName,
     hash: opening.hash,
+    normalizedHash: opening.normalizedHash,
+    matchHashes: opening.matchHashes || [],
   };
 }
 
@@ -4246,6 +4337,8 @@ function mvuOpeningSnapshot(opening) {
     scopeLabel: opening.scopeLabel,
     characterName: opening.characterName,
     hash: opening.hash,
+    normalizedHash: opening.normalizedHash,
+    matchHashes: opening.matchHashes || [],
   };
 }
 
@@ -4279,7 +4372,11 @@ function normalizeMvuMapData(value) {
       : binding && typeof binding === 'object'
         ? { ...binding, presetId: cleanText(binding.presetId) }
         : null;
-    if (normalized?.presetId) out.bindings[openingId] = normalized;
+    if (normalized?.presetId) {
+      normalized.normalizedHash = cleanText(normalized.normalizedHash);
+      normalized.matchHashes = normalizeMvuHashList(normalized.matchHashes);
+      out.bindings[openingId] = normalized;
+    }
   }
   if (Array.isArray(value.openings)) {
     out.openings = value.openings
@@ -4292,10 +4389,16 @@ function normalizeMvuMapData(value) {
         scopeLabel: cleanText(item.scopeLabel),
         characterName: cleanText(item.characterName),
         hash: cleanText(item.hash),
+        normalizedHash: cleanText(item.normalizedHash),
+        matchHashes: normalizeMvuHashList(item.matchHashes),
       }));
   }
   if (value.updatedAt) out.updatedAt = cleanText(value.updatedAt);
   return out;
+}
+
+function normalizeMvuHashList(value) {
+  return uniqueStrings(Array.isArray(value) ? value : []);
 }
 
 function defaultMvuMapData() {
@@ -4376,6 +4479,38 @@ function shortMvuHash(value) {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0).toString(36);
+}
+
+function normalizeMvuOpeningText(value) {
+  return cleanText(value)
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t\f\v\u00a0\u3000]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function expandMvuGreetingMacros(value, characterName = '') {
+  let text = cleanText(value);
+  const charName = cleanText(characterName);
+  const userName = currentUserName();
+  if (charName) text = text.replace(/\{\{\s*char\s*\}\}/gi, charName).replace(/<BOT>/gi, charName);
+  if (userName) text = text.replace(/\{\{\s*user\s*\}\}/gi, userName).replace(/<USER>/gi, userName);
+  return text;
+}
+
+function mvuOpeningMatchHashes(value, characterName = '') {
+  const raw = cleanText(value);
+  const variants = [
+    raw,
+    normalizeMvuOpeningText(raw),
+    normalizeMvuOpeningText(expandMvuGreetingMacros(raw, characterName)),
+  ];
+  return uniqueStrings(variants.filter(Boolean).map(shortMvuHash));
+}
+
+function uniqueStrings(values) {
+  return [...new Set((values || []).map(cleanText).filter(Boolean))];
 }
 
 function setEditorDirty(dirty) {

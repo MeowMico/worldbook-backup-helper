@@ -767,6 +767,47 @@
   background: var(--wbh-surface-1);
 }
 
+.wbh-field-head {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wbh-field-head button {
+  min-height: 28px;
+  border: 1px solid var(--wbh-border);
+  border-radius: 6px;
+  padding: 0 9px;
+  background: var(--wbh-control-bg);
+  color: var(--wbh-control-text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
+}
+
+.wbh-field-head button:hover {
+  border-color: var(--wbh-accent);
+  color: var(--wbh-accent-strong);
+}
+
+.wbh-field-head button:focus-visible {
+  outline: 2px solid var(--wbh-focus);
+  outline-offset: 1px;
+}
+
+.wbh-field-head button:disabled,
+.wbh-field-head button:disabled:hover {
+  cursor: not-allowed;
+  border-color: var(--wbh-border);
+  background: var(--wbh-disabled-bg);
+  color: var(--wbh-disabled-text);
+  box-shadow: none;
+}
+
 .wbh-mvu-preset-editor .wbh-editor-field-wide {
   min-height: 0;
   flex: 1;
