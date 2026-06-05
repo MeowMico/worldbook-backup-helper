@@ -638,6 +638,34 @@
   font-size: 13px;
 }
 
+.wbh-mvu-inject-status {
+  min-height: 34px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--wbh-border);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.wbh-mvu-inject-status.info {
+  background: var(--wbh-accent-soft);
+  color: var(--wbh-accent-strong);
+}
+
+.wbh-mvu-inject-status.success {
+  background: var(--wbh-success-soft);
+  color: var(--wbh-success-text);
+}
+
+.wbh-mvu-inject-status.warning {
+  background: var(--wbh-warning-soft);
+  color: var(--wbh-warning-text);
+}
+
+.wbh-mvu-inject-status.error {
+  background: var(--wbh-danger-soft);
+  color: var(--wbh-danger-text);
+}
+
 .wbh-mvu-actions {
   display: flex;
   flex-wrap: wrap;

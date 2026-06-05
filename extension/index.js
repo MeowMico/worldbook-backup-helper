@@ -232,6 +232,8 @@ const TRANSLATIONS = {
     'status.mvuAutoInjectOpeningOnly': 'Auto inject waits for a 0-turn opening chat',
     'status.mvuAutoInjectNoBinding': 'No MVU preset binding for the current opening',
     'status.mvuAutoInjectSaveFirst': 'Save MVU mappings before auto injecting',
+    'status.mvuAutoInjectAlreadyCurrent': '[initvar] already matches {name}',
+    'status.mvuAutoInjectFailed': 'MVU auto inject failed',
     'theme.label': 'Theme',
     'theme.auto': 'Auto',
     'theme.light': 'Light',
@@ -545,6 +547,8 @@ const TRANSLATIONS = {
     'status.mvuAutoInjectOpeningOnly': '自动注入只等待 0 层开场聊天',
     'status.mvuAutoInjectNoBinding': '当前开场没有绑定 MVU preset',
     'status.mvuAutoInjectSaveFirst': '请先保存 MVU 映射，再自动注入',
+    'status.mvuAutoInjectAlreadyCurrent': '[initvar] 已经是 {name}',
+    'status.mvuAutoInjectFailed': 'MVU 自动注入失败',
     'theme.label': '主题',
     'theme.auto': '自动',
     'theme.light': '浅色',
@@ -872,6 +876,7 @@ const app = {
   mvuAutoInjectInFlight: false,
   mvuLastInjectSignature: '',
   mvuAutoInjectNoticeKey: '',
+  mvuInjectStatus: { type: '', message: '' },
   editorDirty: false,
   findQuery: '',
   replaceText: '',
@@ -1524,6 +1529,7 @@ function ensureLocalWorkbench() {
                   <button id="wbh-mvu-sync-initvar" type="button" title="${t('tooltip.syncInitVar')}" data-wbh-i18n="action.syncInitVar" data-wbh-i18n-title="tooltip.syncInitVar">${t('action.syncInitVar')}</button>
                 </div>
               </div>
+              <div id="wbh-mvu-inject-status" class="wbh-mvu-inject-status hidden"></div>
               <div class="wbh-mvu-preset-layout">
                 <div id="wbh-mvu-presets" class="wbh-list"></div>
                 <div class="wbh-mvu-preset-editor">
@@ -3375,6 +3381,7 @@ function renderMvuInitView() {
   root.querySelector('#wbh-mvu-delete-preset').disabled = !activePreset;
   root.querySelector('#wbh-mvu-sync-initvar').disabled = !activePreset;
   renderMvuAutoInjectState(root);
+  renderMvuInjectStatus(root);
   root.querySelector('#wbh-mvu-scan-meta').textContent = app.activeBook
     ? t('status.mvuScannedOpenings', { count: openings.length })
     : t('empty.noWorldbookSelected');
@@ -3494,6 +3501,20 @@ function renderMvuAutoInjectState(root = document.querySelector('#wbh-workbench'
   label.classList.toggle('active', app.mvuAutoInjectEnabled);
 }
 
+function renderMvuInjectStatus(root = document.querySelector('#wbh-workbench')) {
+  const box = root?.querySelector('#wbh-mvu-inject-status');
+  if (!box) return;
+  const message = app.mvuInjectStatus?.message || '';
+  box.className = `wbh-mvu-inject-status ${message ? app.mvuInjectStatus.type || 'info' : 'hidden'}`;
+  box.textContent = message;
+}
+
+function setMvuInjectStatus(type, message) {
+  app.mvuInjectStatus = { type, message };
+  renderMvuInjectStatus();
+  if (message) setStatus(message);
+}
+
 function setMvuAutoInjectEnabled(enabled) {
   app.mvuAutoInjectEnabled = Boolean(enabled);
   app.mvuLastInjectSignature = '';
@@ -3502,10 +3523,10 @@ function setMvuAutoInjectEnabled(enabled) {
   renderMvuAutoInjectState();
   if (app.mvuAutoInjectEnabled) {
     startMvuAutoInjectMonitor();
-    setStatus(t('status.mvuAutoInjectEnabled'));
+    setMvuInjectStatus('info', t('status.mvuAutoInjectEnabled'));
   } else {
     stopMvuAutoInjectMonitor();
-    setStatus(t('status.mvuAutoInjectDisabled'));
+    setMvuInjectStatus('info', t('status.mvuAutoInjectDisabled'));
   }
 }
 
@@ -3528,12 +3549,12 @@ async function maybeAutoInjectMvuInitVar() {
 
   const opening = getCurrentOpeningSwipeState();
   if (!opening?.openingStage) {
-    noticeMvuAutoInject('opening-only', t('status.mvuAutoInjectOpeningOnly'));
+    noticeMvuAutoInject('opening-only', 'warning', t('status.mvuAutoInjectOpeningOnly'));
     return;
   }
 
   if (app.editorDirty) {
-    noticeMvuAutoInject('save-first', t('status.mvuAutoInjectSaveFirst'));
+    noticeMvuAutoInject('save-first', 'warning', t('status.mvuAutoInjectSaveFirst'));
     return;
   }
 
@@ -3543,7 +3564,7 @@ async function maybeAutoInjectMvuInitVar() {
     const data = await loadWorldbook(name);
     const match = findMvuPresetForOpening(data, opening);
     if (!match) {
-      noticeMvuAutoInject(`no-binding:${opening.hash}`, t('status.mvuAutoInjectNoBinding'));
+      noticeMvuAutoInject(`no-binding:${opening.hash}`, 'error', t('status.mvuAutoInjectNoBinding'));
       app.mvuLastInjectSignature = '';
       return;
     }
@@ -3555,9 +3576,11 @@ async function maybeAutoInjectMvuInitVar() {
     const existingInitVar = getEntryRecords(data).find(record => cleanText(record.entry?.comment) === MVU_INITVAR_COMMENT);
     const existingExt = existingInitVar?.entry?.extensions?.[PLUGIN_EXTENSION_KEY] || null;
     const alreadyInjected = existingInitVar?.entry?.content === presetContent
-      && existingExt?.mvuInitVar?.sourcePresetId === match.preset.id;
+      && existingExt?.mvuInitVar?.sourcePresetId === match.preset.id
+      && existingExt?.mvuInitVar?.sourceOpeningId === match.openingId;
     if (alreadyInjected) {
       app.mvuLastInjectSignature = signature;
+      noticeMvuAutoInject(signature, 'success', t('status.mvuAutoInjectAlreadyCurrent', { name: mvuPresetDisplayName(match.preset) }));
       return;
     }
 
@@ -3601,18 +3624,19 @@ async function maybeAutoInjectMvuInitVar() {
 
     app.mvuLastInjectSignature = signature;
     app.mvuAutoInjectNoticeKey = '';
-    setStatus(t('status.mvuAutoInjected', { name: mvuPresetDisplayName(match.preset) }));
+    setMvuInjectStatus('success', t('status.mvuAutoInjected', { name: mvuPresetDisplayName(match.preset) }));
   } catch (error) {
     console.warn('[Worldbook Workbench] MVU auto inject failed.', error);
+    noticeMvuAutoInject('failed', 'error', t('status.mvuAutoInjectFailed'));
   } finally {
     app.mvuAutoInjectInFlight = false;
   }
 }
 
-function noticeMvuAutoInject(key, message) {
+function noticeMvuAutoInject(key, type, message) {
   if (app.mvuAutoInjectNoticeKey === key) return;
   app.mvuAutoInjectNoticeKey = key;
-  setStatus(message);
+  setMvuInjectStatus(type, message);
 }
 
 function createMvuPreset() {
@@ -3912,8 +3936,8 @@ function getCurrentOpeningSwipeState() {
     ? opening.message.swipes.map(cleanText).filter(Boolean)
     : [];
   const currentText = cleanText(opening.message.mes);
-  let swipeIndex = swipes.findIndex(text => text === currentText);
-  if (swipeIndex < 0 && swipes.length) swipeIndex = normalizeSwipeIndex(opening.message.swipe_id ?? opening.message.swipeId, swipes.length);
+  let swipeIndex = swipes.length ? currentSwipeIndex(opening.message, swipes.length) : -1;
+  if (swipeIndex < 0) swipeIndex = swipes.findIndex(text => text === currentText);
   if (swipeIndex < 0) swipeIndex = 0;
   const text = swipes[swipeIndex] || currentText;
   if (!text) return { openingStage: true };
@@ -3940,6 +3964,22 @@ function getOpeningChatMessage(chat) {
   const opening = assistantMessages[0];
   if (!cleanText(opening.message.mes) && !Array.isArray(opening.message.swipes)) return null;
   return opening;
+}
+
+function currentSwipeIndex(message, length) {
+  const candidates = [
+    message?.swipe_id,
+    message?.swipeId,
+    message?.swipe_index,
+    message?.swipeIndex,
+    message?.extra?.swipe_id,
+    message?.extra?.swipeId,
+  ];
+  for (const candidate of candidates) {
+    const number = Number(candidate);
+    if (Number.isFinite(number)) return normalizeSwipeIndex(number, length);
+  }
+  return -1;
 }
 
 function normalizeSwipeIndex(value, length) {
