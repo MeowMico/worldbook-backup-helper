@@ -94,7 +94,7 @@ The target worldbook gets before-copy and after-copy snapshots automatically, so
 
 The `MVU InitVar` tab scans the current character card `first_mes`, `alternate_greetings`, and the current chat opening swipes. You can create InitVar presets, bind each opening to a preset, and sync the selected preset into the disabled `[initvar]变量初始化勿开` entry for local author testing.
 
-For author-side testing, `Auto inject at opening` can be enabled while a new chat is still at the opening message. When you swipe to a bound opening, the workbench writes only the matched preset into the single disabled `[initvar]变量初始化勿开` worldbook entry and creates before/after history snapshots.
+For author-side testing, `Auto inject at opening` can be enabled while a new chat is still at the opening message. When you swipe to a bound opening, the workbench writes only the matched preset into the single disabled `[initvar]变量初始化勿开` worldbook entry and creates before/after history snapshots. If the MVU bundle has exposed `window.Mvu`, the workbench also asks MVU to reload InitVar data into the current opening swipe so authors can test the selected opening without sending a message.
 
 The workflow keeps only one visible disabled worldbook entry, `[initvar]变量初始化勿开`. Presets and the opening map are stored inside that entry's extension metadata so ordinary worldbook editors do not show extra `[MVU_INIT_PRESET:...]` or `[MVU_INIT_MAP]` entries. Older workbench data using those entries is migrated into the `[initvar]` metadata the next time the worldbook is saved through the workbench. This does not add player-side runtime behavior.
 

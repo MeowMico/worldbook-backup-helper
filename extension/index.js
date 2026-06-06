@@ -238,6 +238,10 @@ const TRANSLATIONS = {
     'status.mvuAutoInjectSaveFirst': 'Save MVU mappings before auto injecting',
     'status.mvuAutoInjectAlreadyCurrent': '[initvar] already matches {name}',
     'status.mvuAutoInjectFailed': 'MVU auto inject failed',
+    'status.mvuAutoInjectedAndReloaded': 'Injected {name} to [initvar] and refreshed MVU variables',
+    'status.mvuRuntimeUnavailable': 'Injected {name}, but the MVU script was not detected',
+    'status.mvuRuntimeNoUpdate': 'Injected {name}, but MVU did not load new InitVar data',
+    'status.mvuRuntimeReloadFailed': 'Injected {name}, but MVU variables could not be refreshed',
     'toast.mvuInitVar': 'Workbench MVU InitVar',
     'toast.dismiss': 'Dismiss notification',
     'theme.label': 'Theme',
@@ -560,6 +564,10 @@ const TRANSLATIONS = {
     'status.mvuAutoInjectSaveFirst': '请先保存 MVU 映射，再自动注入',
     'status.mvuAutoInjectAlreadyCurrent': '[initvar] 已经是 {name}',
     'status.mvuAutoInjectFailed': 'MVU 自动注入失败',
+    'status.mvuAutoInjectedAndReloaded': '已注入 {name} 到 [initvar]，并刷新 MVU 变量',
+    'status.mvuRuntimeUnavailable': '已注入 {name}，但没有检测到 MVU 脚本',
+    'status.mvuRuntimeNoUpdate': '已注入 {name}，但 MVU 没有加载新的 InitVar 数据',
+    'status.mvuRuntimeReloadFailed': '已注入 {name}，但刷新 MVU 变量失败',
     'toast.mvuInitVar': 'Workbench MVU InitVar',
     'toast.dismiss': '关闭通知',
     'theme.label': '主题',
@@ -3721,8 +3729,10 @@ async function maybeAutoInjectMvuInitVar() {
       && existingExt?.mvuInitVar?.sourcePresetId === match.preset.id
       && existingExt?.mvuInitVar?.sourceOpeningId === match.openingId;
     if (alreadyInjected) {
+      const runtimeStatus = await refreshMvuRuntimeAfterInitVarInject(name, opening);
       app.mvuLastInjectSignature = signature;
-      noticeMvuAutoInject(signature, 'success', t('status.mvuAutoInjectAlreadyCurrent', { name: mvuPresetDisplayName(match.preset) }));
+      app.mvuAutoInjectNoticeKey = '';
+      reportMvuInjectOutcome(match.preset, runtimeStatus, { alreadyCurrent: true });
       return;
     }
 
@@ -3766,13 +3776,91 @@ async function maybeAutoInjectMvuInitVar() {
 
     app.mvuLastInjectSignature = signature;
     app.mvuAutoInjectNoticeKey = '';
-    setMvuInjectStatus('success', t('status.mvuAutoInjected', { name: mvuPresetDisplayName(match.preset) }), { toast: true });
+    const runtimeStatus = await refreshMvuRuntimeAfterInitVarInject(name, opening);
+    reportMvuInjectOutcome(match.preset, runtimeStatus);
   } catch (error) {
     console.warn('[Worldbook Workbench] MVU auto inject failed.', error);
     noticeMvuAutoInject('failed', 'error', t('status.mvuAutoInjectFailed'));
   } finally {
     app.mvuAutoInjectInFlight = false;
   }
+}
+
+async function refreshMvuRuntimeAfterInitVarInject(bookName, opening) {
+  const runtime = getMvuRuntime();
+  if (!runtime
+    || typeof runtime.getMvuData !== 'function'
+    || typeof runtime.replaceMvuData !== 'function'
+    || typeof runtime.reloadInitVar !== 'function') {
+    return 'unavailable';
+  }
+  if (!opening?.openingStage) return 'skipped';
+
+  try {
+    const current = runtime.getMvuData({ type: 'message', message_id: 0 });
+    const next = normalizeMvuRuntimeData(current);
+    next.initialized_lorebooks = {};
+    next.stat_data = {};
+    next.display_data = {};
+    next.delta_data = {};
+    next.schema = { type: 'object', properties: {} };
+
+    const loaded = await runtime.reloadInitVar(next);
+    if (!loaded || !firstObjectValue(next.stat_data)) return 'no-update';
+
+    await runtime.replaceMvuData(next, { type: 'message', message_id: 0 });
+    await emitMvuVariableInitialized(runtime, next, opening.index);
+    return 'reloaded';
+  } catch (error) {
+    console.warn('[Worldbook Workbench] MVU runtime refresh failed.', { bookName, error });
+    return 'failed';
+  }
+}
+
+function getMvuRuntime() {
+  try {
+    return firstObjectValue(window.Mvu, window.parent?.Mvu, window.SillyTavern?.Mvu);
+  } catch {
+    return firstObjectValue(window.Mvu, window.SillyTavern?.Mvu);
+  }
+}
+
+function normalizeMvuRuntimeData(value) {
+  const data = firstObjectValue(cloneValue(value)) || {};
+  if (!firstObjectValue(data.initialized_lorebooks) || Array.isArray(data.initialized_lorebooks)) data.initialized_lorebooks = {};
+  if (!firstObjectValue(data.stat_data)) data.stat_data = {};
+  if (!firstObjectValue(data.display_data)) data.display_data = {};
+  if (!firstObjectValue(data.delta_data)) data.delta_data = {};
+  if (!firstObjectValue(data.schema)) data.schema = { type: 'object', properties: {} };
+  return data;
+}
+
+async function emitMvuVariableInitialized(runtime, data, swipeIndex) {
+  const eventName = cleanText(runtime?.events?.VARIABLE_INITIALIZED || 'mag_variable_initialized');
+  const eventSource = firstObjectValue(stScript.eventSource, window.eventSource, window.SillyTavern?.eventSource);
+  if (!eventName || typeof eventSource?.emit !== 'function') return;
+  await eventSource.emit(eventName, data, Number.isFinite(Number(swipeIndex)) ? Number(swipeIndex) : 0);
+}
+
+function reportMvuInjectOutcome(preset, runtimeStatus, { alreadyCurrent = false } = {}) {
+  const name = mvuPresetDisplayName(preset);
+  if (runtimeStatus === 'reloaded') {
+    setMvuInjectStatus('success', t('status.mvuAutoInjectedAndReloaded', { name }), { toast: true });
+    return;
+  }
+  if (runtimeStatus === 'unavailable') {
+    setMvuInjectStatus('warning', t('status.mvuRuntimeUnavailable', { name }), { toast: true });
+    return;
+  }
+  if (runtimeStatus === 'no-update') {
+    setMvuInjectStatus('warning', t('status.mvuRuntimeNoUpdate', { name }), { toast: true });
+    return;
+  }
+  if (runtimeStatus === 'failed') {
+    setMvuInjectStatus('warning', t('status.mvuRuntimeReloadFailed', { name }), { toast: true });
+    return;
+  }
+  setMvuInjectStatus('success', t(alreadyCurrent ? 'status.mvuAutoInjectAlreadyCurrent' : 'status.mvuAutoInjected', { name }), { toast: true });
 }
 
 function noticeMvuAutoInject(key, type, message) {

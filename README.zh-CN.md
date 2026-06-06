@@ -94,7 +94,7 @@ https://github.com/MeowMico/worldbook-backup-helper
 
 `MVU InitVar` 页会扫描当前角色卡的 `first_mes`、`alternate_greetings`，以及当前聊天开场 swipes。你可以创建 InitVar preset，给每个开场绑定 preset，并把选中的 preset 同步进禁用的 `[initvar]变量初始化勿开` 条目，供作者本地测试。
 
-作者本地测试时，可以开启 `开场自动注入`。当前聊天仍停在开场消息、还没有用户消息时，滑到已绑定的开场后，工作台会只把匹配的 preset 写进唯一禁用的 `[initvar]变量初始化勿开` 世界书条目，并生成写入前/写入后的历史快照。
+作者本地测试时，可以开启 `开场自动注入`。当前聊天仍停在开场消息、还没有用户消息时，滑到已绑定的开场后，工作台会只把匹配的 preset 写进唯一禁用的 `[initvar]变量初始化勿开` 世界书条目，并生成写入前/写入后的历史快照。如果 MVU bundle 已经暴露 `window.Mvu`，工作台还会请求 MVU 把 InitVar 重新加载进当前开场 swipe，方便作者不发消息也能测试当前开场。
 
 这个工作流只会保留一个可见的禁用世界书条目：`[initvar]变量初始化勿开`。Preset 和开场映射会存进这个条目的扩展元数据里，所以普通世界书编辑器里不会再显示额外的 `[MVU_INIT_PRESET:...]` 或 `[MVU_INIT_MAP]` 条目。旧版工作台已经生成的这些条目，会在下次通过工作台保存时迁移进 `[initvar]` 元数据。它不会添加玩家端 runtime。
 
