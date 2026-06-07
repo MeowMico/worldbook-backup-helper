@@ -96,7 +96,9 @@ The `MVU InitVar` tab scans the current character card `first_mes`, `alternate_g
 
 For author-side testing, `Auto inject at opening` can be enabled while a new chat is still at the opening message. When you swipe to a bound opening, the workbench writes only the matched preset into the single disabled `[initvar]变量初始化勿开` worldbook entry and creates before/after history snapshots. If the MVU bundle has exposed `window.Mvu`, the workbench also asks MVU to reload InitVar data into the current opening swipe so authors can test the selected opening without sending a message.
 
-The workflow keeps only one visible disabled worldbook entry, `[initvar]变量初始化勿开`. Presets and the opening map are stored inside that entry's extension metadata so ordinary worldbook editors do not show extra `[MVU_INIT_PRESET:...]` or `[MVU_INIT_MAP]` entries. Older workbench data using those entries is migrated into the `[initvar]` metadata the next time the worldbook is saved through the workbench. This does not add player-side runtime behavior.
+For shareable cards, use `Copy player script` after your presets and opening bindings are ready. It copies a standalone JS-Slash-Runner/Tavern Helper character script with the preset map embedded. Paste it into the character script library so it exports with the card. On the player side, the script runs only at the opening message, watches the selected swipe, maintains the disabled `[initvar]变量初始化勿开` entry in the current character worldbook, and asks MVU to reload the selected preset into the current opening swipe.
+
+The workflow keeps only one visible disabled worldbook entry, `[initvar]变量初始化勿开`. Presets and the opening map are stored inside that entry's extension metadata so ordinary worldbook editors do not show extra `[MVU_INIT_PRESET:...]` or `[MVU_INIT_MAP]` entries. Older workbench data using those entries is migrated into the `[initvar]` metadata the next time the worldbook is saved through the workbench. The workbench remains an author-side tool; the copied character script is the optional player-side runtime.
 
 ## Experiments
 

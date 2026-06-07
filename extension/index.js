@@ -242,6 +242,10 @@ const TRANSLATIONS = {
     'status.mvuRuntimeUnavailable': 'Injected {name}, but the MVU script was not detected',
     'status.mvuRuntimeNoUpdate': 'Injected {name}, but MVU did not load new InitVar data',
     'status.mvuRuntimeReloadFailed': 'Injected {name}, but MVU variables could not be refreshed',
+    'status.mvuPlayerScriptCopied': 'Player-side MVU opening script copied',
+    'status.mvuPlayerScriptDownloaded': 'Clipboard was unavailable; player-side script downloaded',
+    'status.mvuPlayerScriptNoData': 'Create at least one non-empty MVU preset binding before copying the player script',
+    'status.mvuPlayerScriptCopyFailed': 'Player-side script copy failed',
     'toast.mvuInitVar': 'Workbench MVU InitVar',
     'toast.dismiss': 'Dismiss notification',
     'theme.label': 'Theme',
@@ -294,6 +298,7 @@ const TRANSLATIONS = {
     'action.deletePreset': 'Delete preset',
     'action.syncInitVar': 'Sync to [initvar]',
     'action.autoInjectInitVar': 'Auto inject at opening',
+    'action.copyMvuPlayerScript': 'Copy player script',
     'action.current': 'Current',
     'action.previous': 'Previous',
     'action.prev': 'Prev',
@@ -359,6 +364,7 @@ const TRANSLATIONS = {
     'tooltip.copyEntries': 'Copy selected entries to another worldbook',
     'tooltip.syncInitVar': 'Copy the selected preset into the disabled [initvar] entry for local author testing',
     'tooltip.autoInjectInitVar': 'Author test mode: while the current chat is still at the opening, swiping openings writes the bound preset into the single disabled [initvar] entry',
+    'tooltip.copyMvuPlayerScript': 'Copy a JS-Slash-Runner character script that switches MVU InitVar presets when players swipe openings',
     'tooltip.renamePreset': 'Focus the preset name field',
     'field.title': 'Title',
     'field.content': 'Content',
@@ -568,6 +574,10 @@ const TRANSLATIONS = {
     'status.mvuRuntimeUnavailable': '已注入 {name}，但没有检测到 MVU 脚本',
     'status.mvuRuntimeNoUpdate': '已注入 {name}，但 MVU 没有加载新的 InitVar 数据',
     'status.mvuRuntimeReloadFailed': '已注入 {name}，但刷新 MVU 变量失败',
+    'status.mvuPlayerScriptCopied': '玩家端 MVU 开场脚本已复制',
+    'status.mvuPlayerScriptDownloaded': '剪贴板不可用，已下载玩家端脚本',
+    'status.mvuPlayerScriptNoData': '请先创建至少一个有内容的 MVU preset 绑定，再复制玩家脚本',
+    'status.mvuPlayerScriptCopyFailed': '玩家端脚本复制失败',
     'toast.mvuInitVar': 'Workbench MVU InitVar',
     'toast.dismiss': '关闭通知',
     'theme.label': '主题',
@@ -620,6 +630,7 @@ const TRANSLATIONS = {
     'action.deletePreset': '删除 preset',
     'action.syncInitVar': '同步到 [initvar]',
     'action.autoInjectInitVar': '开场自动注入',
+    'action.copyMvuPlayerScript': '复制玩家脚本',
     'action.current': '当前',
     'action.previous': '上一版',
     'action.prev': '上一个',
@@ -685,6 +696,7 @@ const TRANSLATIONS = {
     'tooltip.copyEntries': '把选中的条目复制到另一本世界书',
     'tooltip.syncInitVar': '把选中的 preset 复制到禁用的 [initvar] 条目，供作者本地测试',
     'tooltip.autoInjectInitVar': '作者测试模式：当前聊天仍在开场时，滑动开场会把绑定 preset 写进唯一禁用 [initvar] 条目',
+    'tooltip.copyMvuPlayerScript': '复制一个酒馆助手角色脚本，让玩家滑动开场时自动切换 MVU InitVar preset',
     'tooltip.renamePreset': '定位到 preset 名称输入框',
     'field.title': '标题（备忘）',
     'field.content': '内容',
@@ -1555,6 +1567,7 @@ function ensureLocalWorkbench() {
                   <button id="wbh-mvu-new-preset" class="wbh-primary-action" type="button" data-wbh-i18n="action.newPreset">${t('action.newPreset')}</button>
                   <button id="wbh-mvu-delete-preset" type="button" class="danger" data-wbh-i18n="action.deletePreset">${t('action.deletePreset')}</button>
                   <button id="wbh-mvu-sync-initvar" type="button" title="${t('tooltip.syncInitVar')}" data-wbh-i18n="action.syncInitVar" data-wbh-i18n-title="tooltip.syncInitVar">${t('action.syncInitVar')}</button>
+                  <button id="wbh-mvu-copy-player-script" type="button" title="${t('tooltip.copyMvuPlayerScript')}" data-wbh-i18n="action.copyMvuPlayerScript" data-wbh-i18n-title="tooltip.copyMvuPlayerScript">${t('action.copyMvuPlayerScript')}</button>
                 </div>
               </div>
               <div id="wbh-mvu-inject-status" class="wbh-mvu-inject-status hidden"></div>
@@ -1686,6 +1699,7 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-mvu-new-preset').addEventListener('click', createMvuPreset);
   root.querySelector('#wbh-mvu-delete-preset').addEventListener('click', deleteActiveMvuPreset);
   root.querySelector('#wbh-mvu-sync-initvar').addEventListener('click', syncActiveMvuPresetToInitVar);
+  root.querySelector('#wbh-mvu-copy-player-script').addEventListener('click', copyMvuPlayerScript);
   root.querySelector('#wbh-mvu-rename-preset').addEventListener('click', focusMvuPresetName);
   root.querySelector('#wbh-mvu-preset-name').addEventListener('input', event => updateActiveMvuPresetName(event.currentTarget.value));
   root.querySelector('#wbh-mvu-preset-name').addEventListener('blur', finishMvuInputHistory);
@@ -3485,6 +3499,7 @@ function renderMvuInitView() {
   root.querySelector('#wbh-mvu-new-preset').disabled = !app.activeBook || !app.activeData;
   root.querySelector('#wbh-mvu-delete-preset').disabled = !activePreset;
   root.querySelector('#wbh-mvu-sync-initvar').disabled = !activePreset;
+  root.querySelector('#wbh-mvu-copy-player-script').disabled = !canCreateMvuPlayerScript(app.activeData);
   renderMvuAutoInjectState(root);
   renderMvuInjectStatus(root);
   root.querySelector('#wbh-mvu-scan-meta').textContent = app.activeBook
@@ -4048,6 +4063,499 @@ function syncActiveMvuPresetToInitVar() {
     };
   });
   setStatus(t('status.mvuSyncedInitVar'));
+}
+
+async function copyMvuPlayerScript() {
+  const payload = createMvuPlayerScriptPayload(app.activeBook?.name, app.activeData);
+  if (!mvuPlayerScriptHasUsableData(payload)) {
+    setMvuInjectStatus('warning', t('status.mvuPlayerScriptNoData'), { toast: true });
+    return;
+  }
+
+  const script = buildMvuPlayerScript(payload);
+  try {
+    await copyTextToClipboard(script);
+    setMvuInjectStatus('success', t('status.mvuPlayerScriptCopied'), { toast: true });
+  } catch (error) {
+    console.warn('[Worldbook Workbench] Player-side MVU script copy failed; downloading instead.', error);
+    try {
+      downloadText(`${safeFileName(payload.sourceWorldbookName || 'mvu-initvar')}-player-script.js`, script, 'text/javascript');
+      setMvuInjectStatus('warning', t('status.mvuPlayerScriptDownloaded'), { toast: true });
+    } catch (downloadError) {
+      console.warn('[Worldbook Workbench] Player-side MVU script download failed.', downloadError);
+      setMvuInjectStatus('error', t('status.mvuPlayerScriptCopyFailed'), { toast: true });
+    }
+  }
+}
+
+function canCreateMvuPlayerScript(data) {
+  return mvuPlayerScriptHasUsableData(createMvuPlayerScriptPayload(app.activeBook?.name, data));
+}
+
+function mvuPlayerScriptHasUsableData(payload) {
+  if (!payload?.presets?.length) return false;
+  const presetIds = new Set(payload.presets.map(preset => preset.id));
+  return Object.values(payload.map?.bindings || {}).some(binding => presetIds.has(binding?.presetId));
+}
+
+function createMvuPlayerScriptPayload(bookName, data) {
+  if (!data) return null;
+  const presets = getMvuPresetRecords(data)
+    .map(preset => ({
+      id: preset.id,
+      name: mvuPresetDisplayName(preset),
+      content: preset.entry?.content || '',
+    }))
+    .filter(preset => preset.id && cleanText(preset.content));
+  const presetIds = new Set(presets.map(preset => preset.id));
+  const map = normalizeMvuMapData(readMvuMapData(data));
+  map.bindings = Object.fromEntries(
+    Object.entries(map.bindings || {}).filter(([, binding]) => presetIds.has(binding?.presetId)),
+  );
+  map.openings = (map.openings || []).filter(opening => {
+    const binding = map.bindings?.[opening.id];
+    return Boolean(binding?.presetId && presetIds.has(binding.presetId));
+  });
+  return {
+    type: 'worldbook-backup-helper.mvu-player-script',
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    sourceWorldbookName: cleanText(bookName),
+    initVarComment: MVU_INITVAR_COMMENT,
+    disabledOrder: MVU_DISABLED_ORDER,
+    autoImportMvuBundle: true,
+    mvuBundleUrl: 'https://testingcf.jsdelivr.net/gh/MagicalAstrogy/MagVarUpdate/artifact/bundle.js',
+    notifySuccess: true,
+    presets,
+    map,
+  };
+}
+
+function buildMvuPlayerScript(payload) {
+  const json = JSON.stringify(sortValue(payload), null, 2).replace(/<\/script/gi, '<\\/script');
+  return `// Worldbook Workbench MVU InitVar opening switcher
+// Paste this into JS-Slash-Runner / Tavern Helper as a character script.
+// It runs only while the chat is still at the 0-turn opening message.
+(async () => {
+  'use strict';
+
+  const CONFIG = ${json};
+  const state = {
+    timer: 0,
+    inFlight: false,
+    lastSignature: '',
+    lastNotice: '',
+  };
+
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const cleanText = value => String(value ?? '').trim();
+  const firstObjectValue = (...values) => values.find(value => value && typeof value === 'object' && !Array.isArray(value)) || null;
+  const uniqueStrings = values => [...new Set((values || []).map(cleanText).filter(Boolean))];
+  const cloneValue = value => typeof structuredClone === 'function' ? structuredClone(value) : JSON.parse(JSON.stringify(value ?? {}));
+
+  function shortHash(value) {
+    let hash = 2166136261;
+    const text = String(value || '');
+    for (let index = 0; index < text.length; index++) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+  }
+
+  function normalizeOpeningText(value) {
+    return cleanText(value)
+      .replace(/[\\u200B-\\u200D\\uFEFF]/g, '')
+      .replace(/\\r\\n?/g, '\\n')
+      .replace(/[ \\t\\f\\v\\u00a0\\u3000]+/g, ' ')
+      .replace(/\\s+/g, ' ')
+      .trim();
+  }
+
+  function macroValue(macro) {
+    try {
+      if (typeof substitudeMacros === 'function') return cleanText(substitudeMacros('{{' + macro + '}}'));
+    } catch (_error) {
+      /* ignore */
+    }
+    return '';
+  }
+
+  function currentCharacterNameSafe() {
+    try {
+      if (typeof getCurrentCharacterName === 'function') return cleanText(getCurrentCharacterName());
+    } catch (_error) {
+      /* ignore */
+    }
+    return macroValue('char');
+  }
+
+  function currentUserNameSafe() {
+    return macroValue('user');
+  }
+
+  function expandGreetingMacros(value, characterName = '') {
+    let text = cleanText(value);
+    const charName = cleanText(characterName || currentCharacterNameSafe());
+    const userName = currentUserNameSafe();
+    if (charName) text = text.replace(/\\{\\{\\s*char\\s*\\}\\}/gi, charName).replace(/<BOT>/gi, charName);
+    if (userName) text = text.replace(/\\{\\{\\s*user\\s*\\}\\}/gi, userName).replace(/<USER>/gi, userName);
+    return text;
+  }
+
+  function openingMatchHashes(value, characterName = '') {
+    const raw = cleanText(value);
+    const variants = [
+      raw,
+      normalizeOpeningText(raw),
+      normalizeOpeningText(expandGreetingMacros(raw, characterName)),
+    ];
+    return uniqueStrings(variants.filter(Boolean).map(shortHash));
+  }
+
+  function normalizeSwipeIndex(value, length) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return 0;
+    if (number >= 0 && number < length) return Math.trunc(number);
+    return Math.max(0, Math.min(Math.max(0, length - 1), Math.trunc(number)));
+  }
+
+  function addOpeningCandidate(candidates, text, index, characterName) {
+    const clean = cleanText(text);
+    if (!clean) return;
+    const safeIndex = Number.isFinite(Number(index)) ? Math.max(0, Math.trunc(Number(index))) : 0;
+    const hash = shortHash(clean);
+    if (candidates.some(candidate => candidate.hash === hash && candidate.index === safeIndex)) return;
+    candidates.push({
+      id: 'chat:opening_swipe:' + safeIndex + ':' + hash,
+      source: 'chat_swipe',
+      index: safeIndex,
+      text: clean,
+      hash,
+      normalizedHash: shortHash(normalizeOpeningText(clean)),
+      matchHashes: openingMatchHashes(clean, characterName),
+    });
+  }
+
+  function getCurrentOpening() {
+    try {
+      if (typeof getLastMessageId === 'function' && getLastMessageId() !== 0) return null;
+      if (typeof getChatMessages !== 'function') return null;
+      const message = (getChatMessages(0, { include_swipes: true }) || [])[0];
+      if (!message) return null;
+
+      const swipes = Array.isArray(message.swipes) ? message.swipes.map(cleanText) : [];
+      const currentText = cleanText(message.message || message.mes);
+      const characterName = currentCharacterNameSafe();
+      const swipeIndex = swipes.length ? normalizeSwipeIndex(message.swipe_id ?? message.swipeId, swipes.length) : -1;
+      const exactTextIndex = swipes.findIndex(text => text && text === currentText);
+      const candidates = [];
+
+      if (swipeIndex >= 0) addOpeningCandidate(candidates, swipes[swipeIndex], swipeIndex, characterName);
+      if (exactTextIndex >= 0) addOpeningCandidate(candidates, currentText, exactTextIndex, characterName);
+      addOpeningCandidate(candidates, currentText || swipes[0], swipeIndex >= 0 ? swipeIndex : 0, characterName);
+
+      const primary = candidates[0];
+      return primary ? { ...primary, candidates } : null;
+    } catch (error) {
+      console.warn('[WBH MVU InitVar] Failed to inspect current opening.', error);
+      return null;
+    }
+  }
+
+  function recordHashes(record) {
+    return uniqueStrings([
+      record?.hash,
+      record?.normalizedHash,
+      ...(Array.isArray(record?.matchHashes) ? record.matchHashes : []),
+    ]);
+  }
+
+  function candidateIds(opening) {
+    return uniqueStrings([
+      opening?.id,
+      ...(Array.isArray(opening?.candidates) ? opening.candidates.map(candidate => candidate?.id) : []),
+    ]);
+  }
+
+  function candidateHashes(opening) {
+    const values = [
+      opening,
+      ...(Array.isArray(opening?.candidates) ? opening.candidates : []),
+    ];
+    return new Set(uniqueStrings(values.flatMap(recordHashes)));
+  }
+
+  function recordMatches(record, hashes) {
+    if (!record || !hashes?.size) return false;
+    return recordHashes(record).some(hash => hashes.has(hash));
+  }
+
+  function parseOpeningId(id) {
+    const text = cleanText(id);
+    if (!text) return { source: '', index: 0 };
+    if (text.includes(':first_mes')) return { source: 'first_mes', index: 0 };
+    const alternate = text.match(/:alternate_greetings:(\\d+)$/);
+    if (alternate) return { source: 'alternate_greetings', index: Number(alternate[1]) };
+    const chat = text.match(/^chat:opening_swipe:(\\d+):/);
+    if (chat) return { source: 'chat_swipe', index: Number(chat[1]) };
+    return { source: '', index: 0 };
+  }
+
+  function normalizeIndexInfo(record) {
+    const parsed = parseOpeningId(record?.id);
+    return {
+      source: cleanText(record?.source || parsed.source),
+      index: Number.isFinite(Number(record?.index)) ? Number(record.index) : parsed.index,
+    };
+  }
+
+  function indexMatches(record, opening) {
+    const left = normalizeIndexInfo(record);
+    const right = normalizeIndexInfo(opening);
+    if (!left.source || !right.source) return false;
+    if (left.source === right.source && left.index === right.index) return true;
+    if (right.source === 'chat_swipe' && left.source === 'first_mes') return right.index === 0;
+    if (right.source === 'chat_swipe' && left.source === 'alternate_greetings') return right.index === left.index + 1;
+    if (left.source === 'chat_swipe' && right.source === 'first_mes') return left.index === 0;
+    if (left.source === 'chat_swipe' && right.source === 'alternate_greetings') return left.index === right.index + 1;
+    return false;
+  }
+
+  function openingRecordFromBinding(id, binding) {
+    const parsed = parseOpeningId(id);
+    return {
+      id,
+      source: cleanText(binding?.source || parsed.source),
+      index: Number.isFinite(Number(binding?.index)) ? Number(binding.index) : parsed.index,
+      hash: cleanText(binding?.hash),
+      normalizedHash: cleanText(binding?.normalizedHash),
+      matchHashes: Array.isArray(binding?.matchHashes) ? binding.matchHashes : [],
+    };
+  }
+
+  function findPresetForOpening(opening) {
+    const presets = new Map((CONFIG.presets || []).map(preset => [preset.id, preset]));
+    const hasPreset = binding => binding?.presetId && presets.has(binding.presetId);
+    const map = CONFIG.map || {};
+
+    for (const id of candidateIds(opening)) {
+      const binding = map.bindings?.[id];
+      if (hasPreset(binding)) return { openingId: id, binding, preset: presets.get(binding.presetId) };
+    }
+
+    const hashes = candidateHashes(opening);
+    for (const savedOpening of map.openings || []) {
+      if (!recordMatches(savedOpening, hashes)) continue;
+      const binding = map.bindings?.[savedOpening.id];
+      if (hasPreset(binding)) return { openingId: savedOpening.id, binding, preset: presets.get(binding.presetId) };
+    }
+
+    for (const [openingId, binding] of Object.entries(map.bindings || {})) {
+      if (!recordMatches(binding, hashes) || !hasPreset(binding)) continue;
+      return { openingId, binding, preset: presets.get(binding.presetId) };
+    }
+
+    for (const savedOpening of map.openings || []) {
+      if (!indexMatches(savedOpening, opening)) continue;
+      const binding = map.bindings?.[savedOpening.id];
+      if (hasPreset(binding)) return { openingId: savedOpening.id, binding, preset: presets.get(binding.presetId) };
+    }
+
+    for (const [openingId, binding] of Object.entries(map.bindings || {})) {
+      const record = openingRecordFromBinding(openingId, binding);
+      if (!indexMatches(record, opening) || !hasPreset(binding)) continue;
+      return { openingId, binding, preset: presets.get(binding.presetId) };
+    }
+
+    return null;
+  }
+
+  function getTargetWorldbookName() {
+    try {
+      if (typeof getCharWorldbookNames === 'function') {
+        const books = getCharWorldbookNames('current');
+        if (cleanText(books?.primary)) return cleanText(books.primary);
+        if (Array.isArray(books?.additional) && cleanText(books.additional[0])) return cleanText(books.additional[0]);
+      }
+    } catch (_error) {
+      /* ignore */
+    }
+    try {
+      const names = typeof getWorldbookNames === 'function' ? getWorldbookNames() : [];
+      if (CONFIG.sourceWorldbookName && names.includes(CONFIG.sourceWorldbookName)) return CONFIG.sourceWorldbookName;
+    } catch (_error) {
+      /* ignore */
+    }
+    return '';
+  }
+
+  function initVarEntryPatch(content) {
+    return {
+      comment: CONFIG.initVarComment || '[initvar]变量初始化勿开',
+      enabled: false,
+      type: 'selective',
+      position: 'before_character_definition',
+      depth: null,
+      order: Number(CONFIG.disabledOrder) || 9000,
+      probability: 100,
+      keys: [],
+      filters: [],
+      content,
+    };
+  }
+
+  async function ensureInitVarEntry(content) {
+    const worldbookName = getTargetWorldbookName();
+    if (!worldbookName) throw new Error('No primary character worldbook is bound.');
+    if (typeof getLorebookEntries !== 'function' || typeof setLorebookEntries !== 'function' || typeof createLorebookEntries !== 'function') {
+      throw new Error('JS-Slash-Runner lorebook APIs are unavailable.');
+    }
+
+    const entries = await getLorebookEntries(worldbookName);
+    const matches = (entries || []).filter(entry => cleanText(entry?.comment) === (CONFIG.initVarComment || '[initvar]变量初始化勿开'));
+    if (!matches.length) {
+      await createLorebookEntries(worldbookName, [initVarEntryPatch(content)]);
+      return worldbookName;
+    }
+
+    const primary = matches[0];
+    const patch = { uid: primary.uid, ...initVarEntryPatch(content) };
+    const alreadyCurrent = cleanText(primary.comment) === patch.comment
+      && primary.enabled === false
+      && primary.content === content
+      && Number(primary.order) === patch.order;
+    if (!alreadyCurrent) await setLorebookEntries(worldbookName, [patch]);
+
+    if (matches.length > 1 && typeof deleteLorebookEntries === 'function') {
+      await deleteLorebookEntries(worldbookName, matches.slice(1).map(entry => entry.uid));
+    }
+    return worldbookName;
+  }
+
+  function getMvuRuntime() {
+    try {
+      return firstObjectValue(globalThis.Mvu, window.Mvu, window.parent?.Mvu);
+    } catch (_error) {
+      return firstObjectValue(globalThis.Mvu, window.Mvu);
+    }
+  }
+
+  async function ensureMvuRuntime() {
+    let runtime = getMvuRuntime();
+    if (runtime) return runtime;
+
+    if (CONFIG.autoImportMvuBundle !== false && CONFIG.mvuBundleUrl) {
+      try {
+        await import(CONFIG.mvuBundleUrl);
+      } catch (error) {
+        console.warn('[WBH MVU InitVar] Failed to import MVU bundle.', error);
+      }
+    }
+
+    for (let i = 0; i < 30; i++) {
+      runtime = getMvuRuntime();
+      if (runtime) return runtime;
+      await sleep(200);
+    }
+    return null;
+  }
+
+  function normalizeMvuData(value) {
+    const data = firstObjectValue(cloneValue(value)) || {};
+    data.initialized_lorebooks = {};
+    data.stat_data = {};
+    data.display_data = {};
+    data.delta_data = {};
+    data.schema = { type: 'object', properties: {} };
+    return data;
+  }
+
+  async function emitMvuInitialized(runtime, data, swipeIndex) {
+    const eventName = cleanText(runtime?.events?.VARIABLE_INITIALIZED || 'mag_variable_initialized');
+    try {
+      if (typeof eventEmit === 'function') await eventEmit(eventName, data, Number.isFinite(Number(swipeIndex)) ? Number(swipeIndex) : 0);
+    } catch (_error) {
+      /* optional event */
+    }
+  }
+
+  async function refreshMvu(opening) {
+    const runtime = await ensureMvuRuntime();
+    if (!runtime || typeof runtime.getMvuData !== 'function' || typeof runtime.replaceMvuData !== 'function' || typeof runtime.reloadInitVar !== 'function') {
+      return 'missing';
+    }
+    const current = runtime.getMvuData({ type: 'message', message_id: 0 });
+    const next = normalizeMvuData(current);
+    const loaded = await runtime.reloadInitVar(next);
+    if (!loaded || !firstObjectValue(next.stat_data)) return 'no-update';
+    await runtime.replaceMvuData(next, { type: 'message', message_id: 0 });
+    await emitMvuInitialized(runtime, next, opening.index);
+    return 'reloaded';
+  }
+
+  function noticeOnce(key, type, message) {
+    if (state.lastNotice === key) return;
+    state.lastNotice = key;
+    const title = 'WBH MVU InitVar';
+    try {
+      const api = globalThis.toastr || window.parent?.toastr;
+      if (api && typeof api[type] === 'function') api[type](message, title);
+    } catch (_error) {
+      /* ignore */
+    }
+    const logger = type === 'error' ? console.warn : console.info;
+    logger('[WBH MVU InitVar] ' + message);
+  }
+
+  async function tick() {
+    if (state.inFlight) return;
+    const opening = getCurrentOpening();
+    if (!opening) {
+      state.lastSignature = '';
+      return;
+    }
+
+    const match = findPresetForOpening(opening);
+    if (!match?.preset?.content) return;
+
+    const signature = match.openingId + ':' + match.preset.id + ':' + shortHash(match.preset.content) + ':' + opening.hash + ':' + opening.index;
+    if (signature === state.lastSignature) return;
+
+    state.inFlight = true;
+    try {
+      await ensureInitVarEntry(match.preset.content);
+      const status = await refreshMvu(opening);
+      if (status !== 'reloaded') {
+        noticeOnce('mvu-' + status, status === 'missing' ? 'warning' : 'error', status === 'missing'
+          ? 'MVU script was not detected. Install MVU or allow this script to import the MVU bundle.'
+          : 'MVU did not load new InitVar data.');
+        state.lastSignature = '';
+        return;
+      }
+      state.lastSignature = signature;
+      state.lastNotice = '';
+      if (CONFIG.notifySuccess !== false) noticeOnce('ok-' + signature, 'success', 'MVU InitVar switched: ' + (match.preset.name || match.preset.id));
+    } catch (error) {
+      state.lastSignature = '';
+      noticeOnce('failed-' + cleanText(error?.message), 'error', 'MVU InitVar switch failed: ' + (error?.message || error));
+    } finally {
+      state.inFlight = false;
+    }
+  }
+
+  function cleanup() {
+    if (state.timer) window.clearInterval(state.timer);
+    state.timer = 0;
+  }
+
+  cleanup();
+  state.timer = window.setInterval(() => void tick(), 850);
+  window.addEventListener('pagehide', cleanup, { once: true });
+  if (typeof $ === 'function') $(window).on('pagehide', cleanup);
+  void tick();
+})();
+`;
 }
 
 function beginMvuInputHistory(key, label) {
@@ -6082,6 +6590,15 @@ function roleLabel(value) {
 
 function downloadJson(filename, data) {
   const blob = new Blob([`${JSON.stringify(data, null, 2)}\n`], { type: 'application/json' });
+  downloadBlob(filename, blob);
+}
+
+function downloadText(filename, text, type = 'text/plain') {
+  const blob = new Blob([text], { type });
+  downloadBlob(filename, blob);
+}
+
+function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -6090,6 +6607,25 @@ function downloadJson(filename, data) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'readonly');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '0';
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand?.('copy');
+  textarea.remove();
+  if (!copied) throw new Error('Clipboard copy was not allowed.');
 }
 
 function safeFileName(value) {
