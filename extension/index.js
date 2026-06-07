@@ -2287,7 +2287,7 @@ function renderExperimentPanel() {
   const baseline = root.querySelector('#wbh-restore-baseline');
   const after = root.querySelector('#wbh-restore-after');
   const openExperiment = getOpenExperiment();
-  const experimentOpen = isExperimentOpen(experiment);
+  const finishTarget = experiment || openExperiment;
 
   title.textContent = experiment?.title || t('empty.noExperimentSelected');
   title.disabled = !experiment;
@@ -2309,12 +2309,12 @@ function renderExperimentPanel() {
   }
   if (saveNote) saveNote.disabled = !experiment;
 
-  start.disabled = !app.activeBook || Boolean(openExperiment);
+  start.disabled = !app.activeBook;
   start.title = openExperiment
     ? t('status.finishOpenExperiment', { title: openExperiment.title || t('label.currentExperiment') })
     : '';
-  finish.disabled = !app.activeBook || !experiment;
-  finish.textContent = experimentOpen ? t('action.finish') : experiment?.afterSnapshotId ? t('action.updateAfter') : t('action.finish');
+  finish.disabled = !app.activeBook || !finishTarget;
+  finish.textContent = isExperimentOpen(finishTarget) ? t('action.finish') : finishTarget?.afterSnapshotId ? t('action.updateAfter') : t('action.finish');
   keep.disabled = !experiment;
   reject.disabled = !experiment;
   origin.disabled = !app.activeBook || !app.originSnapshot;
@@ -5904,14 +5904,15 @@ async function startExperiment() {
 }
 
 async function finishExperiment() {
-  if (!app.activeBook || !app.activeExperiment) return;
+  if (!app.activeBook) return;
+  const experiment = app.activeExperiment || getOpenExperiment();
+  if (!experiment) return;
   if (app.editorDirty) {
     const saveFirst = window.confirm(t('confirm.saveBeforeFinish'));
     if (!saveFirst) return;
     await saveEditorWorldbook();
   }
 
-  const experiment = app.activeExperiment;
   setStatus(isExperimentOpen(experiment) ? t('status.finishingExperiment') : t('status.updatingExperiment'));
   let afterSnapshot = experiment.afterSnapshotId ? await getSnapshotById(experiment.afterSnapshotId) : null;
   if (!afterSnapshot || !isExperimentOpen(experiment)) {
