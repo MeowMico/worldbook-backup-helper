@@ -228,6 +228,7 @@ const TRANSLATIONS = {
     'status.mvuNoPresetSelected': 'Select an MVU preset first',
     'status.mvuSyncedInitVar': 'Preset synced to [initvar]',
     'status.mvuStorageMigrated': 'MVU preset storage migrated; save to apply',
+    'status.mvuStorageRecovered': 'MVU presets recovered from local history; save to apply',
     'status.mvuAutoInjectEnabled': 'MVU auto inject enabled',
     'status.mvuAutoInjectDisabled': 'MVU auto inject disabled',
     'status.mvuAutoInjected': 'Injected {name} to [initvar]',
@@ -560,6 +561,7 @@ const TRANSLATIONS = {
     'status.mvuNoPresetSelected': '请先选择一个 MVU preset',
     'status.mvuSyncedInitVar': '已同步 preset 到 [initvar]',
     'status.mvuStorageMigrated': 'MVU preset 存储已迁移，请保存以应用',
+    'status.mvuStorageRecovered': '已从本地历史恢复 MVU presets，请保存以应用',
     'status.mvuAutoInjectEnabled': 'MVU 自动注入已开启',
     'status.mvuAutoInjectDisabled': 'MVU 自动注入已关闭',
     'status.mvuAutoInjected': '已注入 {name} 到 [initvar]',
@@ -1812,16 +1814,18 @@ async function loadEditorWorldbook({ force = false } = {}) {
   const migratedMvuStorage = hasLegacyMvuStorageEntries(app.activeData)
     ? ensureMvuSystemEntries(app.activeData)
     : false;
+  const recoveredMvuStorage = await recoverMvuWorkflowFromSnapshots(app.activeBook.name, app.activeData);
   app.activeDataHash = await hashObject(data);
   app.editorSourceLabel = 'Current';
   app.selectedEntryIds.clear();
   await ensureOriginSnapshot(app.activeBook.name, data);
-  app.editorDirty = migratedMvuStorage;
+  app.editorDirty = migratedMvuStorage || recoveredMvuStorage;
   resetEditorHistory({ render: false });
   ensureActiveEntry();
   refreshMvuOpenings({ render: false });
   renderEditor();
-  if (migratedMvuStorage) setStatus(t('status.mvuStorageMigrated'));
+  if (recoveredMvuStorage) setStatus(t('status.mvuStorageRecovered'));
+  else if (migratedMvuStorage) setStatus(t('status.mvuStorageMigrated'));
 }
 
 async function loadLocalSnapshots() {
@@ -5112,6 +5116,48 @@ function ensureMvuSystemEntries(data) {
   changed = migrateMvuWorkflowStorage(data, workflow) || changed;
   changed = normalizeMvuWorkflow(workflow) || changed;
   return changed;
+}
+
+async function recoverMvuWorkflowFromSnapshots(bookName, data) {
+  if (!bookName || !data || getMvuPresetRecords(data).length > 0) return false;
+
+  const snapshots = await getSnapshots(bookName);
+  for (const snapshot of snapshots) {
+    const recovered = extractMvuWorkflowForRecovery(snapshot.data);
+    if (!recovered?.presets?.length) continue;
+
+    ensureMvuSystemEntries(data);
+    const workflow = getMvuWorkflow(data, { create: true });
+    const before = stableStringify(sortValue({
+      presets: workflow.presets,
+      map: workflow.map,
+    }));
+
+    workflow.presets = mergeMvuPresetStorageEntries(workflow.presets, recovered.presets);
+    workflow.map = mergeMvuMapData([workflow.map, recovered.map]);
+    workflow.updatedAt = new Date().toISOString();
+    normalizeMvuWorkflow(workflow);
+
+    return before !== stableStringify(sortValue({
+      presets: workflow.presets,
+      map: workflow.map,
+    }));
+  }
+
+  return false;
+}
+
+function extractMvuWorkflowForRecovery(data) {
+  if (!data) return null;
+  const source = cloneValue(data);
+  const presets = getMvuPresetRecords(source)
+    .map(preset => normalizeMvuPresetStorageEntry(preset.entry))
+    .filter(Boolean);
+  if (!presets.length) return null;
+  return {
+    presets,
+    map: readMvuMapData(source),
+  };
 }
 
 function ensureSingleMvuInitVarEntry(data) {
