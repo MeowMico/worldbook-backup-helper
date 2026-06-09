@@ -1453,6 +1453,18 @@
   font-size: 12px;
 }
 
+.wbh-experiment-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 6px;
+}
+
+.wbh-experiment-row-actions .wbh-mini,
+.wbh-experiment-row-actions .wbh-history-actions {
+  margin-right: 0;
+}
+
 .wbh-history-actions {
   align-self: center;
   margin-right: 6px;

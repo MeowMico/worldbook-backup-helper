@@ -2496,7 +2496,11 @@ function renderExperiments() {
     restore.disabled = !experiment.afterSnapshotId;
     restore.addEventListener('click', async () => restoreExperimentResult(experiment));
 
-    row.append(button, createHistoryActionMenu([restore, exportJson, note, rename]));
+    const actions = document.createElement('div');
+    actions.className = 'wbh-experiment-row-actions';
+    actions.append(restore, createHistoryActionMenu([exportJson, note, rename]));
+
+    row.append(button, actions);
     return row;
   }));
 }
