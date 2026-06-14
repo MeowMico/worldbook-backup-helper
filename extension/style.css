@@ -1059,7 +1059,10 @@
   border-radius: 6px;
   padding: 12px;
   background: var(--wbh-surface-0);
-  overflow: hidden;
+}
+
+.wbh-core-section > * {
+  min-width: 0;
 }
 
 .wbh-insertion-section {
