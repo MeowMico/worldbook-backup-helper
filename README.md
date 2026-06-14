@@ -126,7 +126,15 @@ This can be useful for organizing creative files or sharing a specific revision.
 
 ## Storage and Privacy
 
-In extension-only mode, snapshots and experiments are stored locally in the browser's IndexedDB for the current SillyTavern browser profile.
+When the companion server plugin is available, snapshots and experiments are stored as JSON files under SillyTavern's user backup directory:
+
+```text
+backups/worldbook-backup-helper/<worldbook>/
+```
+
+When server file storage is available, existing browser IndexedDB history is copied into that folder automatically. The old browser copy is left in place as a fallback.
+
+In extension-only mode, snapshots and experiments are still stored locally in the browser's IndexedDB for the current SillyTavern browser profile.
 
 The extension reads and writes worldbooks through SillyTavern's worldbook API. The `MVU InitVar` tab also reads the current in-page character greetings and current chat opening swipes for binding presets. It does not read cookies, API keys, browser profiles, or unrelated local files.
 
@@ -140,7 +148,7 @@ TauriTavern is supported through the same repository link. The extension detects
 
 ## Known Limits
 
-- Extension-only snapshots are browser-local. If browser data is cleared, local history may be lost.
+- Extension-only history is browser-local. If browser data is cleared before server-file migration or manual export, local history may be lost.
 - Importing external experiment archives is not implemented yet.
 - The extension focuses on worldbooks/lorebooks, not character card description editing.
 

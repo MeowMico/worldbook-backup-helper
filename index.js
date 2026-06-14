@@ -13,7 +13,9 @@ try {
 
 const PLUGIN_ID = 'worldbook-backup-helper';
 const SNAPSHOT_TYPE = 'worldbook-backup-helper.snapshot';
+const EXPERIMENT_TYPE = 'worldbook-backup-helper.experiment';
 const SNAPSHOT_VERSION = 1;
+const HISTORY_API_VERSION = 1;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -38,6 +40,59 @@ async function init(router) {
     requireUser(req);
     const books = await listWorldbooks(req.user.directories);
     res.json({ ok: true, books });
+  }));
+
+  router.get('/history/status', asyncRoute(async (req, res) => {
+    requireUser(req);
+    res.json({
+      ok: true,
+      storage: 'server-files',
+      version: HISTORY_API_VERSION,
+      root: PLUGIN_ID,
+    });
+  }));
+
+  router.get('/history', asyncRoute(async (req, res) => {
+    requireUser(req);
+    const name = cleanName(req.query.name);
+    if (!name) return res.status(400).json({ ok: false, error: 'missing_name' });
+    const [snapshots, experiments] = await Promise.all([
+      listFullSnapshots(req.user.directories, name),
+      listExperiments(req.user.directories, name),
+    ]);
+    res.json({ ok: true, storage: 'server-files', snapshots, experiments });
+  }));
+
+  router.post('/history/snapshot', asyncRoute(async (req, res) => {
+    requireUser(req);
+    const snapshot = req.body?.snapshot;
+    const name = cleanName(req.body?.name || snapshot?.bookName);
+    if (!name || !snapshot || typeof snapshot !== 'object') {
+      return res.status(400).json({ ok: false, error: 'missing_snapshot' });
+    }
+    const saved = await putSnapshot(req.user.directories, name, snapshot);
+    res.json({ ok: true, snapshot: saved });
+  }));
+
+  router.post('/history/experiment', asyncRoute(async (req, res) => {
+    requireUser(req);
+    const experiment = req.body?.experiment;
+    const name = cleanName(req.body?.name || experiment?.bookName);
+    if (!name || !experiment || typeof experiment !== 'object') {
+      return res.status(400).json({ ok: false, error: 'missing_experiment' });
+    }
+    const saved = await putExperiment(req.user.directories, name, experiment);
+    res.json({ ok: true, experiment: saved });
+  }));
+
+  router.post('/history/import', asyncRoute(async (req, res) => {
+    requireUser(req);
+    const name = cleanName(req.body?.name);
+    if (!name) return res.status(400).json({ ok: false, error: 'missing_name' });
+    const snapshots = Array.isArray(req.body?.snapshots) ? req.body.snapshots : [];
+    const experiments = Array.isArray(req.body?.experiments) ? req.body.experiments : [];
+    const result = await importHistory(req.user.directories, name, snapshots, experiments);
+    res.json({ ok: true, ...result });
   }));
 
   router.get('/snapshots', asyncRoute(async (req, res) => {
@@ -242,6 +297,26 @@ async function createSnapshot(directories, name, data, options = {}) {
   return { skipped: false, snapshot: summarizeSnapshot(snapshot, file) };
 }
 
+async function listFullSnapshots(directories, name) {
+  const dir = snapshotDir(directories, name);
+  if (!fs.existsSync(dir)) return [];
+  const files = await fsp.readdir(dir, { withFileTypes: true });
+  const out = [];
+  for (const file of files) {
+    if (!file.isFile() || path.extname(file.name).toLowerCase() !== '.json') continue;
+    try {
+      const snapshot = JSON.parse(await fsp.readFile(path.join(dir, file.name), 'utf8'));
+      if (snapshot?.type === SNAPSHOT_TYPE && snapshot.data) {
+        out.push(fullSnapshot(snapshot, file.name));
+      }
+    } catch {
+      // Ignore malformed files in the full-history API; the legacy summary
+      // endpoint still reports them for troubleshooting.
+    }
+  }
+  return sortSnapshots(out);
+}
+
 async function listSnapshots(directories, name) {
   const dir = snapshotDir(directories, name);
   if (!fs.existsSync(dir)) return [];
@@ -259,6 +334,17 @@ async function listSnapshots(directories, name) {
     }
   }
   return out.sort((left, right) => Number(right.createdAtMs || 0) - Number(left.createdAtMs || 0));
+}
+
+async function putSnapshot(directories, name, snapshot) {
+  const normalized = normalizeSnapshotForWrite(snapshot, name);
+  const dir = await ensureSnapshotDir(directories, name);
+  const file = cleanSnapshotFile(snapshot.file)
+    || await findSnapshotFileById(directories, name, normalized.id)
+    || snapshotFileName(normalized);
+  normalized.file = file;
+  await writeJsonAtomic(path.join(dir, file), normalized);
+  return fullSnapshot(normalized, file);
 }
 
 async function readSnapshot(directories, name, file) {
@@ -288,6 +374,97 @@ async function ensureSnapshotDir(directories, name) {
   return dir;
 }
 
+async function importHistory(directories, name, snapshots, experiments) {
+  let snapshotCount = 0;
+  let experimentCount = 0;
+
+  for (const snapshot of snapshots) {
+    if (!snapshot || typeof snapshot !== 'object') continue;
+    const bookName = cleanName(snapshot.bookName || name);
+    if (bookName !== name) continue;
+    await putSnapshot(directories, name, snapshot);
+    snapshotCount++;
+  }
+
+  for (const experiment of experiments) {
+    if (!experiment || typeof experiment !== 'object') continue;
+    const bookName = cleanName(experiment.bookName || name);
+    if (bookName !== name) continue;
+    await putExperiment(directories, name, experiment);
+    experimentCount++;
+  }
+
+  return { snapshots: snapshotCount, experiments: experimentCount };
+}
+
+function normalizeSnapshotForWrite(snapshot, name) {
+  if (!snapshot?.data || typeof snapshot.data !== 'object') {
+    throw Object.assign(new Error('Snapshot must contain worldbook data.'), { code: 'invalid_snapshot', statusCode: 400 });
+  }
+
+  const now = new Date();
+  const createdAt = cleanOptionalText(snapshot.createdAt) || now.toISOString();
+  const createdAtMs = Number(snapshot.createdAtMs || Date.parse(createdAt) || now.getTime());
+  const data = snapshot.data;
+  const sourceHash = cleanOptionalText(snapshot.sourceHash) || hashObject(data);
+
+  return {
+    ...snapshot,
+    type: SNAPSHOT_TYPE,
+    version: SNAPSHOT_VERSION,
+    id: cleanOptionalText(snapshot.id) || `${safeSegment(name)}:${snapshotFileName({ createdAt, createdAtMs, sourceHash })}`,
+    bookName: name,
+    bookFile: `${safeSegment(name)}.json`,
+    label: cleanOptionalText(snapshot.label),
+    note: cleanOptionalText(snapshot.note),
+    reason: cleanOptionalText(snapshot.reason) || 'manual',
+    createdAt,
+    createdAtMs,
+    sourceHash,
+    entryCount: snapshot.entryCount ?? countEntries(data),
+    data,
+  };
+}
+
+function fullSnapshot(snapshot, file) {
+  return {
+    ...snapshot,
+    file,
+    id: snapshot.id || file,
+    bookName: snapshot.bookName,
+    label: snapshot.label || '',
+    note: snapshot.note || '',
+    reason: snapshot.reason || '',
+    createdAt: snapshot.createdAt,
+    createdAtMs: snapshot.createdAtMs || Date.parse(snapshot.createdAt || '') || 0,
+    sourceHash: snapshot.sourceHash,
+    entryCount: snapshot.entryCount ?? countEntries(snapshot.data),
+  };
+}
+
+function snapshotFileName(snapshot) {
+  const date = dateFromSnapshotFields(snapshot.createdAt, snapshot.createdAtMs);
+  const hash = cleanOptionalText(snapshot.sourceHash) || hashObject(snapshot.data || snapshot.id || date.toISOString());
+  return `${formatDateForFile(date)}__${hash.slice(0, 10)}.json`;
+}
+
+async function findSnapshotFileById(directories, name, id) {
+  if (!id) return '';
+  const dir = snapshotDir(directories, name);
+  if (!fs.existsSync(dir)) return '';
+  const files = await fsp.readdir(dir, { withFileTypes: true });
+  for (const file of files) {
+    if (!file.isFile() || path.extname(file.name).toLowerCase() !== '.json') continue;
+    try {
+      const snapshot = JSON.parse(await fsp.readFile(path.join(dir, file.name), 'utf8'));
+      if (snapshot?.id === id) return file.name;
+    } catch {
+      // Ignore malformed historical files.
+    }
+  }
+  return '';
+}
+
 function snapshotDir(directories, name) {
   const root = path.join(directories.backups, PLUGIN_ID);
   const target = path.join(root, safeSegment(name));
@@ -295,6 +472,120 @@ function snapshotDir(directories, name) {
     throw Object.assign(new Error('Invalid snapshot directory.'), { code: 'invalid_path', statusCode: 400 });
   }
   return target;
+}
+
+async function listExperiments(directories, name) {
+  const dir = experimentDir(directories, name);
+  if (!fs.existsSync(dir)) return [];
+  const files = await fsp.readdir(dir, { withFileTypes: true });
+  const out = [];
+  for (const file of files) {
+    if (!file.isFile() || path.extname(file.name).toLowerCase() !== '.json') continue;
+    try {
+      const experiment = JSON.parse(await fsp.readFile(path.join(dir, file.name), 'utf8'));
+      if (experiment?.type === EXPERIMENT_TYPE || experiment?.id) {
+        out.push(fullExperiment(experiment, file.name));
+      }
+    } catch {
+      // Ignore malformed experiment files in the workbench history list.
+    }
+  }
+  return sortExperiments(out);
+}
+
+async function putExperiment(directories, name, experiment) {
+  const normalized = normalizeExperimentForWrite(experiment, name);
+  const dir = await ensureExperimentDir(directories, name);
+  const file = cleanSnapshotFile(experiment.file)
+    || await findExperimentFileById(directories, name, normalized.id)
+    || experimentFileName(normalized);
+  normalized.file = file;
+  await writeJsonAtomic(path.join(dir, file), normalized);
+  return fullExperiment(normalized, file);
+}
+
+function normalizeExperimentForWrite(experiment, name) {
+  const now = new Date();
+  const startedAt = cleanOptionalText(experiment.startedAt) || now.toISOString();
+  const startedAtMs = Number(experiment.startedAtMs || Date.parse(startedAt) || now.getTime());
+  const id = cleanOptionalText(experiment.id) || `${name}:experiment:${formatDateForFile(dateFromSnapshotFields(startedAt, startedAtMs))}:${hashObject(experiment).slice(0, 10)}`;
+
+  return {
+    ...experiment,
+    type: EXPERIMENT_TYPE,
+    version: HISTORY_API_VERSION,
+    id,
+    bookName: name,
+    title: cleanOptionalText(experiment.title),
+    status: cleanOptionalText(experiment.status) || 'testing',
+    startedAt,
+    startedAtMs,
+    finishedAt: cleanOptionalText(experiment.finishedAt),
+    finishedAtMs: Number(experiment.finishedAtMs || 0),
+    baselineSnapshotId: cleanOptionalText(experiment.baselineSnapshotId),
+    afterSnapshotId: cleanOptionalText(experiment.afterSnapshotId),
+    changeNote: cleanOptionalText(experiment.changeNote),
+    resultNote: cleanOptionalText(experiment.resultNote),
+    parentExperimentId: cleanOptionalText(experiment.parentExperimentId),
+  };
+}
+
+function fullExperiment(experiment, file) {
+  return {
+    ...experiment,
+    file,
+    id: experiment.id || file,
+    bookName: experiment.bookName,
+    title: experiment.title || '',
+    status: experiment.status || 'testing',
+    startedAt: experiment.startedAt,
+    startedAtMs: experiment.startedAtMs || Date.parse(experiment.startedAt || '') || 0,
+    finishedAt: experiment.finishedAt || '',
+    finishedAtMs: experiment.finishedAtMs || Date.parse(experiment.finishedAt || '') || 0,
+    baselineSnapshotId: experiment.baselineSnapshotId || '',
+    afterSnapshotId: experiment.afterSnapshotId || '',
+    changeNote: experiment.changeNote || '',
+    resultNote: experiment.resultNote || '',
+    parentExperimentId: experiment.parentExperimentId || '',
+  };
+}
+
+function experimentFileName(experiment) {
+  const date = dateFromSnapshotFields(experiment.startedAt, experiment.startedAtMs);
+  const hash = hashObject(experiment.id || experiment).slice(0, 10);
+  return `${formatDateForFile(date)}__${hash}.json`;
+}
+
+async function ensureExperimentDir(directories, name) {
+  const dir = experimentDir(directories, name);
+  await fsp.mkdir(dir, { recursive: true });
+  return dir;
+}
+
+function experimentDir(directories, name) {
+  const root = snapshotDir(directories, name);
+  const target = path.join(root, 'experiments');
+  if (!isPathInside(root, target)) {
+    throw Object.assign(new Error('Invalid experiment directory.'), { code: 'invalid_path', statusCode: 400 });
+  }
+  return target;
+}
+
+async function findExperimentFileById(directories, name, id) {
+  if (!id) return '';
+  const dir = experimentDir(directories, name);
+  if (!fs.existsSync(dir)) return '';
+  const files = await fsp.readdir(dir, { withFileTypes: true });
+  for (const file of files) {
+    if (!file.isFile() || path.extname(file.name).toLowerCase() !== '.json') continue;
+    try {
+      const experiment = JSON.parse(await fsp.readFile(path.join(dir, file.name), 'utf8'));
+      if (experiment?.id === id) return file.name;
+    } catch {
+      // Ignore malformed historical files.
+    }
+  }
+  return '';
 }
 
 function summarizeWorldbook(name, data) {
@@ -321,6 +612,14 @@ function summarizeSnapshot(snapshot, file) {
     sourceHash: snapshot.sourceHash,
     entryCount: snapshot.entryCount ?? countEntries(snapshot.data),
   };
+}
+
+function sortSnapshots(snapshots) {
+  return snapshots.sort((left, right) => Number(right.createdAtMs || 0) - Number(left.createdAtMs || 0));
+}
+
+function sortExperiments(experiments) {
+  return experiments.sort((left, right) => Number(right.startedAtMs || 0) - Number(left.startedAtMs || 0));
 }
 
 function diffWorldbooks(base, current) {
@@ -503,6 +802,17 @@ function formatDateForFile(date) {
     '-',
     pad(date.getMilliseconds(), 3),
   ].join('');
+}
+
+function dateFromSnapshotFields(isoValue, msValue) {
+  const fromMs = Number(msValue || 0);
+  if (Number.isFinite(fromMs) && fromMs > 0) {
+    const date = new Date(fromMs);
+    if (Number.isFinite(date.getTime())) return date;
+  }
+
+  const date = new Date(isoValue || Date.now());
+  return Number.isFinite(date.getTime()) ? date : new Date();
 }
 
 function formatDateForLabel(date) {

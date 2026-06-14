@@ -177,6 +177,10 @@ const TRANSLATIONS = {
     'app.title': 'Worldbook Workbench',
     'menu.open': 'Worldbook Workbench',
     'status.extensionMode': 'Extension-only mode: snapshots are stored in this browser.',
+    'status.serverStorageMode': 'Server file storage: history follows the SillyTavern user data folder.',
+    'status.migratingHistory': 'Copying browser history to server files',
+    'status.historyMigrated': 'Copied {count} history records to server files',
+    'status.historyMigrationFailed': 'Could not copy browser history to server files; using browser storage',
     'status.ready': 'Ready',
     'status.refreshing': 'Refreshing',
     'status.viewingExperiment': 'Viewing experiment: {title}',
@@ -321,6 +325,7 @@ const TRANSLATIONS = {
     'section.experiments': 'Experiments',
     'section.versions': 'Versions',
     'section.activation': 'Activation',
+    'section.coreControls': 'Entry Controls',
     'section.insertion': 'Insertion',
     'section.logic': 'Logic',
     'section.timingFilters': 'Timing and Filters',
@@ -510,6 +515,10 @@ const TRANSLATIONS = {
     'app.title': '世界书工作台',
     'menu.open': '世界书工作台',
     'status.extensionMode': '本地扩展模式：快照会保存在此浏览器中。',
+    'status.serverStorageMode': '服务端文件存储：历史会跟随 SillyTavern 用户数据目录。',
+    'status.migratingHistory': '正在把浏览器历史复制到服务端文件',
+    'status.historyMigrated': '已复制 {count} 条历史记录到服务端文件',
+    'status.historyMigrationFailed': '未能复制浏览器历史到服务端文件，将继续使用浏览器存储',
     'status.ready': '就绪',
     'status.refreshing': '正在刷新',
     'status.viewingExperiment': '正在查看实验：{title}',
@@ -654,6 +663,7 @@ const TRANSLATIONS = {
     'section.experiments': '实验',
     'section.versions': '版本',
     'section.activation': '激活',
+    'section.coreControls': '条目控制',
     'section.insertion': '插入',
     'section.logic': '逻辑',
     'section.timingFilters': '额外匹配来源',
@@ -890,6 +900,8 @@ const app = {
   installed: false,
   snapshotInFlight: false,
   serverPluginAvailable: null,
+  serverHistoryAvailable: null,
+  historyMigrationChecked: false,
   books: [],
   snapshots: [],
   experiments: [],
@@ -1027,11 +1039,7 @@ function installWorkbenchButton() {
 }
 
 async function openWorkbench() {
-  if (await hasServerPlugin()) {
-    window.open(`${PLUGIN_ROOT}/ui`, '_blank', 'noopener,noreferrer');
-    return;
-  }
-
+  await detectServerHistoryStorage();
   ensureLocalWorkbench();
   await refreshLocalWorkbench();
   document.querySelector('#wbh-workbench').classList.add('open');
@@ -1049,6 +1057,27 @@ async function hasServerPlugin() {
   }
 
   return app.serverPluginAvailable;
+}
+
+async function detectServerHistoryStorage() {
+  if (app.serverHistoryAvailable !== null) return app.serverHistoryAvailable;
+
+  try {
+    const response = await ORIGINAL_FETCH(`${PLUGIN_ROOT}/history/status`, {
+      credentials: 'include',
+      cache: 'no-cache',
+    });
+    app.serverHistoryAvailable = response.ok;
+    if (response.ok) app.serverPluginAvailable = true;
+  } catch {
+    app.serverHistoryAvailable = false;
+  }
+
+  return app.serverHistoryAvailable;
+}
+
+function storageStatusMessage() {
+  return app.serverHistoryAvailable ? t('status.serverStorageMode') : t('status.extensionMode');
 }
 
 function installWorldbookEditInterceptor() {
@@ -1315,52 +1344,31 @@ function ensureLocalWorkbench() {
                 <span data-wbh-i18n="field.title">${t('field.title')}</span>
                 <input id="wbh-entry-comment" type="text" data-wbh-field="comment">
               </label>
-              <label class="wbh-editor-field wbh-editor-field-wide wbh-content-field">
-                <span data-wbh-i18n="field.content">${t('field.content')}</span>
-                <textarea id="wbh-entry-content" data-wbh-field="content" rows="12"></textarea>
-              </label>
-              <div class="wbh-editor-section wbh-activation-section">
-                <h4 data-wbh-i18n="section.activation">${t('section.activation')}</h4>
-                <div class="wbh-editor-grid">
-                  <label class="wbh-editor-field">
-                    <span data-wbh-i18n="field.keys">${t('field.keys')}</span>
-                    <textarea id="wbh-entry-key" data-wbh-field="key" rows="3"></textarea>
-                  </label>
-                  <label class="wbh-editor-field">
-                    <span data-wbh-i18n="field.secondary">${t('field.secondary')}</span>
-                    <textarea id="wbh-entry-keysecondary" data-wbh-field="keysecondary" rows="3"></textarea>
-                  </label>
-                </div>
-                <div class="wbh-editor-grid wbh-editor-grid-compact">
-                  <label class="wbh-check">
-                    <input type="checkbox" data-wbh-field="constant">
-                    <span data-wbh-i18n="flag.constant">${t('flag.constant')}</span>
-                  </label>
-                  <label class="wbh-check">
+              <div class="wbh-editor-section wbh-core-section">
+                <h4 data-wbh-i18n="section.coreControls">${t('section.coreControls')}</h4>
+                <div class="wbh-signal-grid">
+                  <label class="wbh-check wbh-lamp">
                     <input type="checkbox" data-wbh-field="disable">
                     <span data-wbh-i18n="flag.disabled">${t('flag.disabled')}</span>
                   </label>
-                  <label class="wbh-check">
+                  <label class="wbh-check wbh-lamp">
+                    <input type="checkbox" data-wbh-field="constant">
+                    <span data-wbh-i18n="flag.constant">${t('flag.constant')}</span>
+                  </label>
+                  <label class="wbh-check wbh-lamp">
                     <input type="checkbox" data-wbh-field="selective">
                     <span data-wbh-i18n="flag.selective">${t('flag.selective')}</span>
                   </label>
-                  <label class="wbh-check">
+                  <label class="wbh-check wbh-lamp">
                     <input type="checkbox" data-wbh-field="vectorized">
                     <span data-wbh-i18n="flag.vectorized">${t('flag.vectorized')}</span>
                   </label>
-                  <label class="wbh-check">
+                  <label class="wbh-check wbh-lamp">
                     <input type="checkbox" data-wbh-field="useProbability">
                     <span data-wbh-i18n="flag.useProbability">${t('flag.useProbability')}</span>
                   </label>
-                  <label class="wbh-check">
-                    <input type="checkbox" data-wbh-field="ignoreBudget">
-                    <span data-wbh-i18n="flag.ignoreBudget">${t('flag.ignoreBudget')}</span>
-                  </label>
                 </div>
-              </div>
-              <div class="wbh-editor-section wbh-insertion-section">
-                <h4 data-wbh-i18n="section.insertion">${t('section.insertion')}</h4>
-                <div class="wbh-editor-grid wbh-editor-grid-3">
+                <div class="wbh-editor-grid wbh-editor-grid-core">
                   <label class="wbh-editor-field">
                     <span data-wbh-i18n="field.position">${t('field.position')}</span>
                     <select data-wbh-field="position" data-wbh-type="number" data-wbh-options="position">
@@ -1394,17 +1402,52 @@ function ensureLocalWorkbench() {
                     <span data-wbh-i18n="field.scanDepth">${t('field.scanDepth')}</span>
                     <input type="number" data-wbh-field="scanDepth">
                   </label>
-                </div>
-              </div>
-              <div class="wbh-editor-section wbh-logic-section">
-                <h4 data-wbh-i18n="section.logic">${t('section.logic')}</h4>
-                <div class="wbh-editor-grid wbh-editor-grid-3">
                   <label class="wbh-editor-field">
                     <span data-wbh-i18n="field.selectiveLogic">${t('field.selectiveLogic')}</span>
                     <select data-wbh-field="selectiveLogic" data-wbh-type="number" data-wbh-options="selectiveLogic">
                       ${SELECTIVE_LOGIC_OPTIONS.map(option => `<option value="${option.value}" data-wbh-key="${option.key}">${optionLabel(option)}</option>`).join('')}
                     </select>
                   </label>
+                </div>
+                <div class="wbh-recursion-strip">
+                  <label class="wbh-check wbh-lamp">
+                    <input type="checkbox" data-wbh-field="excludeRecursion">
+                    <span data-wbh-i18n="flag.excludeRecursion">${t('flag.excludeRecursion')}</span>
+                  </label>
+                  <label class="wbh-check wbh-lamp">
+                    <input type="checkbox" data-wbh-field="preventRecursion">
+                    <span data-wbh-i18n="flag.preventRecursion">${t('flag.preventRecursion')}</span>
+                  </label>
+                  <label class="wbh-check wbh-lamp">
+                    <input type="checkbox" data-wbh-field="delayUntilRecursion">
+                    <span data-wbh-i18n="flag.delayUntilRecursion">${t('flag.delayUntilRecursion')}</span>
+                  </label>
+                  <label class="wbh-check wbh-lamp">
+                    <input type="checkbox" data-wbh-field="ignoreBudget">
+                    <span data-wbh-i18n="flag.ignoreBudget">${t('flag.ignoreBudget')}</span>
+                  </label>
+                </div>
+              </div>
+              <div class="wbh-editor-section wbh-activation-section">
+                <h4 data-wbh-i18n="section.activation">${t('section.activation')}</h4>
+                <div class="wbh-editor-grid">
+                  <label class="wbh-editor-field">
+                    <span data-wbh-i18n="field.keys">${t('field.keys')}</span>
+                    <textarea id="wbh-entry-key" data-wbh-field="key" rows="3"></textarea>
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span data-wbh-i18n="field.secondary">${t('field.secondary')}</span>
+                    <textarea id="wbh-entry-keysecondary" data-wbh-field="keysecondary" rows="3"></textarea>
+                  </label>
+                </div>
+              </div>
+              <label class="wbh-editor-field wbh-editor-field-wide wbh-content-field">
+                <span data-wbh-i18n="field.content">${t('field.content')}</span>
+                <textarea id="wbh-entry-content" data-wbh-field="content" rows="12"></textarea>
+              </label>
+              <div class="wbh-editor-section wbh-logic-section">
+                <h4 data-wbh-i18n="section.logic">${t('section.logic')}</h4>
+                <div class="wbh-editor-grid wbh-editor-grid-3">
                   <label class="wbh-editor-field">
                     <span data-wbh-i18n="field.caseSensitive">${t('field.caseSensitive')}</span>
                     <select data-wbh-field="caseSensitive" data-wbh-type="tri-state">
@@ -1442,18 +1485,6 @@ function ensureLocalWorkbench() {
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="groupOverride">
                     <span data-wbh-i18n="flag.groupOverride">${t('flag.groupOverride')}</span>
-                  </label>
-                  <label class="wbh-check">
-                    <input type="checkbox" data-wbh-field="excludeRecursion">
-                    <span data-wbh-i18n="flag.excludeRecursion">${t('flag.excludeRecursion')}</span>
-                  </label>
-                  <label class="wbh-check">
-                    <input type="checkbox" data-wbh-field="preventRecursion">
-                    <span data-wbh-i18n="flag.preventRecursion">${t('flag.preventRecursion')}</span>
-                  </label>
-                  <label class="wbh-check">
-                    <input type="checkbox" data-wbh-field="delayUntilRecursion">
-                    <span data-wbh-i18n="flag.delayUntilRecursion">${t('flag.delayUntilRecursion')}</span>
                   </label>
                   <label class="wbh-check">
                     <input type="checkbox" data-wbh-field="addMemo">
@@ -1729,6 +1760,8 @@ function ensureLocalWorkbench() {
 async function refreshLocalWorkbench() {
   if (!await confirmDiscardEditorChanges()) return;
   setStatus(t('status.refreshing'));
+  await detectServerHistoryStorage();
+  await migrateLocalHistoryToServer();
   app.books = await listWorldbooks();
   app.selectedEntryIds.clear();
   app.activeBook = app.activeBook
@@ -1737,7 +1770,7 @@ async function refreshLocalWorkbench() {
   await loadEditorWorldbook({ force: true });
   renderBooks();
   await loadLocalSnapshots();
-  setStatus(app.editorDirty ? t('status.mvuStorageMigrated') : t('status.ready'));
+  setStatus(app.editorDirty ? t('status.mvuStorageMigrated') : storageStatusMessage());
 }
 
 async function listWorldbooks() {
@@ -1831,8 +1864,9 @@ async function loadEditorWorldbook({ force = false } = {}) {
 async function loadLocalSnapshots() {
   const activeSnapshotId = app.activeSnapshot?.id;
   const activeExperimentId = app.activeExperiment?.id;
-  app.snapshots = app.activeBook ? await getSnapshots(app.activeBook.name) : [];
-  app.experiments = app.activeBook ? await getExperiments(app.activeBook.name) : [];
+  const history = app.activeBook ? await getHistory(app.activeBook.name) : { snapshots: [], experiments: [] };
+  app.snapshots = history.snapshots;
+  app.experiments = history.experiments;
   app.originSnapshot = app.snapshots.find(snapshot => snapshot.reason === 'origin') || null;
   app.activeSnapshot = app.snapshots.find(snapshot => snapshot.id === activeSnapshotId) || app.snapshots[0] || null;
   app.activeExperiment = app.experiments.find(experiment => experiment.id === activeExperimentId) || (app.activeView === 'experiment' ? app.experiments[0] || null : null);
@@ -5854,8 +5888,8 @@ async function createLocalSnapshotFromData(name, data, { label = '', reason = 'm
     entryCount: countEntries(data),
     data,
   };
-  await putSnapshot(snapshot);
-  return { skipped: false, snapshot };
+  const saved = await putSnapshot(snapshot);
+  return { skipped: false, snapshot: saved || snapshot };
 }
 
 async function startExperiment() {
@@ -6359,7 +6393,165 @@ function openDb() {
   });
 }
 
+async function getHistory(bookName) {
+  if (await detectServerHistoryStorage()) {
+    try {
+      await migrateLocalHistoryToServer();
+      return await getRemoteHistory(bookName);
+    } catch (error) {
+      console.warn('[Worldbook Workbench] Server history unavailable; falling back to IndexedDB.', error);
+      app.serverHistoryAvailable = false;
+      setStatus(t('status.historyMigrationFailed'));
+    }
+  }
+
+  const [snapshots, experiments] = await Promise.all([
+    getLocalSnapshots(bookName),
+    getLocalExperiments(bookName),
+  ]);
+  return { snapshots, experiments };
+}
+
 async function getSnapshots(bookName) {
+  return (await getHistory(bookName)).snapshots;
+}
+
+async function putSnapshot(snapshot) {
+  if (await detectServerHistoryStorage()) {
+    try {
+      return await putRemoteSnapshot(snapshot);
+    } catch (error) {
+      console.warn('[Worldbook Workbench] Server snapshot write failed; falling back to IndexedDB.', error);
+      app.serverHistoryAvailable = false;
+    }
+  }
+  return putLocalSnapshot(snapshot);
+}
+
+async function getSnapshotById(id) {
+  if (!id) return null;
+  const cached = app.snapshots.find(snapshot => snapshot.id === id);
+  if (cached) return cached;
+
+  if (await detectServerHistoryStorage() && app.activeBook) {
+    try {
+      const history = await getRemoteHistory(app.activeBook.name);
+      return history.snapshots.find(snapshot => snapshot.id === id) || null;
+    } catch (error) {
+      console.warn('[Worldbook Workbench] Server snapshot read failed; falling back to IndexedDB.', error);
+      app.serverHistoryAvailable = false;
+    }
+  }
+
+  return getLocalSnapshotById(id);
+}
+
+async function getExperiments(bookName) {
+  return (await getHistory(bookName)).experiments;
+}
+
+async function putExperiment(experiment) {
+  if (await detectServerHistoryStorage()) {
+    try {
+      return await putRemoteExperiment(experiment);
+    } catch (error) {
+      console.warn('[Worldbook Workbench] Server experiment write failed; falling back to IndexedDB.', error);
+      app.serverHistoryAvailable = false;
+    }
+  }
+  return putLocalExperiment(experiment);
+}
+
+async function getRemoteHistory(bookName) {
+  const response = await ORIGINAL_FETCH(`${PLUGIN_ROOT}/history?name=${encodeURIComponent(bookName)}`, {
+    credentials: 'include',
+    cache: 'no-cache',
+  });
+  if (!response.ok) throw new Error(`History request failed: ${response.status}`);
+  const result = await response.json();
+  return {
+    snapshots: sortSnapshots(Array.isArray(result.snapshots) ? result.snapshots : []),
+    experiments: sortExperiments(Array.isArray(result.experiments) ? result.experiments : []),
+  };
+}
+
+async function putRemoteSnapshot(snapshot) {
+  const result = await stPost(`${PLUGIN_ROOT}/history/snapshot`, {
+    name: snapshot.bookName,
+    snapshot,
+  });
+  return result.snapshot || snapshot;
+}
+
+async function putRemoteExperiment(experiment) {
+  const result = await stPost(`${PLUGIN_ROOT}/history/experiment`, {
+    name: experiment.bookName,
+    experiment,
+  });
+  return result.experiment || experiment;
+}
+
+async function importRemoteHistory(bookName, snapshots, experiments) {
+  return stPost(`${PLUGIN_ROOT}/history/import`, {
+    name: bookName,
+    snapshots,
+    experiments,
+  });
+}
+
+async function migrateLocalHistoryToServer() {
+  if (app.historyMigrationChecked || !app.serverHistoryAvailable) return;
+  app.historyMigrationChecked = true;
+
+  const [snapshots, experiments] = await Promise.all([
+    getAllLocalSnapshots(),
+    getAllLocalExperiments(),
+  ]);
+  const total = snapshots.length + experiments.length;
+  if (!total) return;
+
+  setStatus(t('status.migratingHistory'));
+  const grouped = groupHistoryByBook(snapshots, experiments);
+  let migrated = 0;
+  try {
+    for (const [bookName, history] of grouped.entries()) {
+      const result = await importRemoteHistory(bookName, history.snapshots, history.experiments);
+      migrated += Number(result.snapshots || 0) + Number(result.experiments || 0);
+    }
+    setStatus(t('status.historyMigrated', { count: migrated }));
+  } catch (error) {
+    app.serverHistoryAvailable = false;
+    app.historyMigrationChecked = false;
+    console.warn('[Worldbook Workbench] History migration failed.', error);
+    setStatus(t('status.historyMigrationFailed'));
+  }
+}
+
+function groupHistoryByBook(snapshots, experiments) {
+  const grouped = new Map();
+  const ensure = (bookName) => {
+    const key = cleanText(bookName);
+    if (!key) return null;
+    if (!grouped.has(key)) grouped.set(key, { snapshots: [], experiments: [] });
+    return grouped.get(key);
+  };
+
+  for (const snapshot of snapshots) {
+    const group = ensure(snapshot.bookName || inferBookNameFromId(snapshot.id));
+    if (group) group.snapshots.push(snapshot);
+  }
+  for (const experiment of experiments) {
+    const group = ensure(experiment.bookName || inferBookNameFromId(experiment.id));
+    if (group) group.experiments.push(experiment);
+  }
+  return grouped;
+}
+
+function inferBookNameFromId(id) {
+  return String(id || '').split(':')[0] || '';
+}
+
+async function getLocalSnapshots(bookName) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SNAPSHOT_STORE, 'readonly');
@@ -6367,27 +6559,27 @@ async function getSnapshots(bookName) {
     const index = store.index('bookName');
     const request = index.getAll(bookName);
     request.onsuccess = () => {
-      resolve((request.result || []).sort((left, right) => Number(right.createdAtMs || 0) - Number(left.createdAtMs || 0)));
+      resolve(sortSnapshots(request.result || []));
     };
     request.onerror = () => reject(request.error);
     tx.oncomplete = () => db.close();
   });
 }
 
-async function putSnapshot(snapshot) {
+async function putLocalSnapshot(snapshot) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SNAPSHOT_STORE, 'readwrite');
     tx.objectStore(SNAPSHOT_STORE).put(snapshot);
     tx.oncomplete = () => {
       db.close();
-      resolve();
+      resolve(snapshot);
     };
     tx.onerror = () => reject(tx.error);
   });
 }
 
-async function getSnapshotById(id) {
+async function getLocalSnapshotById(id) {
   if (!id) return null;
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -6399,7 +6591,7 @@ async function getSnapshotById(id) {
   });
 }
 
-async function getExperiments(bookName) {
+async function getLocalExperiments(bookName) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(EXPERIMENT_STORE, 'readonly');
@@ -6407,24 +6599,51 @@ async function getExperiments(bookName) {
     const index = store.index('bookName');
     const request = index.getAll(bookName);
     request.onsuccess = () => {
-      resolve((request.result || []).sort((left, right) => Number(right.startedAtMs || 0) - Number(left.startedAtMs || 0)));
+      resolve(sortExperiments(request.result || []));
     };
     request.onerror = () => reject(request.error);
     tx.oncomplete = () => db.close();
   });
 }
 
-async function putExperiment(experiment) {
+async function putLocalExperiment(experiment) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(EXPERIMENT_STORE, 'readwrite');
     tx.objectStore(EXPERIMENT_STORE).put(experiment);
     tx.oncomplete = () => {
       db.close();
-      resolve();
+      resolve(experiment);
     };
     tx.onerror = () => reject(tx.error);
   });
+}
+
+async function getAllLocalSnapshots() {
+  return sortSnapshots(await getAllLocalStore(SNAPSHOT_STORE));
+}
+
+async function getAllLocalExperiments() {
+  return sortExperiments(await getAllLocalStore(EXPERIMENT_STORE));
+}
+
+async function getAllLocalStore(storeName) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const request = tx.objectStore(storeName).getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+function sortSnapshots(snapshots) {
+  return [...snapshots].sort((left, right) => Number(right.createdAtMs || 0) - Number(left.createdAtMs || 0));
+}
+
+function sortExperiments(experiments) {
+  return [...experiments].sort((left, right) => Number(right.startedAtMs || 0) - Number(left.startedAtMs || 0));
 }
 
 function diffWorldbooks(base, current) {

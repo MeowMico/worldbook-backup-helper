@@ -1050,19 +1050,27 @@
   order: 2;
 }
 
-.wbh-insertion-section {
+.wbh-core-section {
   order: 3;
+  border: 1px solid var(--wbh-border);
+  border-radius: 6px;
+  padding: 12px;
+  background: var(--wbh-surface-0);
+}
+
+.wbh-insertion-section {
+  order: 4;
   border: 1px solid var(--wbh-border);
   border-radius: 6px;
   padding: 10px;
   background: var(--wbh-surface-0);
 }
 
-.wbh-content-field {
+.wbh-activation-section {
   order: 4;
 }
 
-.wbh-activation-section {
+.wbh-content-field {
   order: 5;
 }
 
@@ -1163,6 +1171,30 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.wbh-editor-grid-core {
+  grid-template-columns: minmax(170px, 1.35fr) minmax(104px, .9fr) minmax(84px, .7fr) minmax(118px, .75fr) minmax(118px, .75fr) minmax(118px, .75fr) minmax(132px, 1fr);
+  align-items: end;
+  gap: 10px;
+}
+
+.wbh-signal-grid,
+.wbh-recursion-strip {
+  display: grid;
+  gap: 8px;
+}
+
+.wbh-signal-grid {
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+}
+
+.wbh-recursion-strip {
+  grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
+  border: 1px solid var(--wbh-warning-soft);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--wbh-warning-soft);
+}
+
 .wbh-check {
   min-width: 0;
   min-height: 40px;
@@ -1174,6 +1206,114 @@
   border-radius: 6px;
   padding: 7px 8px;
   background: var(--wbh-input-bg);
+}
+
+.wbh-lamp {
+  position: relative;
+  display: block;
+  min-height: 38px;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.wbh-lamp:hover {
+  border-color: var(--wbh-control-hover-border);
+  background: var(--wbh-control-hover);
+}
+
+.wbh-lamp input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.wbh-lamp span {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  color: var(--wbh-muted);
+  font-weight: 600;
+}
+
+.wbh-lamp span::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  border: 1px solid rgb(128 138 154 / 45%);
+  border-radius: 999px;
+  background: var(--wbh-disabled-bg);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 18%);
+}
+
+.wbh-lamp input:checked + span {
+  color: var(--wbh-text);
+  background: var(--wbh-accent-soft);
+}
+
+.wbh-lamp input:checked + span::before {
+  border-color: transparent;
+  background: #2878e3;
+  box-shadow: 0 0 0 3px rgb(40 120 227 / 17%), 0 0 12px rgb(40 120 227 / 52%);
+}
+
+.wbh-lamp input[data-wbh-field="disable"]:checked + span {
+  background: var(--wbh-danger-soft);
+  color: var(--wbh-danger-strong);
+}
+
+.wbh-lamp input[data-wbh-field="disable"]:checked + span::before,
+.wbh-lamp input[data-wbh-field="ignoreBudget"]:checked + span::before {
+  background: #d33f49;
+  box-shadow: 0 0 0 3px rgb(211 63 73 / 16%), 0 0 12px rgb(211 63 73 / 48%);
+}
+
+.wbh-lamp input[data-wbh-field="constant"]:checked + span::before {
+  background: #2878e3;
+  box-shadow: 0 0 0 3px rgb(40 120 227 / 17%), 0 0 12px rgb(40 120 227 / 52%);
+}
+
+.wbh-lamp input[data-wbh-field="selective"]:checked + span::before,
+.wbh-lamp input[data-wbh-field="delayUntilRecursion"]:checked + span::before {
+  background: #f09a2a;
+  box-shadow: 0 0 0 3px rgb(240 154 42 / 16%), 0 0 12px rgb(240 154 42 / 48%);
+}
+
+.wbh-lamp input[data-wbh-field="vectorized"]:checked + span::before {
+  background: #8d5ce6;
+  box-shadow: 0 0 0 3px rgb(141 92 230 / 17%), 0 0 12px rgb(141 92 230 / 50%);
+}
+
+.wbh-lamp input[data-wbh-field="useProbability"]:checked + span::before {
+  background: #22a36a;
+  box-shadow: 0 0 0 3px rgb(34 163 106 / 16%), 0 0 12px rgb(34 163 106 / 48%);
+}
+
+.wbh-lamp input[data-wbh-field="excludeRecursion"]:checked + span::before,
+.wbh-lamp input[data-wbh-field="preventRecursion"]:checked + span::before {
+  background: #1f9fbf;
+  box-shadow: 0 0 0 3px rgb(31 159 191 / 16%), 0 0 12px rgb(31 159 191 / 48%);
+}
+
+.wbh-lamp input:focus-visible + span {
+  outline: 2px solid var(--wbh-focus);
+  outline-offset: -2px;
+}
+
+.wbh-lamp input:disabled {
+  cursor: default;
+}
+
+.wbh-lamp input:disabled + span {
+  color: var(--wbh-disabled-text);
+  background: var(--wbh-disabled-bg);
 }
 
 .wbh-check input {
@@ -1766,6 +1906,7 @@
 
   .wbh-editor-grid,
   .wbh-editor-grid-3,
+  .wbh-editor-grid-core,
   .wbh-editor-grid-compact {
     grid-template-columns: 1fr;
   }
