@@ -1363,10 +1363,6 @@ function ensureLocalWorkbench() {
                     <input type="checkbox" data-wbh-field="vectorized">
                     <span data-wbh-i18n="flag.vectorized">${t('flag.vectorized')}</span>
                   </label>
-                  <label class="wbh-check wbh-lamp">
-                    <input type="checkbox" data-wbh-field="useProbability">
-                    <span data-wbh-i18n="flag.useProbability">${t('flag.useProbability')}</span>
-                  </label>
                 </div>
                 <div class="wbh-editor-grid wbh-editor-grid-core">
                   <label class="wbh-editor-field">
@@ -3361,6 +3357,7 @@ function updateActiveEntryFromEditor(input) {
 
   beginInputHistory(input);
   record.entry[field] = nextValue;
+  if (field === 'probability') record.entry.useProbability = true;
   normalizeEntryRole(record.entry);
 
   setEditorDirty(true);
