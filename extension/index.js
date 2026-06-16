@@ -1343,21 +1343,21 @@ function ensureLocalWorkbench() {
             </aside>
             <section class="wbh-entry-editor">
               <div class="wbh-entry-title">
-                <h3 id="wbh-entry-title">${t('empty.noEntrySelected')}</h3>
-                <span id="wbh-entry-meta"></span>
+                <div class="wbh-entry-title-copy">
+                  <h3 id="wbh-entry-title">${t('empty.noEntrySelected')}</h3>
+                  <span id="wbh-entry-meta"></span>
+                </div>
+                <label class="wbh-check wbh-lamp wbh-enable-lamp">
+                  <input type="checkbox" data-wbh-field="disable">
+                  <span data-wbh-i18n="field.enabled">${t('field.enabled')}</span>
+                </label>
               </div>
               <label class="wbh-editor-field wbh-title-field">
                 <span data-wbh-i18n="field.title">${t('field.title')}</span>
                 <input id="wbh-entry-comment" type="text" data-wbh-field="comment">
               </label>
               <div class="wbh-editor-section wbh-core-section">
-                <div class="wbh-section-title-row">
-                  <h4 data-wbh-i18n="section.coreControls">${t('section.coreControls')}</h4>
-                  <label class="wbh-check wbh-lamp wbh-enable-lamp">
-                    <input type="checkbox" data-wbh-field="disable">
-                    <span data-wbh-i18n="field.enabled">${t('field.enabled')}</span>
-                  </label>
-                </div>
+                <h4 data-wbh-i18n="section.coreControls">${t('section.coreControls')}</h4>
                 <div class="wbh-editor-grid wbh-editor-grid-core">
                   <label class="wbh-editor-field wbh-strategy-field">
                     <span data-wbh-i18n="field.strategy">${t('field.strategy')}</span>
