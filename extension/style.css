@@ -1696,6 +1696,7 @@
   border-radius: 8px;
   background: var(--wbh-surface-1);
   box-shadow: 0 12px 30px rgb(16 24 40 / 18%);
+  overflow-y: auto;
 }
 
 .wbh-history-actions.drop-up .wbh-history-menu {

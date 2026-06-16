@@ -2542,12 +2542,20 @@ function positionHistoryActionMenu(details) {
   if (!menu) return;
 
   details.classList.remove('drop-up');
+  menu.style.maxHeight = '';
   const menuRect = menu.getBoundingClientRect();
+  const list = details.closest('.wbh-list');
   const section = details.closest('.wbh-side-section');
-  const sectionRect = section?.getBoundingClientRect();
-  const lowerLimit = Math.min(window.innerHeight, sectionRect?.bottom ?? window.innerHeight);
-  const needsDropUp = menuRect.bottom > lowerLimit - 8;
+  const boundaryRect = list?.getBoundingClientRect() || section?.getBoundingClientRect();
+  const triggerRect = details.getBoundingClientRect();
+  const upperLimit = Math.max(0, boundaryRect?.top ?? 0) + 8;
+  const lowerLimit = Math.min(window.innerHeight, boundaryRect?.bottom ?? window.innerHeight) - 8;
+  const gap = 6;
+  const spaceAbove = triggerRect.top - upperLimit - gap;
+  const spaceBelow = lowerLimit - triggerRect.bottom - gap;
+  const needsDropUp = spaceBelow < menuRect.height && spaceAbove > spaceBelow;
   details.classList.toggle('drop-up', needsDropUp);
+  menu.style.maxHeight = `${Math.max(80, Math.floor(needsDropUp ? spaceAbove : spaceBelow))}px`;
 }
 
 function renderExperiments() {
