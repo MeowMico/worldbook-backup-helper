@@ -1932,7 +1932,7 @@ async function loadEditorWorldbook({ force = false } = {}) {
   else if (migratedMvuStorage) setStatus(t('status.mvuStorageMigrated'));
 }
 
-async function loadLocalSnapshots() {
+async function loadLocalSnapshots({ restoreOpenExperiment = false } = {}) {
   const activeSnapshotId = app.activeSnapshot?.id;
   const activeExperimentId = app.activeExperiment?.id;
   const history = app.activeBook ? await getHistory(app.activeBook.name) : { snapshots: [], experiments: [] };
@@ -1940,7 +1940,14 @@ async function loadLocalSnapshots() {
   app.experiments = history.experiments;
   app.originSnapshot = app.snapshots.find(snapshot => snapshot.reason === 'origin') || null;
   app.activeSnapshot = app.snapshots.find(snapshot => snapshot.id === activeSnapshotId) || app.snapshots[0] || null;
-  app.activeExperiment = app.experiments.find(experiment => experiment.id === activeExperimentId) || (app.activeView === 'experiment' ? app.experiments[0] || null : null);
+  const openExperiment = restoreOpenExperiment ? getOpenExperiment() : null;
+  app.activeExperiment = app.experiments.find(experiment => experiment.id === activeExperimentId)
+    || openExperiment
+    || (app.activeView === 'experiment' ? app.experiments[0] || null : null);
+  if (openExperiment && app.activeExperiment?.id === openExperiment.id) {
+    app.activeView = 'experiment';
+    app.activeSnapshot = await getSnapshotById(openExperiment.afterSnapshotId || openExperiment.baselineSnapshotId) || app.activeSnapshot;
+  }
   if (!app.activeExperiment && app.activeView === 'experiment') app.activeView = 'snapshot';
   renderActiveBook();
   renderOriginSnapshot();
@@ -1969,7 +1976,7 @@ async function selectWorldbook(book) {
   app.activeView = 'snapshot';
   await loadEditorWorldbook({ force: true });
   renderBooks();
-  await loadLocalSnapshots();
+  await loadLocalSnapshots({ restoreOpenExperiment: true });
 }
 
 function renderBooks() {
