@@ -750,7 +750,7 @@ const TRANSLATIONS = {
     'field.presetName': 'Preset 名称',
     'field.initVarContent': 'InitVar 内容',
     'field.strategy': '策略',
-    'field.enabled': '启用状态',
+    'field.enabled': '启用',
     'flag.constant': '常驻',
     'flag.disabled': '禁用',
     'flag.selective': '可选',
@@ -1351,12 +1351,14 @@ function ensureLocalWorkbench() {
                 <input id="wbh-entry-comment" type="text" data-wbh-field="comment">
               </label>
               <div class="wbh-editor-section wbh-core-section">
-                <h4 data-wbh-i18n="section.coreControls">${t('section.coreControls')}</h4>
-                <div class="wbh-signal-grid">
-                  <label class="wbh-check wbh-lamp">
+                <div class="wbh-section-title-row">
+                  <h4 data-wbh-i18n="section.coreControls">${t('section.coreControls')}</h4>
+                  <label class="wbh-check wbh-lamp wbh-enable-lamp">
                     <input type="checkbox" data-wbh-field="disable">
-                    <span data-wbh-i18n="flag.disabled">${t('flag.disabled')}</span>
+                    <span data-wbh-i18n="field.enabled">${t('field.enabled')}</span>
                   </label>
+                </div>
+                <div class="wbh-editor-grid wbh-editor-grid-core">
                   <label class="wbh-editor-field wbh-strategy-field">
                     <span data-wbh-i18n="field.strategy">${t('field.strategy')}</span>
                     <select data-wbh-field="strategy" data-wbh-type="strategy">
@@ -1366,8 +1368,6 @@ function ensureLocalWorkbench() {
                       <option value="vectorized" data-wbh-key="flag.vectorized">${t('flag.vectorized')}</option>
                     </select>
                   </label>
-                </div>
-                <div class="wbh-editor-grid wbh-editor-grid-core">
                   <label class="wbh-editor-field">
                     <span data-wbh-i18n="field.position">${t('field.position')}</span>
                     <select data-wbh-field="position" data-wbh-type="number" data-wbh-options="position">
@@ -1408,6 +1408,19 @@ function ensureLocalWorkbench() {
                     </select>
                   </label>
                 </div>
+              </div>
+              <div class="wbh-editor-section wbh-activation-section">
+                <h4 data-wbh-i18n="section.activation">${t('section.activation')}</h4>
+                <div class="wbh-editor-grid">
+                  <label class="wbh-editor-field">
+                    <span data-wbh-i18n="field.keys">${t('field.keys')}</span>
+                    <textarea id="wbh-entry-key" data-wbh-field="key" rows="3"></textarea>
+                  </label>
+                  <label class="wbh-editor-field">
+                    <span data-wbh-i18n="field.secondary">${t('field.secondary')}</span>
+                    <textarea id="wbh-entry-keysecondary" data-wbh-field="keysecondary" rows="3"></textarea>
+                  </label>
+                </div>
                 <div class="wbh-recursion-strip">
                   <label class="wbh-check wbh-lamp">
                     <input type="checkbox" data-wbh-field="excludeRecursion">
@@ -1424,19 +1437,6 @@ function ensureLocalWorkbench() {
                   <label class="wbh-check wbh-lamp">
                     <input type="checkbox" data-wbh-field="ignoreBudget">
                     <span data-wbh-i18n="flag.ignoreBudget">${t('flag.ignoreBudget')}</span>
-                  </label>
-                </div>
-              </div>
-              <div class="wbh-editor-section wbh-activation-section">
-                <h4 data-wbh-i18n="section.activation">${t('section.activation')}</h4>
-                <div class="wbh-editor-grid">
-                  <label class="wbh-editor-field">
-                    <span data-wbh-i18n="field.keys">${t('field.keys')}</span>
-                    <textarea id="wbh-entry-key" data-wbh-field="key" rows="3"></textarea>
-                  </label>
-                  <label class="wbh-editor-field">
-                    <span data-wbh-i18n="field.secondary">${t('field.secondary')}</span>
-                    <textarea id="wbh-entry-keysecondary" data-wbh-field="keysecondary" rows="3"></textarea>
                   </label>
                 </div>
               </div>
@@ -3272,6 +3272,7 @@ function setEditorInputValues(inputs, entry) {
     }
   }
   updatePositionDependentControls(entry);
+  updateDisableControl(entry);
 }
 
 function updatePositionDependentControls(entry) {
@@ -3312,6 +3313,17 @@ function updateOutletControl(entry) {
   field.classList.toggle('hidden', !isOutlet);
   const input = field.querySelector('[data-wbh-field="outletName"]');
   if (input) input.disabled = !isOutlet;
+}
+
+function updateDisableControl(entry) {
+  const root = document.querySelector('#wbh-workbench');
+  const input = root?.querySelector('[data-wbh-field="disable"]');
+  const label = input?.closest('.wbh-enable-lamp')?.querySelector('span');
+  if (!label) return;
+
+  const key = entry?.disable ? 'flag.disabled' : 'field.enabled';
+  label.dataset.wbhI18n = key;
+  label.textContent = t(key);
 }
 
 function normalizeEntryRole(entry) {
@@ -3399,6 +3411,7 @@ function updateActiveEntryFromEditor(input) {
   record.entry[field] = nextValue;
   if (field === 'probability') record.entry.useProbability = true;
   normalizeEntryRole(record.entry);
+  if (field === 'disable') updateDisableControl(record.entry);
 
   setEditorDirty(true);
   if (field === 'comment') {
