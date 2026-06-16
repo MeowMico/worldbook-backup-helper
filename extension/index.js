@@ -151,6 +151,7 @@ const DIFF_FIELD_LABELS = {
   matchCharacterDepthPrompt: 'field.matchDepthPrompt',
   matchScenario: 'field.matchScenario',
   matchCreatorNotes: 'field.matchCreatorNotes',
+  strategy: 'field.strategy',
 };
 const BOOLEAN_DIFF_FIELDS = new Set([
   'constant',
@@ -406,6 +407,7 @@ const TRANSLATIONS = {
     'field.preset': 'Preset',
     'field.presetName': 'Preset name',
     'field.initVarContent': 'InitVar content',
+    'field.strategy': 'Strategy',
     'field.enabled': 'Enabled',
     'flag.constant': 'Constant',
     'flag.disabled': 'Disabled',
@@ -744,6 +746,7 @@ const TRANSLATIONS = {
     'field.preset': 'Preset',
     'field.presetName': 'Preset 名称',
     'field.initVarContent': 'InitVar 内容',
+    'field.strategy': '策略',
     'field.enabled': '启用状态',
     'flag.constant': '常驻',
     'flag.disabled': '禁用',
@@ -1351,17 +1354,14 @@ function ensureLocalWorkbench() {
                     <input type="checkbox" data-wbh-field="disable">
                     <span data-wbh-i18n="flag.disabled">${t('flag.disabled')}</span>
                   </label>
-                  <label class="wbh-check wbh-lamp">
-                    <input type="checkbox" data-wbh-field="constant">
-                    <span data-wbh-i18n="flag.constant">${t('flag.constant')}</span>
-                  </label>
-                  <label class="wbh-check wbh-lamp">
-                    <input type="checkbox" data-wbh-field="selective">
-                    <span data-wbh-i18n="flag.selective">${t('flag.selective')}</span>
-                  </label>
-                  <label class="wbh-check wbh-lamp">
-                    <input type="checkbox" data-wbh-field="vectorized">
-                    <span data-wbh-i18n="flag.vectorized">${t('flag.vectorized')}</span>
+                  <label class="wbh-editor-field wbh-strategy-field">
+                    <span data-wbh-i18n="field.strategy">${t('field.strategy')}</span>
+                    <select data-wbh-field="strategy" data-wbh-type="strategy">
+                      <option value="normal" data-wbh-key="value.normal">${t('value.normal')}</option>
+                      <option value="constant" data-wbh-key="flag.constant">${t('flag.constant')}</option>
+                      <option value="selective" data-wbh-key="flag.selective">${t('flag.selective')}</option>
+                      <option value="vectorized" data-wbh-key="flag.vectorized">${t('flag.vectorized')}</option>
+                    </select>
                   </label>
                 </div>
                 <div class="wbh-editor-grid wbh-editor-grid-core">
@@ -2105,6 +2105,19 @@ function positionModeValue(entry) {
   return String(position);
 }
 
+function entryStrategyValue(entry) {
+  if (entry?.vectorized) return 'vectorized';
+  if (entry?.constant) return 'constant';
+  if (entry?.selective) return 'selective';
+  return 'normal';
+}
+
+function applyEntryStrategy(entry, strategy) {
+  entry.constant = strategy === 'constant';
+  entry.selective = strategy === 'selective';
+  entry.vectorized = strategy === 'vectorized';
+}
+
 function entriesLabel(count) {
   const key = getResolvedLanguageMode() === 'en' && Number(count) === 1 ? 'count.entry' : 'count.entries';
   return t(key, { count });
@@ -2161,6 +2174,9 @@ function renderStaticTranslations(root = document.querySelector('#wbh-workbench'
 
 function updateSelectOptionLabels(root = document.querySelector('#wbh-workbench')) {
   if (!root) return;
+  root.querySelectorAll('option[data-wbh-key]').forEach(option => {
+    option.textContent = t(option.dataset.wbhKey);
+  });
   root.querySelectorAll('select[data-wbh-options="position"] option[data-wbh-key]').forEach(option => {
     option.textContent = t(option.dataset.wbhKey);
   });
@@ -3238,6 +3254,8 @@ function setEditorInputValues(inputs, entry) {
     const value = entry[field];
     if (input.type === 'checkbox') {
       input.checked = Boolean(value);
+    } else if (field === 'strategy') {
+      input.value = entryStrategyValue(entry);
     } else if (field === 'position') {
       input.value = positionModeValue(entry);
     } else if (LIST_FIELDS.has(field)) {
@@ -3302,8 +3320,16 @@ function normalizeEntryRole(entry) {
   delete entry.role;
 }
 
+function normalizeEntryStrategy(entry) {
+  if (!entry) return;
+  applyEntryStrategy(entry, entryStrategyValue(entry));
+}
+
 function normalizeWorldbookRoles(data) {
-  getEntryRecords(data).forEach(record => normalizeEntryRole(record.entry));
+  getEntryRecords(data).forEach(record => {
+    normalizeEntryRole(record.entry);
+    normalizeEntryStrategy(record.entry);
+  });
 }
 
 function getEditorInputs(root) {
@@ -3352,6 +3378,17 @@ function updateActiveEntryFromEditor(input) {
     return;
   }
 
+  if (field === 'strategy') {
+    const nextStrategy = readEditorInputValue(input);
+    if (entryStrategyValue(record.entry) === nextStrategy) return;
+
+    beginInputHistory(input);
+    applyEntryStrategy(record.entry, nextStrategy);
+    setEditorDirty(true);
+    document.querySelector('#wbh-entry-meta').textContent = entryMeta(record.entry);
+    return;
+  }
+
   const nextValue = readEditorInputValue(input);
   if (comparableField(record.entry[field]) === comparableField(nextValue)) return;
 
@@ -3371,6 +3408,7 @@ function updateActiveEntryFromEditor(input) {
 function readEditorInputValue(input) {
   const field = input.dataset.wbhField;
   if (input.type === 'checkbox') return input.checked;
+  if (field === 'strategy') return input.value || 'normal';
   if (LIST_FIELDS.has(field)) return parseListField(input.value);
   if (TRI_STATE_BOOLEAN_FIELDS.has(field)) {
     if (input.value === '') return null;
@@ -6402,6 +6440,7 @@ async function getHistory(bookName) {
           return { snapshots: [], experiments: [] };
         }),
       ]);
+      mirrorMissingHistoryToServer(bookName, remoteHistory, localHistory);
       return mergeHistory(remoteHistory, localHistory);
     } catch (error) {
       console.warn('[Worldbook Workbench] Server history unavailable; falling back to IndexedDB.', error);
@@ -6540,6 +6579,20 @@ function experimentHistoryKey(experiment) {
     || [experiment?.bookName, experiment?.startedAtMs, experiment?.title].map(value => cleanText(value)).join(':');
 }
 
+function mirrorMissingHistoryToServer(bookName, remoteHistory, localHistory) {
+  const snapshots = missingHistoryRecords(localHistory.snapshots, remoteHistory.snapshots, snapshotHistoryKey);
+  const experiments = missingHistoryRecords(localHistory.experiments, remoteHistory.experiments, experimentHistoryKey);
+  if (!snapshots.length && !experiments.length) return;
+  void importRemoteHistory(bookName, snapshots, experiments).catch(error => {
+    console.warn('[Worldbook Workbench] Server history mirror failed.', error);
+  });
+}
+
+function missingHistoryRecords(source = [], target = [], keyFn) {
+  const targetKeys = new Set((target || []).map(item => keyFn(item)));
+  return (source || []).filter(item => !targetKeys.has(keyFn(item)));
+}
+
 async function importRemoteHistory(bookName, snapshots, experiments) {
   return stPost(`${PLUGIN_ROOT}/history/import`, {
     name: bookName,
@@ -6600,19 +6653,58 @@ function inferBookNameFromId(id) {
   return String(id || '').split(':')[0] || '';
 }
 
-async function getLocalSnapshots(bookName) {
+async function getLocalRecordsForBook(storeName, bookName) {
+  const [exact, all] = await Promise.all([
+    getLocalRecordsByBookIndex(storeName, bookName),
+    getAllLocalStore(storeName),
+  ]);
+  const keyFn = storeName === SNAPSHOT_STORE ? snapshotHistoryKey : experimentHistoryKey;
+  const fuzzy = all
+    .filter(item => historyRecordMatchesBook(item, bookName))
+    .map(item => normalizeHistoryRecordBook(item, bookName));
+  return mergeHistoryRecords(exact, fuzzy, keyFn);
+}
+
+async function getLocalRecordsByBookIndex(storeName, bookName) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(SNAPSHOT_STORE, 'readonly');
-    const store = tx.objectStore(SNAPSHOT_STORE);
+    const tx = db.transaction(storeName, 'readonly');
+    const store = tx.objectStore(storeName);
     const index = store.index('bookName');
     const request = index.getAll(bookName);
-    request.onsuccess = () => {
-      resolve(sortSnapshots(request.result || []));
-    };
+    request.onsuccess = () => resolve(request.result || []);
     request.onerror = () => reject(request.error);
     tx.oncomplete = () => db.close();
   });
+}
+
+function historyRecordMatchesBook(record, bookName) {
+  const sourceName = cleanText(record?.bookName) || inferBookNameFromId(record?.id);
+  const sourceKey = historyBookKey(sourceName);
+  const targetKey = historyBookKey(bookName);
+  return Boolean(sourceKey && targetKey && sourceKey === targetKey);
+}
+
+function normalizeHistoryRecordBook(record, bookName) {
+  const targetName = cleanText(bookName);
+  if (!targetName || cleanText(record?.bookName) === targetName) return record;
+  return {
+    ...record,
+    originalBookName: record.originalBookName || record.bookName || inferBookNameFromId(record.id),
+    bookName: targetName,
+  };
+}
+
+function historyBookKey(value) {
+  return cleanText(value)
+    .replace(/\.json$/i, '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\s._-]+/g, '');
+}
+
+async function getLocalSnapshots(bookName) {
+  return sortSnapshots(await getLocalRecordsForBook(SNAPSHOT_STORE, bookName));
 }
 
 async function putLocalSnapshot(snapshot) {
@@ -6641,18 +6733,7 @@ async function getLocalSnapshotById(id) {
 }
 
 async function getLocalExperiments(bookName) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(EXPERIMENT_STORE, 'readonly');
-    const store = tx.objectStore(EXPERIMENT_STORE);
-    const index = store.index('bookName');
-    const request = index.getAll(bookName);
-    request.onsuccess = () => {
-      resolve(sortExperiments(request.result || []));
-    };
-    request.onerror = () => reject(request.error);
-    tx.oncomplete = () => db.close();
-  });
+  return sortExperiments(await getLocalRecordsForBook(EXPERIMENT_STORE, bookName));
 }
 
 async function putLocalExperiment(experiment) {
