@@ -193,6 +193,11 @@ const TRANSLATIONS = {
     'status.experimentJsonExported': 'Experiment JSON exported',
     'status.exportingArchive': 'Exporting worldbook archive',
     'status.archiveExported': 'Worldbook archive JSON exported',
+    'status.creatingWorldbook': 'Creating worldbook',
+    'status.worldbookCreated': 'Worldbook created: {name}',
+    'status.worldbookExists': 'Worldbook already exists: {name}',
+    'status.worldbookNameRequired': 'Enter a worldbook name',
+    'status.worldbookCreateFailed': 'Could not create worldbook',
     'status.loadedForEditing': 'Loaded {source} for editing: {label}',
     'status.noMatches': 'No matches',
     'status.matches': '{current}/{total} matches',
@@ -364,6 +369,7 @@ const TRANSLATIONS = {
     'placeholder.mvuPresetContent': '[initvar] content for this opening',
     'tooltip.hideWorldbooks': 'Hide worldbooks',
     'tooltip.showWorldbooks': 'Show worldbooks',
+    'tooltip.newWorldbook': 'Create a new worldbook',
     'tooltip.history': 'Show or hide the history sidebar',
     'tooltip.findReplace': 'Show or hide find and replace',
     'tooltip.exportExperimentJson': 'Export experiment JSON',
@@ -462,6 +468,7 @@ const TRANSLATIONS = {
     'count.matches': '{count} matches',
     'count.match': '{count} match',
     'prompt.experimentName': 'Experiment name / problem',
+    'prompt.worldbookName': 'New worldbook name',
     'prompt.experimentNote': 'Experiment note',
     'prompt.versionName': 'Version name',
     'confirm.replaceMatches': 'Replace {count} {noun}?',
@@ -532,6 +539,11 @@ const TRANSLATIONS = {
     'status.experimentJsonExported': '实验 JSON 已导出',
     'status.exportingArchive': '正在导出世界书合集',
     'status.archiveExported': '世界书历史合集 JSON 已导出',
+    'status.creatingWorldbook': '正在创建世界书',
+    'status.worldbookCreated': '世界书已创建：{name}',
+    'status.worldbookExists': '世界书已存在：{name}',
+    'status.worldbookNameRequired': '请输入世界书名称',
+    'status.worldbookCreateFailed': '未能创建世界书',
     'status.loadedForEditing': '已载入{source}用于编辑：{label}',
     'status.noMatches': '没有匹配项',
     'status.matches': '{current}/{total} 个匹配项',
@@ -703,6 +715,7 @@ const TRANSLATIONS = {
     'placeholder.mvuPresetContent': '这个开场对应的 [initvar] 内容',
     'tooltip.hideWorldbooks': '隐藏世界书列表',
     'tooltip.showWorldbooks': '显示世界书列表',
+    'tooltip.newWorldbook': '创建一本新的世界书',
     'tooltip.history': '显示或隐藏历史栏',
     'tooltip.findReplace': '显示或隐藏查找替换',
     'tooltip.exportExperimentJson': '导出实验 JSON',
@@ -801,6 +814,7 @@ const TRANSLATIONS = {
     'count.matches': '{count} 个匹配项',
     'count.match': '{count} 个匹配项',
     'prompt.experimentName': '实验名称 / 问题记录',
+    'prompt.worldbookName': '新世界书名称',
     'prompt.experimentNote': '实验备注',
     'prompt.versionName': '版本名称',
     'confirm.replaceMatches': '替换 {count} 个匹配项吗？',
@@ -1262,7 +1276,10 @@ function ensureLocalWorkbench() {
               <h3 data-wbh-i18n="section.worldbooks">${t('section.worldbooks')}</h3>
               <span id="wbh-book-count">0</span>
             </div>
-            <button id="wbh-toggle-books" class="wbh-icon-button" type="button" title="${t('tooltip.hideWorldbooks')}" aria-label="${t('tooltip.hideWorldbooks')}">&lt;</button>
+            <div class="wbh-book-actions">
+              <button id="wbh-create-book" class="wbh-icon-button" type="button" title="${t('tooltip.newWorldbook')}" aria-label="${t('tooltip.newWorldbook')}" data-wbh-i18n-title="tooltip.newWorldbook">+</button>
+              <button id="wbh-toggle-books" class="wbh-icon-button" type="button" title="${t('tooltip.hideWorldbooks')}" aria-label="${t('tooltip.hideWorldbooks')}">&lt;</button>
+            </div>
           </div>
           <div class="wbh-book-content">
             <input id="wbh-book-search" type="search" placeholder="${t('placeholder.search')}" data-wbh-i18n-placeholder="placeholder.search">
@@ -1678,6 +1695,7 @@ function ensureLocalWorkbench() {
   root.querySelectorAll('[data-wbh-language]').forEach(button => {
     button.addEventListener('click', () => setLanguageMode(button.dataset.wbhLanguage));
   });
+  root.querySelector('#wbh-create-book').addEventListener('click', createWorldbook);
   root.querySelector('#wbh-toggle-books').addEventListener('click', toggleBooksPane);
   root.querySelector('#wbh-toggle-history').addEventListener('click', toggleHistoryPane);
   root.querySelector('#wbh-toggle-find').addEventListener('click', toggleFindPane);
@@ -1783,6 +1801,28 @@ async function listWorldbooks() {
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
+function createEmptyWorldbook() {
+  return {
+    entries: {},
+  };
+}
+
+function sanitizeWorldbookName(value) {
+  return cleanText(value)
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 120)
+    .trim();
+}
+
+function findWorldbookByName(name) {
+  const target = cleanText(name).toLowerCase();
+  if (!target) return null;
+  return app.books.find(book => [book.name, book.title]
+    .some(value => cleanText(value).toLowerCase() === target)) || null;
+}
+
 async function loadWorldbook(name) {
   return stPost('/api/worldinfo/get', { name });
 }
@@ -1794,6 +1834,38 @@ async function saveWorldbook(name, data) {
     await refreshNativeWorldInfoEditor(name);
   } finally {
     app.snapshotInFlight = false;
+  }
+}
+
+async function createWorldbook() {
+  if (!await confirmDiscardEditorChanges()) return;
+
+  const rawName = window.prompt(t('prompt.worldbookName'), '');
+  if (rawName === null) return;
+
+  const name = sanitizeWorldbookName(rawName);
+  if (!name) {
+    setStatus(t('status.worldbookNameRequired'));
+    return;
+  }
+
+  if (findWorldbookByName(name)) {
+    setStatus(t('status.worldbookExists', { name }));
+    return;
+  }
+
+  setStatus(t('status.creatingWorldbook'));
+  try {
+    await saveWorldbook(name, createEmptyWorldbook());
+    app.books = await listWorldbooks();
+    const book = findWorldbookByName(name) || { name, title: name };
+    const search = document.querySelector('#wbh-book-search');
+    if (search) search.value = '';
+    await selectWorldbook(book);
+    setStatus(t('status.worldbookCreated', { name: book.title || book.name }));
+  } catch (error) {
+    console.warn('[Worldbook Workbench] Create worldbook failed.', error);
+    setStatus(t('status.worldbookCreateFailed'));
   }
 }
 
@@ -1877,6 +1949,29 @@ async function loadLocalSnapshots() {
   await renderDiff();
 }
 
+async function selectWorldbook(book) {
+  app.activeBook = book;
+  rememberMvuAutoInjectBook(book.name);
+  app.activeData = null;
+  app.activeDataHash = '';
+  app.activeEntryId = null;
+  app.selectedEntryIds.clear();
+  app.mvuOpenings = [];
+  app.mvuActivePresetId = '';
+  app.mvuSelectedOpeningId = '';
+  app.mvuTouched = app.mainTab === 'mvu';
+  app.mvuLastInjectSignature = '';
+  app.mvuAutoInjectNoticeKey = '';
+  app.editorDirty = false;
+  resetEditorHistory({ render: false });
+  app.activeSnapshot = null;
+  app.activeExperiment = null;
+  app.activeView = 'snapshot';
+  await loadEditorWorldbook({ force: true });
+  renderBooks();
+  await loadLocalSnapshots();
+}
+
 function renderBooks() {
   const root = document.querySelector('#wbh-workbench');
   if (!root) return;
@@ -1896,26 +1991,7 @@ function renderBooks() {
       button.querySelector('small').textContent = book.name;
       button.addEventListener('click', async () => {
         if (!await confirmDiscardEditorChanges()) return;
-        app.activeBook = book;
-        rememberMvuAutoInjectBook(book.name);
-        app.activeData = null;
-        app.activeDataHash = '';
-        app.activeEntryId = null;
-        app.selectedEntryIds.clear();
-        app.mvuOpenings = [];
-        app.mvuActivePresetId = '';
-        app.mvuSelectedOpeningId = '';
-        app.mvuTouched = app.mainTab === 'mvu';
-        app.mvuLastInjectSignature = '';
-        app.mvuAutoInjectNoticeKey = '';
-        app.editorDirty = false;
-        resetEditorHistory({ render: false });
-        app.activeSnapshot = null;
-        app.activeExperiment = null;
-        app.activeView = 'snapshot';
-        await loadEditorWorldbook({ force: true });
-        renderBooks();
-        await loadLocalSnapshots();
+        await selectWorldbook(book);
       });
       return button;
     }));

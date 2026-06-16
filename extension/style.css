@@ -483,6 +483,12 @@
   white-space: nowrap;
 }
 
+.wbh-book-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .wbh-book-content {
   min-height: 0;
   display: flex;
@@ -492,6 +498,10 @@
 
 .wbh-book-pane.collapsed .wbh-book-title,
 .wbh-book-pane.collapsed .wbh-book-content {
+  display: none;
+}
+
+.wbh-book-pane.collapsed #wbh-create-book {
   display: none;
 }
 
