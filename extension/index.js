@@ -6394,7 +6394,15 @@ async function getHistory(bookName) {
   if (await detectServerHistoryStorage()) {
     try {
       await migrateLocalHistoryToServer();
-      return await getRemoteHistory(bookName);
+      if (!app.serverHistoryAvailable) return getLocalHistory(bookName);
+      const [remoteHistory, localHistory] = await Promise.all([
+        getRemoteHistory(bookName),
+        getLocalHistory(bookName).catch((error) => {
+          console.warn('[Worldbook Workbench] Local history fallback read failed.', error);
+          return { snapshots: [], experiments: [] };
+        }),
+      ]);
+      return mergeHistory(remoteHistory, localHistory);
     } catch (error) {
       console.warn('[Worldbook Workbench] Server history unavailable; falling back to IndexedDB.', error);
       app.serverHistoryAvailable = false;
@@ -6402,6 +6410,10 @@ async function getHistory(bookName) {
     }
   }
 
+  return getLocalHistory(bookName);
+}
+
+async function getLocalHistory(bookName) {
   const [snapshots, experiments] = await Promise.all([
     getLocalSnapshots(bookName),
     getLocalExperiments(bookName),
@@ -6416,7 +6428,11 @@ async function getSnapshots(bookName) {
 async function putSnapshot(snapshot) {
   if (await detectServerHistoryStorage()) {
     try {
-      return await putRemoteSnapshot(snapshot);
+      const saved = await putRemoteSnapshot(snapshot);
+      void putLocalSnapshot(saved || snapshot).catch(error => {
+        console.warn('[Worldbook Workbench] Local snapshot mirror failed.', error);
+      });
+      return saved;
     } catch (error) {
       console.warn('[Worldbook Workbench] Server snapshot write failed; falling back to IndexedDB.', error);
       app.serverHistoryAvailable = false;
@@ -6450,7 +6466,11 @@ async function getExperiments(bookName) {
 async function putExperiment(experiment) {
   if (await detectServerHistoryStorage()) {
     try {
-      return await putRemoteExperiment(experiment);
+      const saved = await putRemoteExperiment(experiment);
+      void putLocalExperiment(saved || experiment).catch(error => {
+        console.warn('[Worldbook Workbench] Local experiment mirror failed.', error);
+      });
+      return saved;
     } catch (error) {
       console.warn('[Worldbook Workbench] Server experiment write failed; falling back to IndexedDB.', error);
       app.serverHistoryAvailable = false;
@@ -6486,6 +6506,38 @@ async function putRemoteExperiment(experiment) {
     experiment,
   });
   return result.experiment || experiment;
+}
+
+function mergeHistory(primary, fallback) {
+  return {
+    snapshots: sortSnapshots(mergeHistoryRecords(primary.snapshots, fallback.snapshots, snapshotHistoryKey)),
+    experiments: sortExperiments(mergeHistoryRecords(primary.experiments, fallback.experiments, experimentHistoryKey)),
+  };
+}
+
+function mergeHistoryRecords(primary = [], fallback = [], keyFn) {
+  const merged = new Map();
+  for (const item of fallback) {
+    if (!item) continue;
+    merged.set(keyFn(item), item);
+  }
+  for (const item of primary) {
+    if (!item) continue;
+    merged.set(keyFn(item), item);
+  }
+  return [...merged.values()];
+}
+
+function snapshotHistoryKey(snapshot) {
+  return cleanText(snapshot?.id)
+    || cleanText(snapshot?.file)
+    || [snapshot?.bookName, snapshot?.createdAtMs, snapshot?.sourceHash].map(value => cleanText(value)).join(':');
+}
+
+function experimentHistoryKey(experiment) {
+  return cleanText(experiment?.id)
+    || cleanText(experiment?.file)
+    || [experiment?.bookName, experiment?.startedAtMs, experiment?.title].map(value => cleanText(value)).join(':');
 }
 
 async function importRemoteHistory(bookName, snapshots, experiments) {
