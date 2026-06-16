@@ -1,5 +1,6 @@
 import * as stScript from '/script.js';
 import { saveWorldInfo } from '/scripts/world-info.js';
+import { extension_settings } from '/scripts/extensions.js';
 
 const PLUGIN_ROOT = '/api/plugins/worldbook-backup-helper';
 const PLUGIN_EXTENSION_KEY = 'worldbookBackupHelper';
@@ -7,6 +8,8 @@ const DB_NAME = 'worldbook-backup-helper';
 const DB_VERSION = 2;
 const SNAPSHOT_STORE = 'snapshots';
 const EXPERIMENT_STORE = 'experiments';
+const SETTINGS_HISTORY_VERSION = 1;
+const SETTINGS_EXPERIMENT_LIMIT = 1000;
 const MVU_PRESET_COMMENT_PATTERN = /^\[MVU_INIT_PRESET:([A-Za-z0-9_-]+)\]$/;
 const MVU_MAP_COMMENT = '[MVU_INIT_MAP]';
 const MVU_INITVAR_COMMENT = '[initvar]变量初始化勿开';
@@ -6406,6 +6409,152 @@ async function stPost(url, body) {
   return response.json();
 }
 
+function getPluginSettings(create = false) {
+  if (!extension_settings || typeof extension_settings !== 'object') return null;
+  const current = extension_settings[PLUGIN_EXTENSION_KEY];
+  if (current && typeof current === 'object' && !Array.isArray(current)) return current;
+  if (!create) return null;
+  extension_settings[PLUGIN_EXTENSION_KEY] = {};
+  return extension_settings[PLUGIN_EXTENSION_KEY];
+}
+
+function getSettingsHistory(create = false) {
+  const settings = getPluginSettings(create);
+  if (!settings) return null;
+  if (settings.history && typeof settings.history === 'object' && !Array.isArray(settings.history)) {
+    if (create) {
+      settings.history.version = SETTINGS_HISTORY_VERSION;
+      if (!settings.history.experiments || typeof settings.history.experiments !== 'object' || Array.isArray(settings.history.experiments)) {
+        settings.history.experiments = {};
+      }
+    }
+    return settings.history;
+  }
+  if (!create) return null;
+  settings.history = {
+    version: SETTINGS_HISTORY_VERSION,
+    experiments: {},
+  };
+  return settings.history;
+}
+
+function savePluginSettings() {
+  try {
+    if (typeof stScript.saveSettingsDebounced === 'function') {
+      stScript.saveSettingsDebounced();
+    } else if (typeof stScript.saveSettings === 'function') {
+      stScript.saveSettings();
+    }
+  } catch (error) {
+    console.warn('[Worldbook Workbench] Could not save extension settings mirror.', error);
+  }
+}
+
+function readSettingsExperiments(bookName) {
+  const history = getSettingsHistory(false);
+  const records = history?.experiments;
+  if (!records || typeof records !== 'object' || Array.isArray(records)) return [];
+  return sortExperiments(Object.values(records)
+    .filter(experiment => historyRecordMatchesBook(experiment, bookName))
+    .map(experiment => normalizeSettingsExperimentForRead(experiment, bookName)));
+}
+
+function normalizeSettingsExperimentForRead(experiment, bookName) {
+  const normalized = normalizeHistoryRecordBook(experiment, bookName);
+  return {
+    ...normalized,
+    id: cleanText(normalized.id) || settingsExperimentKey(normalized),
+    bookName: cleanText(normalized.bookName) || cleanText(bookName),
+    title: cleanText(normalized.title),
+    status: cleanText(normalized.status) || 'testing',
+    startedAt: cleanText(normalized.startedAt),
+    startedAtMs: Number(normalized.startedAtMs || Date.parse(normalized.startedAt || '') || 0),
+    finishedAt: cleanText(normalized.finishedAt),
+    finishedAtMs: Number(normalized.finishedAtMs || Date.parse(normalized.finishedAt || '') || 0),
+    baselineSnapshotId: cleanText(normalized.baselineSnapshotId),
+    afterSnapshotId: cleanText(normalized.afterSnapshotId),
+    changeNote: cleanText(normalized.changeNote),
+    resultNote: cleanText(normalized.resultNote),
+    parentExperimentId: cleanText(normalized.parentExperimentId),
+  };
+}
+
+function mirrorExperimentToSettings(experiment) {
+  mirrorExperimentsToSettings([experiment]);
+}
+
+function mirrorExperimentsToSettings(experiments) {
+  if (!Array.isArray(experiments) || !experiments.length) return;
+  const history = getSettingsHistory(true);
+  if (!history) return;
+
+  let changed = false;
+  for (const experiment of experiments) {
+    if (upsertSettingsExperiment(history, experiment)) changed = true;
+  }
+  if (pruneSettingsExperiments(history)) changed = true;
+  if (changed) savePluginSettings();
+}
+
+function upsertSettingsExperiment(history, experiment) {
+  const record = compactExperimentForSettings(experiment);
+  if (!record) return false;
+  const key = settingsExperimentKey(record);
+  const previous = history.experiments[key];
+  if (JSON.stringify(previous || null) === JSON.stringify(record)) return false;
+  history.experiments[key] = record;
+  return true;
+}
+
+function compactExperimentForSettings(experiment) {
+  if (!experiment || typeof experiment !== 'object') return null;
+  const bookName = cleanText(experiment.bookName) || inferBookNameFromId(experiment.id);
+  const startedAt = cleanText(experiment.startedAt);
+  const startedAtMs = Number(experiment.startedAtMs || Date.parse(startedAt || '') || 0);
+  const id = cleanText(experiment.id)
+    || cleanText(experiment.file)
+    || `${bookName || 'worldbook'}:experiment:${startedAtMs || Date.now()}:${cleanText(experiment.title) || 'untitled'}`;
+  if (!id) return null;
+  return {
+    mirrorVersion: SETTINGS_HISTORY_VERSION,
+    id,
+    file: cleanText(experiment.file),
+    bookName,
+    originalBookName: cleanText(experiment.originalBookName),
+    title: cleanText(experiment.title),
+    status: cleanText(experiment.status) || 'testing',
+    startedAt,
+    startedAtMs,
+    finishedAt: cleanText(experiment.finishedAt),
+    finishedAtMs: Number(experiment.finishedAtMs || Date.parse(experiment.finishedAt || '') || 0),
+    baselineSnapshotId: cleanText(experiment.baselineSnapshotId),
+    afterSnapshotId: cleanText(experiment.afterSnapshotId),
+    changeNote: cleanText(experiment.changeNote),
+    resultNote: cleanText(experiment.resultNote),
+    parentExperimentId: cleanText(experiment.parentExperimentId),
+  };
+}
+
+function settingsExperimentKey(experiment) {
+  return cleanText(experiment?.id)
+    || cleanText(experiment?.file)
+    || [
+      historyBookKey(experiment?.bookName),
+      Number(experiment?.startedAtMs || 0),
+      cleanText(experiment?.title).toLowerCase(),
+    ].filter(Boolean).join(':');
+}
+
+function pruneSettingsExperiments(history) {
+  const entries = Object.entries(history.experiments || {});
+  if (entries.length <= SETTINGS_EXPERIMENT_LIMIT) return false;
+  entries
+    .sort(([, left], [, right]) => Number(right?.startedAtMs || 0) - Number(left?.startedAtMs || 0))
+    .slice(SETTINGS_EXPERIMENT_LIMIT)
+    .forEach(([key]) => delete history.experiments[key]);
+  return true;
+}
+
 function openDb() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -6441,7 +6590,9 @@ async function getHistory(bookName) {
         }),
       ]);
       mirrorMissingHistoryToServer(bookName, remoteHistory, localHistory);
-      return mergeHistory(remoteHistory, localHistory);
+      const merged = mergeHistory(remoteHistory, localHistory);
+      mirrorExperimentsToSettings(merged.experiments);
+      return merged;
     } catch (error) {
       console.warn('[Worldbook Workbench] Server history unavailable; falling back to IndexedDB.', error);
       app.serverHistoryAvailable = false;
@@ -6453,10 +6604,12 @@ async function getHistory(bookName) {
 }
 
 async function getLocalHistory(bookName) {
-  const [snapshots, experiments] = await Promise.all([
+  const [snapshots, indexedExperiments] = await Promise.all([
     getLocalSnapshots(bookName),
     getLocalExperiments(bookName),
   ]);
+  mirrorExperimentsToSettings(indexedExperiments);
+  const experiments = sortExperiments(mergeHistoryRecords(indexedExperiments, readSettingsExperiments(bookName), experimentHistoryKey));
   return { snapshots, experiments };
 }
 
@@ -6506,6 +6659,7 @@ async function putExperiment(experiment) {
   if (await detectServerHistoryStorage()) {
     try {
       const saved = await putRemoteExperiment(experiment);
+      mirrorExperimentToSettings(saved || experiment);
       void putLocalExperiment(saved || experiment).catch(error => {
         console.warn('[Worldbook Workbench] Local experiment mirror failed.', error);
       });
@@ -6515,7 +6669,9 @@ async function putExperiment(experiment) {
       app.serverHistoryAvailable = false;
     }
   }
-  return putLocalExperiment(experiment);
+  const saved = await putLocalExperiment(experiment);
+  mirrorExperimentToSettings(saved || experiment);
+  return saved;
 }
 
 async function getRemoteHistory(bookName) {
