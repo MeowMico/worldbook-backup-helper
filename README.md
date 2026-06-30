@@ -1,5 +1,7 @@
 # Worldbook Workbench
 
+[Français](README.fr.md)
+
 [中文说明](README.zh-CN.md)
 
 Worldbook Workbench is a SillyTavern extension for editing, versioning, comparing, restoring, and exporting worldbooks/lorebooks.
