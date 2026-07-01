@@ -6491,119 +6491,13 @@ function formatListDiffValue(value) {
 
 function renderDiffLines(lines) {
   const pre = document.createElement('pre');
-  for (const line of inlineDiffLinePairs(lines)) {
+  for (const line of lines) {
     const row = document.createElement('span');
-    row.className = `wbh-diff-line ${line.inline ? `inline-${line.type}` : line.type}`;
-    row.append(document.createTextNode(line.type === 'added' ? '+ ' : line.type === 'removed' ? '- ' : '  '));
-    if (line.parts?.length) {
-      line.parts.forEach(part => {
-        const partElement = document.createElement('span');
-        partElement.className = `wbh-diff-part ${part.type}`;
-        partElement.textContent = part.text;
-        row.append(partElement);
-      });
-    } else {
-      row.append(document.createTextNode(line.text));
-    }
-    row.append(document.createTextNode('\n'));
+    row.className = line.type;
+    row.textContent = `${line.type === 'added' ? '+ ' : line.type === 'removed' ? '- ' : '  '}${line.text}\n`;
     pre.append(row);
   }
   return pre;
-}
-
-function inlineDiffLinePairs(lines) {
-  const out = [];
-  for (let index = 0; index < lines.length; index++) {
-    const current = lines[index];
-    const next = lines[index + 1];
-    const inlinePair = createInlineDiffLinePair(current, next);
-    if (inlinePair) {
-      out.push(inlinePair.first, inlinePair.second);
-      index++;
-    } else {
-      out.push(current);
-    }
-  }
-  return out;
-}
-
-function createInlineDiffLinePair(first, second) {
-  if (!first || !second) return null;
-  if (!((first.type === 'removed' && second.type === 'added') || (first.type === 'added' && second.type === 'removed'))) return null;
-
-  const removedLine = first.type === 'removed' ? first : second;
-  const addedLine = first.type === 'added' ? first : second;
-  const inline = diffInlineText(removedLine.text, addedLine.text);
-  if (!inline || inline.similarity < 0.5) return null;
-
-  return {
-    first: first.type === 'removed'
-      ? { ...first, inline: true, parts: inline.removedParts }
-      : { ...first, inline: true, parts: inline.addedParts },
-    second: second.type === 'removed'
-      ? { ...second, inline: true, parts: inline.removedParts }
-      : { ...second, inline: true, parts: inline.addedParts },
-  };
-}
-
-function diffInlineText(before, after) {
-  const beforeTokens = tokenizeInlineDiffText(before);
-  const afterTokens = tokenizeInlineDiffText(after);
-  if (!beforeTokens.length || !afterTokens.length) return null;
-  if (beforeTokens.length * afterTokens.length > 250000) return null;
-
-  const table = Array.from({ length: beforeTokens.length + 1 }, () => Array(afterTokens.length + 1).fill(0));
-  for (let i = beforeTokens.length - 1; i >= 0; i--) {
-    for (let j = afterTokens.length - 1; j >= 0; j--) {
-      table[i][j] = beforeTokens[i] === afterTokens[j]
-        ? table[i + 1][j + 1] + tokenTextLength(beforeTokens[i])
-        : Math.max(table[i + 1][j], table[i][j + 1]);
-    }
-  }
-
-  const removedParts = [];
-  const addedParts = [];
-  let unchangedLength = 0;
-  let i = 0;
-  let j = 0;
-  while (i < beforeTokens.length && j < afterTokens.length) {
-    if (beforeTokens[i] === afterTokens[j]) {
-      unchangedLength += tokenTextLength(beforeTokens[i]);
-      pushDiffPart(removedParts, 'same', beforeTokens[i]);
-      pushDiffPart(addedParts, 'same', afterTokens[j]);
-      i++;
-      j++;
-    } else if (table[i + 1][j] >= table[i][j + 1]) {
-      pushDiffPart(removedParts, 'removed', beforeTokens[i++]);
-    } else {
-      pushDiffPart(addedParts, 'added', afterTokens[j++]);
-    }
-  }
-  while (i < beforeTokens.length) pushDiffPart(removedParts, 'removed', beforeTokens[i++]);
-  while (j < afterTokens.length) pushDiffPart(addedParts, 'added', afterTokens[j++]);
-
-  const beforeLength = tokenTextLength(before);
-  const afterLength = tokenTextLength(after);
-  const similarity = unchangedLength / Math.max(beforeLength, afterLength, 1);
-  return { removedParts, addedParts, similarity };
-}
-
-function tokenizeInlineDiffText(value) {
-  return String(value ?? '').match(/{{[^{}]*}}|<[^<>\s]+>|[A-Za-z0-9_]+|\s+|[\u3400-\u9FFF\uF900-\uFAFF]|./gu) || [];
-}
-
-function tokenTextLength(value) {
-  return String(value ?? '').replace(/\s+/g, '').length;
-}
-
-function pushDiffPart(parts, type, text) {
-  if (!text) return;
-  const previous = parts[parts.length - 1];
-  if (previous?.type === type) {
-    previous.text += text;
-  } else {
-    parts.push({ type, text });
-  }
 }
 
 async function restoreLocalSnapshot() {

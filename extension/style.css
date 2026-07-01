@@ -1863,18 +1863,8 @@
   color: var(--wbh-pre-text);
 }
 
-.wbh-field pre > span {
+.wbh-field pre span {
   display: block;
-}
-
-.wbh-field pre > .wbh-diff-line.inline-added,
-.wbh-field pre > .wbh-diff-line.inline-removed {
-  background: transparent;
-  color: var(--wbh-pre-text);
-}
-
-.wbh-field pre .wbh-diff-part {
-  display: inline;
 }
 
 .wbh-field pre .added {
