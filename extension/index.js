@@ -6525,37 +6525,64 @@ function inlineDiffLines(lines) {
   const out = [];
   for (let index = 0; index < lines.length; index++) {
     const current = lines[index];
-    const next = lines[index + 1];
-    const pair = inlineDiffPair(current, next);
-    if (pair) {
-      out.push(pair.current, pair.next);
-      index++;
-    } else {
+    if (current?.type !== 'removed' && current?.type !== 'added') {
       out.push(current);
+      continue;
     }
+
+    const block = [];
+    while (index < lines.length && (lines[index]?.type === 'removed' || lines[index]?.type === 'added')) {
+      block.push(lines[index]);
+      index++;
+    }
+    out.push(...inlineDiffChangedBlock(block));
+    index--;
   }
   return out;
 }
 
-function inlineDiffPair(current, next) {
-  if (!current || !next) return null;
-  const isChangedPair = (current.type === 'removed' && next.type === 'added')
-    || (current.type === 'added' && next.type === 'removed');
-  if (!isChangedPair) return null;
+function inlineDiffChangedBlock(block) {
+  const removed = [];
+  const added = [];
+  block.forEach((line, index) => {
+    if (line.type === 'removed') removed.push({ line, index, order: removed.length });
+    if (line.type === 'added') added.push({ line, index, order: added.length });
+  });
 
-  const removed = current.type === 'removed' ? current : next;
-  const added = current.type === 'added' ? current : next;
-  const parts = inlineDiffParts(removed.text, added.text);
-  if (!parts) return null;
+  if (!removed.length || !added.length) return block;
+  if (block.length > 40 || removed.length * added.length > 80) return block;
 
-  return {
-    current: current.type === 'removed'
-      ? { ...current, parts: parts.removed }
-      : { ...current, parts: parts.added },
-    next: next.type === 'removed'
-      ? { ...next, parts: parts.removed }
-      : { ...next, parts: parts.added },
-  };
+  const candidates = [];
+  removed.forEach(left => {
+    added.forEach(right => {
+      const parts = inlineDiffParts(left.line.text, right.line.text);
+      if (!parts) return;
+      const orderDistance = Math.abs(left.order - right.order);
+      candidates.push({
+        left,
+        right,
+        parts,
+        score: parts.similarity - (orderDistance * 0.02),
+      });
+    });
+  });
+
+  candidates.sort((left, right) => right.score - left.score);
+
+  const usedRemoved = new Set();
+  const usedAdded = new Set();
+  const matchedParts = new Map();
+  for (const candidate of candidates) {
+    if (usedRemoved.has(candidate.left.index) || usedAdded.has(candidate.right.index)) continue;
+    usedRemoved.add(candidate.left.index);
+    usedAdded.add(candidate.right.index);
+    matchedParts.set(candidate.left.index, candidate.parts.removed);
+    matchedParts.set(candidate.right.index, candidate.parts.added);
+  }
+
+  return block.map((line, index) => matchedParts.has(index)
+    ? { ...line, parts: matchedParts.get(index) }
+    : line);
 }
 
 function inlineDiffParts(before, after) {
@@ -6600,7 +6627,7 @@ function inlineDiffParts(before, after) {
   const similarity = sameCount / Math.max(beforeTokens.length, afterTokens.length, 1);
   const hasRemoved = removed.some(part => part.type === 'removed');
   const hasAdded = added.some(part => part.type === 'added');
-  return similarity >= 0.55 && hasRemoved && hasAdded ? { removed, added } : null;
+  return similarity >= 0.55 && hasRemoved && hasAdded ? { removed, added, similarity } : null;
 }
 
 function inlineDiffTokens(value) {
