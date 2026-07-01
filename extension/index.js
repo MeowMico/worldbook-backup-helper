@@ -3199,10 +3199,40 @@ function focusFindMatch(match) {
   const input = root.querySelector(`[data-wbh-field="${match.field}"]`);
   if (!input || typeof input.setSelectionRange !== 'function') return;
 
-  input.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  input.focus();
+  scrollElementIntoContainer(input, input.closest('.wbh-entry-editor'), { block: 'center', behavior: 'smooth' });
+  try {
+    input.focus({ preventScroll: true });
+  } catch {
+    input.focus();
+  }
   input.setSelectionRange(match.start, match.end);
   scrollTextControlToPosition(input, match.start);
+}
+
+function scrollElementIntoContainer(element, container, { block = 'nearest', behavior = 'smooth', margin = 16 } = {}) {
+  if (!element || !container) return;
+
+  const containerRect = container.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  if (!containerRect.height || !elementRect.height) return;
+
+  const currentTop = container.scrollTop;
+  const elementTop = currentTop + elementRect.top - containerRect.top;
+  const elementBottom = elementTop + elementRect.height;
+  let targetTop = currentTop;
+
+  if (block === 'center') {
+    targetTop = elementTop - ((container.clientHeight - elementRect.height) / 2);
+  } else if (elementTop < currentTop + margin) {
+    targetTop = elementTop - margin;
+  } else if (elementBottom > currentTop + container.clientHeight - margin) {
+    targetTop = elementBottom - container.clientHeight + margin;
+  }
+
+  const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+  const nextTop = Math.min(Math.max(0, targetTop), maxTop);
+  if (!Number.isFinite(nextTop)) return;
+  container.scrollTo({ top: nextTop, behavior });
 }
 
 function scrollTextControlToPosition(input, start) {
@@ -6278,7 +6308,7 @@ function focusDiffChange(index = 0) {
   changes.forEach(element => element.classList.remove('change-active'));
   const active = changes[app.diffChangeIndex];
   active.classList.add('change-active');
-  active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  scrollElementIntoContainer(active, document.querySelector('#wbh-diff'), { block: 'center', behavior: 'smooth' });
   updateDiffChangeControls();
   setStatus(t('status.changedEntries', { current: app.diffChangeIndex + 1, total: changes.length }));
 }
