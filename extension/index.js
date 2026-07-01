@@ -1953,7 +1953,7 @@ async function loadLocalSnapshots({ restoreOpenExperiment = false } = {}) {
   renderOriginSnapshot();
   renderExperiments();
   renderSnapshots();
-  await renderDiff();
+  if (app.mainTab === 'diff') await renderDiff();
 }
 
 async function selectWorldbook(book) {
@@ -6491,13 +6491,130 @@ function formatListDiffValue(value) {
 
 function renderDiffLines(lines) {
   const pre = document.createElement('pre');
-  for (const line of lines) {
+  const displayLines = safeInlineDiffLines(lines);
+  for (const line of displayLines) {
     const row = document.createElement('span');
-    row.className = line.type;
-    row.textContent = `${line.type === 'added' ? '+ ' : line.type === 'removed' ? '- ' : '  '}${line.text}\n`;
+    row.className = line.parts?.length ? `wbh-diff-line inline-${line.type}` : line.type;
+    row.append(document.createTextNode(line.type === 'added' ? '+ ' : line.type === 'removed' ? '- ' : '  '));
+    if (line.parts?.length) {
+      line.parts.forEach(part => {
+        const element = document.createElement('span');
+        element.className = `wbh-diff-part ${part.type}`;
+        element.textContent = part.text;
+        row.append(element);
+      });
+    } else {
+      row.append(document.createTextNode(line.text));
+    }
+    row.append(document.createTextNode('\n'));
     pre.append(row);
   }
   return pre;
+}
+
+function safeInlineDiffLines(lines) {
+  try {
+    return inlineDiffLines(lines);
+  } catch (error) {
+    console.warn('[Worldbook Workbench] Inline diff failed; using line diff.', error);
+    return lines;
+  }
+}
+
+function inlineDiffLines(lines) {
+  const out = [];
+  for (let index = 0; index < lines.length; index++) {
+    const current = lines[index];
+    const next = lines[index + 1];
+    const pair = inlineDiffPair(current, next);
+    if (pair) {
+      out.push(pair.current, pair.next);
+      index++;
+    } else {
+      out.push(current);
+    }
+  }
+  return out;
+}
+
+function inlineDiffPair(current, next) {
+  if (!current || !next) return null;
+  const isChangedPair = (current.type === 'removed' && next.type === 'added')
+    || (current.type === 'added' && next.type === 'removed');
+  if (!isChangedPair) return null;
+
+  const removed = current.type === 'removed' ? current : next;
+  const added = current.type === 'added' ? current : next;
+  const parts = inlineDiffParts(removed.text, added.text);
+  if (!parts) return null;
+
+  return {
+    current: current.type === 'removed'
+      ? { ...current, parts: parts.removed }
+      : { ...current, parts: parts.added },
+    next: next.type === 'removed'
+      ? { ...next, parts: parts.removed }
+      : { ...next, parts: parts.added },
+  };
+}
+
+function inlineDiffParts(before, after) {
+  if (before.length > 1200 || after.length > 1200) return null;
+  const beforeTokens = inlineDiffTokens(before);
+  const afterTokens = inlineDiffTokens(after);
+  if (!beforeTokens.length || !afterTokens.length) return null;
+  if (beforeTokens.length > 220 || afterTokens.length > 220) return null;
+  if (beforeTokens.length * afterTokens.length > 36000) return null;
+
+  const width = afterTokens.length + 1;
+  const table = Array.from({ length: beforeTokens.length + 1 }, () => new Uint16Array(width));
+  for (let i = beforeTokens.length - 1; i >= 0; i--) {
+    for (let j = afterTokens.length - 1; j >= 0; j--) {
+      table[i][j] = beforeTokens[i] === afterTokens[j]
+        ? table[i + 1][j + 1] + 1
+        : Math.max(table[i + 1][j], table[i][j + 1]);
+    }
+  }
+
+  const removed = [];
+  const added = [];
+  let sameCount = 0;
+  let i = 0;
+  let j = 0;
+  while (i < beforeTokens.length && j < afterTokens.length) {
+    if (beforeTokens[i] === afterTokens[j]) {
+      sameCount++;
+      pushInlinePart(removed, 'same', beforeTokens[i]);
+      pushInlinePart(added, 'same', afterTokens[j]);
+      i++;
+      j++;
+    } else if (table[i + 1][j] >= table[i][j + 1]) {
+      pushInlinePart(removed, 'removed', beforeTokens[i++]);
+    } else {
+      pushInlinePart(added, 'added', afterTokens[j++]);
+    }
+  }
+  while (i < beforeTokens.length) pushInlinePart(removed, 'removed', beforeTokens[i++]);
+  while (j < afterTokens.length) pushInlinePart(added, 'added', afterTokens[j++]);
+
+  const similarity = sameCount / Math.max(beforeTokens.length, afterTokens.length, 1);
+  const hasRemoved = removed.some(part => part.type === 'removed');
+  const hasAdded = added.some(part => part.type === 'added');
+  return similarity >= 0.55 && hasRemoved && hasAdded ? { removed, added } : null;
+}
+
+function inlineDiffTokens(value) {
+  return String(value ?? '').match(/{{[^{}]*}}|<[^<>\s]+>|[A-Za-z0-9_]+|\s+|./g) || [];
+}
+
+function pushInlinePart(parts, type, text) {
+  if (!text) return;
+  const previous = parts[parts.length - 1];
+  if (previous?.type === type) {
+    previous.text += text;
+  } else {
+    parts.push({ type, text });
+  }
 }
 
 async function restoreLocalSnapshot() {
