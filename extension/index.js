@@ -59,6 +59,8 @@ const NULLABLE_NUMBER_FIELDS = new Set(['groupWeight', 'sticky', 'cooldown', 'de
 const TRI_STATE_BOOLEAN_FIELDS = new Set(['caseSensitive', 'matchWholeWords', 'useGroupScoring']);
 const FIND_FIELDS = ['comment', 'content', 'key', 'keysecondary', 'group', 'automationId', 'outletName', 'characterFilterNames', 'characterFilterTags', 'triggers'];
 const MAX_UNDO_STEPS = 80;
+const MAX_DIFF_HINTS = 40;
+const MAX_DIFF_HINT_TARGETS = 800;
 const THEME_MODES = ['auto', 'light', 'dark'];
 const THEME_QUERY = window.matchMedia?.('(prefers-color-scheme: dark)');
 const THEME_BACKGROUND_VARS = ['--SmartThemeBodyColor', '--SmartThemeBlurTintColor', '--SmartThemeChatTintColor'];
@@ -954,6 +956,7 @@ const app = {
   replaceText: '',
   findMatches: [],
   activeFindIndex: -1,
+  pendingDiffHints: [],
   undoStack: [],
   redoStack: [],
   pendingInputHistoryKey: '',
@@ -1902,6 +1905,7 @@ async function loadEditorWorldbook({ force = false } = {}) {
     app.mvuLastInjectSignature = '';
     app.mvuAutoInjectNoticeKey = '';
     app.editorDirty = false;
+    app.pendingDiffHints = [];
     resetEditorHistory({ render: false });
     renderEditor();
     return;
@@ -1924,6 +1928,7 @@ async function loadEditorWorldbook({ force = false } = {}) {
   app.selectedEntryIds.clear();
   await ensureOriginSnapshot(app.activeBook.name, data);
   app.editorDirty = migratedMvuStorage || recoveredMvuStorage;
+  app.pendingDiffHints = [];
   resetEditorHistory({ render: false });
   ensureActiveEntry();
   refreshMvuOpenings({ render: false });
@@ -1970,6 +1975,7 @@ async function selectWorldbook(book) {
   app.mvuLastInjectSignature = '';
   app.mvuAutoInjectNoticeKey = '';
   app.editorDirty = false;
+  app.pendingDiffHints = [];
   resetEditorHistory({ render: false });
   app.activeSnapshot = null;
   app.activeExperiment = null;
@@ -2762,6 +2768,7 @@ async function loadSnapshotIntoEditor(snapshot, sourceName = t('label.version'))
   app.activeDataHash = await hashObject(app.activeData);
   app.editorSourceLabel = snapshot.label || sourceName;
   app.editorDirty = false;
+  app.pendingDiffHints = [];
   resetEditorHistory({ render: false });
   app.activeEntryId = null;
   ensureActiveEntry();
@@ -3272,6 +3279,7 @@ function applyCurrentFindMatch(replacement, options) {
   }
 
   captureUndoState(options.historyLabel);
+  rememberFindDiffHint([match], replacement);
   replaceMatchInRecord(record, match, replacement);
   app.activeEntryId = match.entryId;
   setEditorDirty(true);
@@ -3315,7 +3323,9 @@ function applyAllFindMatches(replacement, options) {
   const ok = window.confirm(t(options.confirmKey, { count: total, noun: total === 1 ? 'match' : 'matches' }));
   if (!ok) return;
 
+  const matchesForHint = [...app.findMatches];
   captureUndoState(options.historyLabel);
+  rememberFindDiffHint(matchesForHint, replacement);
   const grouped = new Map();
   for (const match of app.findMatches) {
     const key = `${match.entryId}\u0000${match.field}`;
@@ -3339,6 +3349,65 @@ function applyAllFindMatches(replacement, options) {
   renderEditor();
   queueFocusActiveFindMatch();
   setStatus(t(options.doneKey, { count: total, noun: total === 1 ? 'match' : 'matches' }));
+}
+
+function rememberFindDiffHint(matches, replacement) {
+  const query = cleanText(app.findQuery);
+  if (!query || !Array.isArray(matches) || !matches.length) return;
+
+  const targets = [];
+  const seen = new Set();
+  for (const match of matches) {
+    const entryId = cleanText(match?.entryId);
+    const field = cleanText(match?.field);
+    if (!entryId || !field) continue;
+    const key = `${entryId}\u0000${field}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    targets.push({ entryId, field });
+    if (targets.length >= MAX_DIFF_HINT_TARGETS) break;
+  }
+  if (!targets.length) return;
+
+  const hint = normalizeDiffHint({
+    type: replacement === '' ? 'delete' : 'replace',
+    query,
+    replacement,
+    targets,
+    createdAt: new Date().toISOString(),
+  });
+  if (!hint) return;
+
+  app.pendingDiffHints = normalizeDiffHints([...app.pendingDiffHints, hint]).slice(-MAX_DIFF_HINTS);
+}
+
+function normalizeDiffHints(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map(normalizeDiffHint).filter(Boolean).slice(-MAX_DIFF_HINTS);
+}
+
+function normalizeDiffHint(value) {
+  if (!value || typeof value !== 'object') return null;
+  const type = value.type === 'delete' ? 'delete' : value.type === 'replace' ? 'replace' : '';
+  const query = cleanText(value.query).slice(0, 240);
+  const replacement = cleanText(value.replacement).slice(0, 240);
+  const targets = Array.isArray(value.targets)
+    ? value.targets.map(target => ({
+      entryId: cleanText(target?.entryId),
+      field: cleanText(target?.field),
+    })).filter(target => target.entryId && target.field).slice(0, MAX_DIFF_HINT_TARGETS)
+    : [];
+  if (!type || !query || !targets.length) return null;
+  if (type === 'replace' && !replacement) return null;
+  return {
+    version: 1,
+    source: 'find',
+    type,
+    query,
+    replacement,
+    targets,
+    createdAt: cleanText(value.createdAt),
+  };
 }
 
 function replaceMatchInRecord(record, match, replacement) {
@@ -5795,6 +5864,7 @@ function captureUndoState(label = '') {
     editorDirty: app.editorDirty,
     editorSourceLabel: app.editorSourceLabel,
     activeFindIndex: app.activeFindIndex,
+    pendingDiffHints: cloneValue(app.pendingDiffHints),
   });
   if (app.undoStack.length > MAX_UNDO_STEPS) app.undoStack.shift();
   app.redoStack = [];
@@ -5838,6 +5908,7 @@ function createHistoryState(label) {
     editorDirty: app.editorDirty,
     editorSourceLabel: app.editorSourceLabel,
     activeFindIndex: app.activeFindIndex,
+    pendingDiffHints: cloneValue(app.pendingDiffHints),
   };
 }
 
@@ -5847,6 +5918,7 @@ function restoreHistoryState(state) {
   app.editorDirty = state.editorDirty;
   app.editorSourceLabel = state.editorSourceLabel;
   app.activeFindIndex = state.activeFindIndex;
+  app.pendingDiffHints = normalizeDiffHints(state.pendingDiffHints);
   ensureActiveEntry();
   refreshFindMatches();
   refreshMvuOpenings({ render: false });
@@ -5884,11 +5956,14 @@ async function saveEditorWorldbook() {
   resetEditorHistory({ render: false });
   ensureActiveEntry();
 
+  const diffHints = normalizeDiffHints(app.pendingDiffHints);
   const after = await createLocalSnapshotFromData(name, app.activeData, {
     label: `After save: ${title}`,
     reason: 'editor-after',
     skipDuplicate: false,
+    diffHints,
   });
+  app.pendingDiffHints = [];
 
   app.activeSnapshot = after.snapshot;
   if (app.activeExperiment) {
@@ -6041,7 +6116,7 @@ async function createLocalSnapshot(name, { label = '', reason = 'manual', skipDu
   return createLocalSnapshotFromData(name, data, { label, reason, skipDuplicate });
 }
 
-async function createLocalSnapshotFromData(name, data, { label = '', reason = 'manual', skipDuplicate = true } = {}) {
+async function createLocalSnapshotFromData(name, data, { label = '', reason = 'manual', skipDuplicate = true, diffHints = [] } = {}) {
   const sourceHash = await hashObject(data);
   const snapshots = await getSnapshots(name);
   if (skipDuplicate && snapshots[0]?.sourceHash === sourceHash) {
@@ -6060,6 +6135,8 @@ async function createLocalSnapshotFromData(name, data, { label = '', reason = 'm
     entryCount: countEntries(data),
     data,
   };
+  const normalizedDiffHints = normalizeDiffHints(diffHints);
+  if (normalizedDiffHints.length) snapshot.diffHints = normalizedDiffHints;
   const saved = await putSnapshot(snapshot);
   return { skipped: false, snapshot: saved || snapshot };
 }
@@ -6238,8 +6315,10 @@ async function renderDiff({ focusChange = false } = {}) {
 
   let base = app.activeSnapshot.data;
   let target = null;
+  let diffHints = [];
   if (app.diffMode === 'current') {
     target = await loadWorldbook(app.activeBook.name);
+    diffHints = normalizeDiffHints(app.pendingDiffHints);
   } else {
     const previous = getPreviousSnapshot(app.activeSnapshot);
     if (!previous) {
@@ -6250,11 +6329,12 @@ async function renderDiff({ focusChange = false } = {}) {
     }
     base = previous.data;
     target = app.activeSnapshot.data;
+    diffHints = snapshotDiffHints(app.activeSnapshot);
   }
 
   const diff = diffWorldbooks(base, target);
   summary.textContent = t('diff.summary', diff.summary);
-  view.replaceChildren(...renderDiffPreview(base, target, diff));
+  view.replaceChildren(...renderDiffPreview(base, target, diff, diffHints));
   updateDiffChangeControls();
   if (focusChange) queueFocusDiffChange(0);
 }
@@ -6273,9 +6353,10 @@ async function renderExperimentDiff(summary, view) {
     : null;
   const target = after?.data || await loadWorldbook(app.activeBook.name);
   const diff = diffWorldbooks(baseline.data, target);
+  const diffHints = after ? snapshotDiffHints(after) : normalizeDiffHints(app.pendingDiffHints);
   const range = after ? t('label.rangeAfter') : t('label.rangeCurrent');
   summary.textContent = t('diff.summaryWithRange', { range, ...diff.summary });
-  view.replaceChildren(...renderDiffPreview(baseline.data, target, diff));
+  view.replaceChildren(...renderDiffPreview(baseline.data, target, diff, diffHints));
   updateDiffChangeControls();
 }
 
@@ -6326,7 +6407,7 @@ function getDiffChangeElements() {
   return [...document.querySelectorAll('#wbh-diff [data-wbh-change="true"]')];
 }
 
-function renderDiffPreview(base, target, diff) {
+function renderDiffPreview(base, target, diff, diffHints = []) {
   const baseEntries = normalizeEntries(base?.entries);
   const targetEntries = normalizeEntries(target?.entries);
   const diffById = new Map((diff?.entries || []).map(entry => [entry.id, entry]));
@@ -6361,8 +6442,10 @@ function renderDiffPreview(base, target, diff) {
     const fields = diffEntry?.fields || [];
     const summary = renderDiffFieldSummaries(fields);
     if (summary) section.append(summary);
-    fields.filter(field => field.name !== 'content').forEach(field => section.append(renderDiffField(field)));
-    section.append(renderPreviewContentField(entry, fields.find(field => field.name === 'content'), status));
+    fields.filter(field => field.name !== 'content').forEach(field => {
+      section.append(renderDiffField(field, id, diffHints));
+    });
+    section.append(renderPreviewContentField(entry, fields.find(field => field.name === 'content'), status, id, diffHints));
     return section;
   });
 }
@@ -6382,7 +6465,7 @@ function renderDiffFieldSummaries(fields) {
   return list;
 }
 
-function renderDiffField(field) {
+function renderDiffField(field, entryId = '', diffHints = []) {
   const block = document.createElement('div');
   block.className = 'wbh-field';
   const name = document.createElement('strong');
@@ -6390,7 +6473,7 @@ function renderDiffField(field) {
   block.append(name);
 
   if (field.lines?.length) {
-    block.append(renderDiffLines(field.lines));
+    block.append(renderDiffLines(field.lines, diffHintsForField(diffHints, entryId, field.name)));
   } else {
     const grid = document.createElement('div');
     grid.className = 'wbh-field-grid';
@@ -6405,7 +6488,7 @@ function renderDiffField(field) {
   return block;
 }
 
-function renderPreviewContentField(entry, contentDiff, status) {
+function renderPreviewContentField(entry, contentDiff, status, entryId = '', diffHints = []) {
   const block = document.createElement('div');
   block.className = 'wbh-field';
   const name = document.createElement('strong');
@@ -6413,7 +6496,7 @@ function renderPreviewContentField(entry, contentDiff, status) {
   block.append(name);
 
   if (contentDiff?.lines?.length) {
-    block.append(renderDiffLines(contentDiff.lines));
+    block.append(renderDiffLines(contentDiff.lines, diffHintsForField(diffHints, entryId, 'content')));
   } else if (status === 'added' || status === 'removed') {
     const lines = String(entry?.content || '').split(/\r?\n/).map(text => ({
       type: status === 'added' ? 'added' : 'removed',
@@ -6489,9 +6572,20 @@ function formatListDiffValue(value) {
   return text;
 }
 
-function renderDiffLines(lines) {
+function snapshotDiffHints(snapshot) {
+  return normalizeDiffHints(snapshot?.diffHints);
+}
+
+function diffHintsForField(diffHints, entryId, field) {
+  const id = cleanText(entryId);
+  const fieldName = cleanText(field);
+  if (!id || !fieldName) return [];
+  return normalizeDiffHints(diffHints).filter(hint => hint.targets.some(target => target.entryId === id && target.field === fieldName));
+}
+
+function renderDiffLines(lines, diffHints = []) {
   const pre = document.createElement('pre');
-  const displayLines = safeInlineDiffLines(lines);
+  const displayLines = safeInlineDiffLines(lines, diffHints);
   for (const line of displayLines) {
     const row = document.createElement('span');
     row.className = line.parts?.length ? `wbh-diff-line inline-${line.type}` : line.type;
@@ -6512,16 +6606,18 @@ function renderDiffLines(lines) {
   return pre;
 }
 
-function safeInlineDiffLines(lines) {
+function safeInlineDiffLines(lines, diffHints = []) {
+  const hints = normalizeDiffHints(diffHints);
+  if (!hints.length) return lines;
   try {
-    return inlineDiffLines(lines);
+    return inlineDiffLines(lines, hints);
   } catch (error) {
     console.warn('[Worldbook Workbench] Inline diff failed; using line diff.', error);
     return lines;
   }
 }
 
-function inlineDiffLines(lines) {
+function inlineDiffLines(lines, diffHints) {
   const out = [];
   for (let index = 0; index < lines.length; index++) {
     const current = lines[index];
@@ -6535,13 +6631,13 @@ function inlineDiffLines(lines) {
       block.push(lines[index]);
       index++;
     }
-    out.push(...inlineDiffChangedBlock(block));
+    out.push(...inlineDiffChangedBlock(block, diffHints));
     index--;
   }
   return out;
 }
 
-function inlineDiffChangedBlock(block) {
+function inlineDiffChangedBlock(block, diffHints) {
   const removed = [];
   const added = [];
   block.forEach((line, index) => {
@@ -6555,7 +6651,9 @@ function inlineDiffChangedBlock(block) {
   const candidates = [];
   removed.forEach(left => {
     added.forEach(right => {
-      const parts = inlineDiffParts(left.line.text, right.line.text);
+      const matchingHints = diffHints.filter(hint => inlineDiffHintMatchesPair(hint, left.line.text, right.line.text));
+      if (!matchingHints.length) return;
+      const parts = inlineDiffParts(left.line.text, right.line.text, matchingHints);
       if (!parts) return;
       const orderDistance = Math.abs(left.order - right.order);
       candidates.push({
@@ -6585,7 +6683,7 @@ function inlineDiffChangedBlock(block) {
     : line);
 }
 
-function inlineDiffParts(before, after) {
+function inlineDiffParts(before, after, diffHints) {
   if (before.length > 1200 || after.length > 1200) return null;
   const beforeTokens = inlineDiffTokens(before);
   const afterTokens = inlineDiffTokens(after);
@@ -6627,11 +6725,24 @@ function inlineDiffParts(before, after) {
   const similarity = sameCount / Math.max(beforeTokens.length, afterTokens.length, 1);
   const hasRemoved = removed.some(part => part.type === 'removed');
   const hasAdded = added.some(part => part.type === 'added');
-  return similarity >= 0.55 && hasRemoved && hasAdded ? { removed, added, similarity } : null;
+  const allowDeleteOnly = diffHints.some(hint => hint.type === 'delete');
+  return similarity >= 0.55 && hasRemoved && (hasAdded || allowDeleteOnly) ? { removed, added, similarity } : null;
 }
 
 function inlineDiffTokens(value) {
   return String(value ?? '').match(/{{[^{}]*}}|<[^<>\s]+>|[A-Za-z0-9_]+|\s+|./g) || [];
+}
+
+function inlineDiffHintMatchesPair(hint, before, after) {
+  if (!hintContainsText(before, hint.query)) return false;
+  if (hint.type === 'delete') return !hintContainsText(after, hint.query);
+  return hintContainsText(after, hint.replacement);
+}
+
+function hintContainsText(value, needle) {
+  const text = String(value ?? '').toLowerCase();
+  const target = cleanText(needle).toLowerCase();
+  return Boolean(target && text.includes(target));
 }
 
 function pushInlinePart(parts, type, text) {
