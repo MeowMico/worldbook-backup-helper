@@ -1394,14 +1394,14 @@ function ensureLocalWorkbench() {
                       ${POSITION_OPTIONS.map(option => `<option value="${option.value}" data-wbh-key="${option.key}">${optionLabel(option)}</option>`).join('')}
                     </select>
                   </label>
-                  <label class="wbh-editor-field">
+                  <label class="wbh-editor-field wbh-role-field">
                     <span data-wbh-i18n="field.role">${t('field.role')}</span>
                     <select data-wbh-field="role" data-wbh-type="number" data-wbh-options="role">
                       <option value=""></option>
                       ${ROLE_OPTIONS.map(option => `<option value="${option.value}" data-wbh-key="${option.key}">${optionLabel(option)}</option>`).join('')}
                     </select>
                   </label>
-                  <label class="wbh-editor-field">
+                  <label class="wbh-editor-field wbh-depth-field">
                     <span data-wbh-i18n="field.depth">${t('field.depth')}</span>
                     <input type="number" data-wbh-field="depth">
                   </label>
@@ -3468,6 +3468,7 @@ function setEditorInputValues(inputs, entry) {
 function updatePositionDependentControls(entry) {
   updatePositionControl(entry);
   updateRoleControl(entry);
+  updateDepthControl(entry);
   updateOutletControl(entry);
 }
 
@@ -3481,10 +3482,12 @@ function updatePositionControl(entry) {
 
 function updateRoleControl(entry) {
   const root = document.querySelector('#wbh-workbench');
-  const role = root?.querySelector('[data-wbh-field="role"]');
-  if (!role) return;
+  const field = root?.querySelector('.wbh-role-field');
+  const role = field?.querySelector('[data-wbh-field="role"]');
+  if (!field || !role) return;
 
   const atDepth = Number(entry?.position) === POSITION_AT_DEPTH;
+  field.classList.toggle('hidden', !atDepth);
   role.disabled = !atDepth;
   role.title = atDepth ? '' : t('tooltip.roleDepthOnly');
   if (!atDepth) {
@@ -3492,6 +3495,17 @@ function updateRoleControl(entry) {
   } else if (role.value === '') {
     role.value = String(entry?.role ?? 0);
   }
+}
+
+function updateDepthControl(entry) {
+  const root = document.querySelector('#wbh-workbench');
+  const field = root?.querySelector('.wbh-depth-field');
+  const depth = field?.querySelector('[data-wbh-field="depth"]');
+  if (!field || !depth) return;
+
+  const atDepth = Number(entry?.position) === POSITION_AT_DEPTH;
+  field.classList.toggle('hidden', !atDepth);
+  depth.disabled = !atDepth;
 }
 
 function updateOutletControl(entry) {
