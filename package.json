@@ -4,9 +4,14 @@
   "description": "SillyTavern worldbook workbench for editing, versioning, diffing, restoring, and exporting worldbooks.",
   "main": "index.js",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "license": "MIT",
   "scripts": {
-    "check": "node --check index.js"
+    "check": "node --check index.js && node --check extension/index.js && node --check packages/core/index.js && node --check packages/vscode-extension/extension.js && node --check packages/webview-ui/main.js",
+    "test": "node --test packages/core/test/*.test.js",
+    "vscode:check": "npm --prefix packages/vscode-extension run check"
   },
   "keywords": [
     "sillytavern",

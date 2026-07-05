@@ -1,0 +1,73 @@
+{
+  "name": "worldbook-workbench-vscode",
+  "displayName": "Worldbook Workbench",
+  "description": "Edit SillyTavern worldbooks and preview ST-style prompt composition in VSCode or Cursor.",
+  "version": "0.1.0",
+  "publisher": "meowmico",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:worldbookWorkbench.openWorkbench",
+    "onCommand:worldbookWorkbench.importCharacterCard",
+    "onCommand:worldbookWorkbench.openPromptPreview",
+    "onCommand:worldbookWorkbench.saveScenario",
+    "onCommand:worldbookWorkbench.exportWorldbookJson"
+  ],
+  "main": "./extension.js",
+  "dependencies": {
+    "@worldbook-workbench/core": "file:../core",
+    "@worldbook-workbench/webview-ui": "file:../webview-ui"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "worldbookWorkbench.openWorkbench",
+        "title": "Worldbook Workbench: Open Worldbook Workbench"
+      },
+      {
+        "command": "worldbookWorkbench.importCharacterCard",
+        "title": "Worldbook Workbench: Import Character Card"
+      },
+      {
+        "command": "worldbookWorkbench.openPromptPreview",
+        "title": "Worldbook Workbench: Open Prompt Preview"
+      },
+      {
+        "command": "worldbookWorkbench.saveScenario",
+        "title": "Worldbook Workbench: Save Scenario"
+      },
+      {
+        "command": "worldbookWorkbench.exportWorldbookJson",
+        "title": "Worldbook Workbench: Export Worldbook JSON"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "worldbookWorkbench.openWorkbench",
+          "when": "resourceExtname == .json",
+          "group": "navigation@80"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "worldbookWorkbench.openPromptPreview",
+          "when": "resourceExtname == .json",
+          "group": "navigation@80"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "check": "node --check extension.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.88.0"
+  }
+}

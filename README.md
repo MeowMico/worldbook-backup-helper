@@ -20,6 +20,7 @@ It is designed for creators who test roleplay output while actively revising wor
 - Bind MVU InitVar presets to character greetings and current chat opening swipes for author testing.
 - Rename experiments, add experiment notes, and search experiment history.
 - Export a single experiment/version JSON or export the full local history for one worldbook.
+- Preview worldbook prompt composition in the experimental VSCode/Cursor package.
 - Supports English and Chinese UI.
 - Includes light and dark themes.
 
@@ -40,6 +41,32 @@ https://github.com/MeowMico/worldbook-backup-helper
 ```
 
 After installing, open the extension from the SillyTavern extensions menu.
+
+## VSCode/Cursor Preview Package
+
+This repository also contains an experimental VSCode/Cursor package under `packages/vscode-extension`.
+
+It can:
+
+- open a SillyTavern worldbook JSON file in a webview workbench
+- import a character card from JSON or PNG metadata
+- save preview scenarios as `<worldbook>.wbh.json`
+- show an ST-style system/user/assistant timeline for activated worldbook entries
+- explain activated and skipped entries, including keyword misses, group losers, and budget skips
+
+The preview engine lives in `packages/core`. It is a clean-room compatibility implementation and does not copy SillyTavern source. Token counts are profile based: OpenAI profiles use `tiktoken` when it is installed, otherwise the preview clearly falls back to an estimate.
+
+Local development:
+
+```bash
+npm run check
+npm test
+cd packages/vscode-extension
+npm install
+npx vsce package
+```
+
+Marketplace publishing is intentionally deferred; the first distributable target is a local `.vsix`.
 
 ## Recommended Workflow
 
