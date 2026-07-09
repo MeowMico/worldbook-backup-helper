@@ -2,6 +2,7 @@
   'use strict';
 
   const vscode = acquireVsCodeApi();
+  const { parseJsonArrayText } = window.WorldbookScenarioFields;
   const state = {
     worldbookPath: '',
     worldbookText: '',
@@ -18,6 +19,7 @@
     seedInput: document.querySelector('#seedInput'),
     userInput: document.querySelector('#userInput'),
     charInput: document.querySelector('#charInput'),
+    triggerInput: document.querySelector('#triggerInput'),
     tokenizerInput: document.querySelector('#tokenizerInput'),
     depthInput: document.querySelector('#depthInput'),
     contextInput: document.querySelector('#contextInput'),
@@ -37,11 +39,20 @@
     exportButton: document.querySelector('#exportButton'),
   };
 
-  el.compileButton.addEventListener('click', () => post('compilePreview', gatherPayload()));
+  el.compileButton.addEventListener('click', () => {
+    const scenario = gatherScenario();
+    if (scenario) post('compilePreview', { worldbookText: el.worldbookText.value, scenario });
+  });
   el.saveButton.addEventListener('click', () => post('saveWorldbook', { worldbookText: el.worldbookText.value }));
-  el.scenarioButton.addEventListener('click', () => post('saveScenario', { scenario: gatherScenario() }));
+  el.scenarioButton.addEventListener('click', () => {
+    const scenario = gatherScenario();
+    if (scenario) post('saveScenario', { scenario });
+  });
   el.cardButton.addEventListener('click', () => post('importCharacterCard'));
   el.exportButton.addEventListener('click', () => post('exportWorldbookJson', { worldbookText: el.worldbookText.value }));
+  [el.messagesText, el.forceText].forEach(input => {
+    input.addEventListener('input', () => input.removeAttribute('aria-invalid'));
+  });
 
   window.addEventListener('message', event => {
     const message = event.data || {};
@@ -68,6 +79,7 @@
 
   function applyPreview(message) {
     state.lastPreview = message.result;
+    if (message.result?.scenario) state.scenario = message.result.scenario;
     if (message.worldbookText) {
       state.worldbookText = message.worldbookText;
       el.worldbookText.value = message.worldbookText;
@@ -81,6 +93,7 @@
     el.seedInput.value = scenario.seed || '';
     el.userInput.value = scenario.userName || '{{user}}';
     el.charInput.value = scenario.charName || '';
+    el.triggerInput.value = scenario.trigger || 'normal';
     el.tokenizerInput.value = settings.tokenizerProfile || 'estimate';
     el.depthInput.value = settings.worldInfoDepth ?? 4;
     el.contextInput.value = settings.maxContextTokens ?? 8192;
@@ -192,41 +205,42 @@
     return section;
   }
 
-  function gatherPayload() {
-    return {
-      worldbookText: el.worldbookText.value,
-      scenario: gatherScenario(),
-    };
-  }
-
   function gatherScenario() {
-    const previous = state.scenario || {};
-    return {
-      ...previous,
-      seed: el.seedInput.value,
-      userName: el.userInput.value,
-      charName: el.charInput.value,
-      includeCharacterBook: el.characterBookInput.checked,
-      settings: {
-        ...(previous.settings || {}),
-        tokenizerProfile: el.tokenizerInput.value,
-        worldInfoDepth: numberValue(el.depthInput.value, 4),
-        maxContextTokens: numberValue(el.contextInput.value, 8192),
-        budgetPercent: numberValue(el.budgetInput.value, 25),
-        budgetCap: numberValue(el.budgetCapInput.value, 0),
-        recursive: el.recursiveInput.checked,
-      },
-      messages: parseJsonField(el.messagesText.value, []),
-      forceActivate: parseJsonField(el.forceText.value, []),
-    };
+    try {
+      const previous = state.scenario || {};
+      return {
+        ...previous,
+        seed: el.seedInput.value,
+        trigger: el.triggerInput.value || 'normal',
+        userName: el.userInput.value,
+        charName: el.charInput.value,
+        includeCharacterBook: el.characterBookInput.checked,
+        settings: {
+          ...(previous.settings || {}),
+          tokenizerProfile: el.tokenizerInput.value,
+          worldInfoDepth: numberValue(el.depthInput.value, 4),
+          maxContextTokens: numberValue(el.contextInput.value, 8192),
+          budgetPercent: numberValue(el.budgetInput.value, 25),
+          budgetCap: numberValue(el.budgetCapInput.value, 0),
+          recursive: el.recursiveInput.checked,
+        },
+        messages: parseJsonArrayField(el.messagesText, 'Messages JSON'),
+        forceActivate: parseJsonArrayField(el.forceText, 'Force Activate IDs'),
+      };
+    } catch (error) {
+      setStatus(error.message, true);
+      return null;
+    }
   }
 
-  function parseJsonField(value, fallback) {
+  function parseJsonArrayField(input, label) {
     try {
-      return JSON.parse(value || JSON.stringify(fallback));
-    } catch {
-      setStatus('Scenario JSON field is invalid.', true);
-      return fallback;
+      const value = parseJsonArrayText(input.value, label);
+      input.removeAttribute('aria-invalid');
+      return value;
+    } catch (error) {
+      input.setAttribute('aria-invalid', 'true');
+      throw error;
     }
   }
 

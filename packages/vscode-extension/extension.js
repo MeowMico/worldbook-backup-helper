@@ -29,6 +29,7 @@ function deactivate() {}
 
 async function withPanel(context, callback) {
   const panel = activePanel || await WorkbenchPanel.createOrShow(context, null, 'edit');
+  if (!panel) return undefined;
   return callback(panel);
 }
 
@@ -213,6 +214,7 @@ class WorkbenchPanel {
     const webview = this.panel.webview;
     const uiRoot = vscode.Uri.file(resolveWebviewRoot(this.context.extensionPath));
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, 'style.css'));
+    const scenarioFieldsUri = webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, 'scenario-fields.js'));
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, 'main.js'));
     const nonce = String(Date.now());
     return `<!doctype html>
@@ -256,6 +258,14 @@ class WorkbenchPanel {
             <label>Seed<input id="seedInput" type="text"></label>
             <label>User<input id="userInput" type="text"></label>
             <label>Character<input id="charInput" type="text"></label>
+            <label>Generation<select id="triggerInput">
+              <option value="normal">Normal</option>
+              <option value="continue">Continue</option>
+              <option value="impersonate">Impersonate</option>
+              <option value="swipe">Swipe</option>
+              <option value="regenerate">Regenerate</option>
+              <option value="quiet">Quiet</option>
+            </select></label>
             <label>Tokenizer<select id="tokenizerInput">
               <option value="estimate">Estimate</option>
               <option value="openai-cl100k">OpenAI cl100k</option>
@@ -282,6 +292,7 @@ class WorkbenchPanel {
         </section>
       </main>
     </div>
+    <script nonce="${nonce}" src="${scenarioFieldsUri}"></script>
     <script nonce="${nonce}" src="${scriptUri}"></script>
   </body>
 </html>`;

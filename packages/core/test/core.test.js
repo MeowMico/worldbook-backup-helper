@@ -58,6 +58,7 @@ test('scenario JSON round trip normalizes defaults', () => {
   const parsed = parseScenarioJson(JSON.stringify(scenario));
   assert.equal(parsed.worldbookPath, '/tmp/book.json');
   assert.equal(parsed.includeCharacterBook, true);
+  assert.equal(parsed.trigger, 'normal');
 });
 
 test('compilePromptPreview activates constants and depth entries in timeline order', () => {
@@ -120,12 +121,136 @@ test('compilePromptPreview handles groups, probability seed, recursion, and time
     },
   });
   assert.ok(result.activatedEntries.some(entry => entry.title === 'Group B'));
-  assert.ok(result.skippedEntries.some(entry => entry.title === 'Group A' && entry.reason === 'group_loser'));
+  assert.ok(result.skippedEntries.some(entry => entry.title === 'Group A' && ['group_loser', 'group_already_active'].includes(entry.reason)));
   assert.ok(result.activatedEntries.some(entry => entry.title === 'Recursive'));
-  assert.ok(result.activatedEntries.some(entry => entry.title === 'Delayed' && entry.trigger === 'delay'));
+  assert.ok(result.skippedEntries.some(entry => entry.title === 'Delayed' && entry.reason === 'delay'));
   assert.ok(result.activatedEntries.some(entry => entry.title === 'Sticky' && entry.trigger === 'sticky'));
   assert.ok(result.skippedEntries.some(entry => entry.title === 'Cooldown' && entry.reason === 'cooldown'));
   assert.ok(result.skippedEntries.some(entry => entry.title === 'Chance' && entry.reason === 'probability_failed'));
+});
+
+test('compilePromptPreview respects nested character filters and generation triggers', () => {
+  const worldbook = {
+    entries: {
+      allowed: {
+        comment: 'Allowed',
+        content: 'allowed',
+        key: ['root'],
+        characterFilter: { isExclude: false, names: ['Current'], tags: [] },
+      },
+      filtered: {
+        comment: 'Filtered',
+        content: 'filtered',
+        key: ['root'],
+        characterFilter: { isExclude: false, names: ['Other'], tags: [] },
+      },
+      continueOnly: {
+        comment: 'Continue only',
+        content: 'continue',
+        key: ['root'],
+        triggers: ['continue'],
+      },
+    },
+  };
+  const normal = compilePromptPreview({
+    worldbooks: [{ name: 'book', data: worldbook }],
+    characterCard: { data: { name: 'Current' } },
+    scenario: { ...createDefaultScenario(), messages: [{ role: 'user', content: 'root' }] },
+  });
+  assert.ok(normal.activatedEntries.some(entry => entry.title === 'Allowed'));
+  assert.ok(normal.skippedEntries.some(entry => entry.title === 'Filtered' && entry.reason === 'character_filter'));
+  assert.ok(normal.skippedEntries.some(entry => entry.title === 'Continue only' && entry.reason === 'generation_trigger'));
+
+  const continuation = compilePromptPreview({
+    worldbooks: [{ name: 'book', data: worldbook }],
+    characterCard: { data: { name: 'Current' } },
+    scenario: { ...createDefaultScenario(), trigger: 'continue', messages: [{ role: 'user', content: 'root' }] },
+  });
+  assert.ok(continuation.activatedEntries.some(entry => entry.title === 'Continue only'));
+});
+
+test('compilePromptPreview delays entries until recursion and preserves final prompt order', () => {
+  const worldbook = {
+    entries: {
+      high: { comment: 'Order 250', content: 'recurse-key', key: ['root'], order: 250 },
+      delayed: { comment: 'Delayed recursion', content: 'delayed', key: ['recurse-key'], delayUntilRecursion: 1, order: 200 },
+      low: { comment: 'Order 100', content: 'low', constant: true, order: 100 },
+    },
+  };
+  const result = compilePromptPreview({
+    worldbooks: [{ name: 'book', data: worldbook }],
+    scenario: {
+      ...createDefaultScenario(),
+      settings: { ...createDefaultScenario().settings, recursive: true, maxRecursionSteps: 2, budgetPercent: 100 },
+      messages: [{ role: 'user', content: 'root' }],
+    },
+  });
+  assert.ok(result.activatedEntries.some(entry => entry.title === 'Delayed recursion'));
+  assert.deepEqual(result.buckets.beforeCharacter.map(entry => entry.title), ['Order 100', 'Delayed recursion', 'Order 250']);
+});
+
+test('group scoring uses keyword scores before deterministic weights', () => {
+  const worldbook = {
+    entries: {
+      stronger: { comment: 'Stronger', content: 'stronger', key: ['root', 'second'], group: 'g', groupWeight: 1 },
+      heavier: { comment: 'Heavier', content: 'heavier', key: ['root'], group: 'g', groupWeight: 1000 },
+    },
+  };
+  const input = {
+    worldbooks: [{ name: 'book', data: worldbook }],
+    scenario: {
+      ...createDefaultScenario(),
+      settings: { ...createDefaultScenario().settings, recursive: false, useGroupScoring: true, budgetPercent: 100 },
+      messages: [{ role: 'user', content: 'root second' }],
+      seed: 'fixed',
+    },
+  };
+  const first = compilePromptPreview(input);
+  const second = compilePromptPreview(input);
+  assert.deepEqual(first.activatedEntries.map(entry => entry.title), ['Stronger']);
+  assert.deepEqual(second.activatedEntries.map(entry => entry.title), ['Stronger']);
+  assert.ok(first.skippedEntries.some(entry => entry.title === 'Heavier' && entry.reason === 'group_loser'));
+});
+
+test('probability runs after grouping and still applies to constant entries', () => {
+  const worldbook = {
+    entries: {
+      selectedButFails: {
+        comment: 'Selected but fails',
+        content: 'selected',
+        key: ['root'],
+        group: 'g',
+        groupOverride: true,
+        probability: 0,
+      },
+      noFallback: {
+        comment: 'No fallback',
+        content: 'fallback',
+        key: ['root'],
+        group: 'g',
+        probability: 100,
+      },
+      constantChance: {
+        comment: 'Constant chance',
+        content: 'constant',
+        constant: true,
+        probability: 0,
+      },
+    },
+  };
+  const result = compilePromptPreview({
+    worldbooks: [{ name: 'book', data: worldbook }],
+    scenario: {
+      ...createDefaultScenario(),
+      settings: { ...createDefaultScenario().settings, recursive: false, budgetPercent: 100 },
+      messages: [{ role: 'user', content: 'root' }],
+      seed: 'fixed',
+    },
+  });
+  assert.equal(result.activatedEntries.some(entry => entry.title === 'No fallback'), false);
+  assert.ok(result.skippedEntries.some(entry => entry.title === 'Selected but fails' && entry.reason === 'probability_failed'));
+  assert.ok(result.skippedEntries.some(entry => entry.title === 'No fallback' && entry.reason === 'group_loser'));
+  assert.ok(result.skippedEntries.some(entry => entry.title === 'Constant chance' && entry.reason === 'probability_failed'));
 });
 
 function makePngWithText(keyword, value) {

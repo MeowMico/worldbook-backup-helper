@@ -1,6 +1,12 @@
 import * as stScript from '/script.js';
 import { saveWorldInfo } from '/scripts/world-info.js';
 import { extension_settings } from '/scripts/extensions.js';
+import {
+  getEntryFieldValue,
+  isCharacterFilterField,
+  normalizeEntryCharacterFilter,
+  setEntryFieldValue,
+} from './entry-fields.mjs';
 
 const PLUGIN_ROOT = '/api/plugins/worldbook-backup-helper';
 const PLUGIN_EXTENSION_KEY = 'worldbookBackupHelper';
@@ -906,9 +912,6 @@ const ENTRY_DEFAULTS = {
   sticky: null,
   cooldown: null,
   delay: null,
-  characterFilterNames: [],
-  characterFilterTags: [],
-  characterFilterExclude: false,
   triggers: [],
   matchPersonaDescription: false,
   matchCharacterDescription: false,
@@ -3428,11 +3431,12 @@ function sameFindMatch(left, right) {
 }
 
 function findFieldText(entry, field) {
-  return LIST_FIELDS.has(field) ? listField(entry?.[field]) : stringField(entry?.[field]);
+  const value = getEntryFieldValue(entry, field);
+  return LIST_FIELDS.has(field) ? listField(value) : stringField(value);
 }
 
 function writeFindFieldText(entry, field, value) {
-  entry[field] = LIST_FIELDS.has(field) ? parseListField(value) : value;
+  setEntryFieldValue(entry, field, LIST_FIELDS.has(field) ? parseListField(value) : value);
 }
 
 function fieldLabel(field) {
@@ -3444,7 +3448,7 @@ function fieldLabel(field) {
 function setEditorInputValues(inputs, entry) {
   for (const input of inputs) {
     const field = input.dataset.wbhField;
-    const value = entry[field];
+    const value = getEntryFieldValue(entry, field);
     if (input.type === 'checkbox') {
       input.checked = Boolean(value);
     } else if (field === 'strategy') {
@@ -3544,10 +3548,11 @@ function normalizeEntryStrategy(entry) {
   applyEntryStrategy(entry, entryStrategyValue(entry));
 }
 
-function normalizeWorldbookRoles(data) {
+function normalizeWorldbookEntries(data) {
   getEntryRecords(data).forEach(record => {
     normalizeEntryRole(record.entry);
     normalizeEntryStrategy(record.entry);
+    normalizeEntryCharacterFilter(record.entry);
   });
 }
 
@@ -3609,10 +3614,10 @@ function updateActiveEntryFromEditor(input) {
   }
 
   const nextValue = readEditorInputValue(input);
-  if (comparableField(record.entry[field]) === comparableField(nextValue)) return;
+  if (comparableField(getEntryFieldValue(record.entry, field)) === comparableField(nextValue)) return;
 
   beginInputHistory(input);
-  record.entry[field] = nextValue;
+  setEntryFieldValue(record.entry, field, nextValue);
   if (field === 'probability') record.entry.useProbability = true;
   normalizeEntryRole(record.entry);
   if (field === 'disable') updateDisableControl(record.entry);
@@ -5960,7 +5965,7 @@ async function saveEditorWorldbook() {
     ensureMvuSystemEntries(app.activeData);
     if (app.mvuTouched) syncMvuMapOpenings(app.activeData, app.mvuOpenings);
   }
-  normalizeWorldbookRoles(app.activeData);
+  normalizeWorldbookEntries(app.activeData);
   await saveWorldbook(name, app.activeData);
   const saved = await loadWorldbook(name);
   app.activeData = cloneValue(saved);
@@ -7383,9 +7388,10 @@ function diffEntryFields(before, after) {
 }
 
 function comparableEntryField(entry, field) {
-  const hasValue = Object.prototype.hasOwnProperty.call(entry || {}, field);
+  const virtualCharacterFilterField = isCharacterFilterField(field);
+  const hasValue = virtualCharacterFilterField || Object.prototype.hasOwnProperty.call(entry || {}, field);
   const fallback = Object.prototype.hasOwnProperty.call(ENTRY_DEFAULTS, field) ? ENTRY_DEFAULTS[field] : '';
-  const value = hasValue ? entry[field] : fallback;
+  const value = hasValue ? getEntryFieldValue(entry, field) : fallback;
 
   if (field === 'role') {
     const isBlank = value === undefined || value === null || value === '';

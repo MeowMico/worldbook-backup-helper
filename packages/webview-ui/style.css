@@ -32,6 +32,10 @@ textarea {
   font: inherit;
 }
 
+textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
 button {
   min-height: 30px;
   border: 1px solid var(--border);

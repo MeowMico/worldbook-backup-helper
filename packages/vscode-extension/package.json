@@ -2,7 +2,7 @@
   "name": "worldbook-workbench-vscode",
   "displayName": "Worldbook Workbench",
   "description": "Edit SillyTavern worldbooks and preview ST-style prompt composition in VSCode or Cursor.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "meowmico",
   "private": true,
   "license": "MIT",

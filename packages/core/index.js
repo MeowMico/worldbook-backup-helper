@@ -22,6 +22,7 @@ const ROLE = Object.freeze({
 });
 
 const ROLE_NAMES = ['system', 'user', 'assistant'];
+const GENERATION_TRIGGERS = Object.freeze(['normal', 'continue', 'impersonate', 'swipe', 'regenerate', 'quiet']);
 
 const SELECTIVE_LOGIC = Object.freeze({
   AND_ANY: 0,
@@ -58,14 +59,12 @@ const ENTRY_DEFAULTS = Object.freeze({
   outletName: '',
   group: '',
   groupOverride: false,
-  groupWeight: null,
+  groupWeight: 100,
   automationId: '',
   sticky: null,
   cooldown: null,
   delay: null,
-  characterFilterNames: [],
-  characterFilterTags: [],
-  characterFilterExclude: false,
+  characterFilter: null,
   triggers: [],
   matchPersonaDescription: false,
   matchCharacterDescription: false,
@@ -131,6 +130,7 @@ function createDefaultScenario(worldbookPath = '') {
     characterCardPath: '',
     includeCharacterBook: true,
     seed: 'worldbook-workbench',
+    trigger: 'normal',
     userName: '{{user}}',
     charName: '',
     settings: { ...DEFAULT_SETTINGS },
@@ -148,6 +148,7 @@ function normalizeScenario(input) {
     characterCardPath: cleanText(input.characterCardPath),
     includeCharacterBook: input.includeCharacterBook !== false,
     seed: cleanText(input.seed) || 'worldbook-workbench',
+    trigger: normalizeGenerationTrigger(input.trigger),
     userName: cleanText(input.userName) || '{{user}}',
     charName: cleanText(input.charName),
     settings: normalizeSettings(input.settings),
@@ -164,7 +165,10 @@ function scenarioFilePath(worldbookPath) {
 }
 
 function parseCharacterCard(input, options = {}) {
-  const sourceName = options.sourceName || options.filePath && path.basename(options.filePath) || 'character';
+  const sourceName = options.sourceName
+    || options.filePath && path.basename(options.filePath)
+    || input && typeof input === 'object' && !Buffer.isBuffer(input) && input.sourceName
+    || 'character';
   let raw = input;
   let pngMetadata = null;
 
@@ -193,12 +197,13 @@ function compilePromptPreview(input = {}) {
   const warnings = [];
   const sources = collectSources(input, scenario, characterCard, warnings);
   const entries = sources.flatMap(source => source.records);
-  const globalScanData = buildGlobalScanData(characterCard);
+  const globalScanData = buildGlobalScanData(characterCard, scenario);
   const evaluation = evaluateEntries(entries, messages, globalScanData, settings, {
     seed,
     forceActivate,
     timedState,
     characterCard,
+    trigger: globalScanData.trigger,
   });
   const budget = applyBudget(evaluation.activated, settings);
   const buckets = bucketActivatedEntries(budget.activated, scenario, characterCard);
@@ -286,38 +291,66 @@ function evaluateEntries(records, messages, globalScanData, settings, options) {
   const recursionBuffer = [];
   const maxPasses = settings.recursive ? Math.max(1, Number(settings.maxRecursionSteps || 0) + 1) : 1;
   const sorted = [...records].sort(promptOrderSort);
+  const recursionDelayLevels = [...new Set(sorted
+    .map(record => normalizeRecursionDelay(record.entry.delayUntilRecursion))
+    .filter(level => level > 0))].sort((left, right) => left - right);
+  let recursionLevel = recursionDelayLevels[0] || 0;
 
   for (let pass = 0; pass < maxPasses; pass++) {
-    let changed = false;
     const recursivePass = pass > 0;
+    const candidates = [];
     for (const record of sorted) {
       if (activated.has(record.fullId)) continue;
       const result = evaluateEntry(record, messages, globalScanData, settings, {
         ...options,
         recursionBuffer,
         recursivePass,
+        recursionLevel,
       });
       if (result.active) {
-        activated.set(record.fullId, result);
-        changed = true;
-        if (!record.entry.preventRecursion && !record.entry.excludeRecursion && cleanText(record.entry.content)) {
-          recursionBuffer.push(expandMacros(record.entry.content, options.characterCard, options));
-        }
+        candidates.push(result);
       } else {
         skipped.set(record.fullId, result);
       }
     }
-    if (!settings.recursive || !changed) break;
-  }
 
-  const grouped = applyGrouping([...activated.values()], settings);
-  for (const loser of grouped.skipped) {
-    skipped.set(loser.record.fullId, loser);
+    const grouped = applyGrouping(candidates, settings, {
+      seed: options.seed,
+      pass,
+      activated: [...activated.values()],
+    });
+    for (const loser of grouped.skipped) skipped.set(loser.record.fullId, loser);
+
+    const probabilityPassed = [];
+    for (const item of grouped.activated) {
+      const result = applyProbability(item, options.seed);
+      if (result.active) {
+        probabilityPassed.push(result);
+      } else {
+        skipped.set(result.record.fullId, result);
+      }
+    }
+
+    const newlyActivated = probabilityPassed.filter(item => !activated.has(item.record.fullId));
+    for (const item of newlyActivated) {
+      activated.set(item.record.fullId, item);
+      skipped.delete(item.record.fullId);
+    }
+
+    if (!settings.recursive || !newlyActivated.length) break;
+
+    const recursiveContent = newlyActivated
+      .filter(item => !item.record.entry.preventRecursion)
+      .map(item => expandMacros(item.record.entry.content, options.characterCard, options))
+      .filter(Boolean);
+    if (!recursiveContent.length) break;
+    recursionBuffer.push(...recursiveContent);
+    recursionLevel = recursionDelayLevels[Math.min(pass, recursionDelayLevels.length - 1)] || recursionLevel;
   }
 
   return {
-    activated: grouped.activated,
-    skipped: [...skipped.values()].filter(item => !grouped.activated.some(active => active.record.fullId === item.record.fullId)),
+    activated: [...activated.values()].sort((left, right) => promptOrderSort(left.record, right.record)),
+    skipped: [...skipped.values()].filter(item => !activated.has(item.record.fullId)),
   };
 }
 
@@ -329,14 +362,32 @@ function evaluateEntry(record, messages, globalScanData, settings, options) {
   if (entry.disable && !options.forceActivate.has(record.fullId) && !options.forceActivate.has(String(record.id))) {
     return inactive(record, 'disabled', 'Entry is disabled.');
   }
-  if (timedStateHas(options.timedState?.cooldown, record)) {
+  if (entry.triggers.length && !entry.triggers.includes(options.trigger)) {
+    return inactive(record, 'generation_trigger', `Entry does not run for the "${options.trigger}" generation trigger.`);
+  }
+  if (!characterFilterMatches(entry, options.characterCard)) {
+    return inactive(record, 'character_filter', 'Character filter does not match.');
+  }
+
+  const isSticky = timedStateHas(options.timedState?.sticky, record);
+  if (entry.delay && messages.length < Number(entry.delay)) {
+    return inactive(record, 'delay', `Entry is delayed until chat message ${Number(entry.delay)}.`);
+  }
+  if (timedStateHas(options.timedState?.cooldown, record) && !isSticky) {
     return inactive(record, 'cooldown', 'Entry is on cooldown in the preview scenario.');
   }
-  if (timedStateHas(options.timedState?.sticky, record)) {
-    return active(record, 'sticky', reasons, matchedKeys, 150);
+  const recursionDelay = normalizeRecursionDelay(entry.delayUntilRecursion);
+  if (recursionDelay && !options.recursivePass && !isSticky) {
+    return inactive(record, 'delay_until_recursion', 'Entry waits for a recursive scan.');
   }
-  if (entry.delay && messages.length < Number(entry.delay)) {
-    return active(record, 'delay', reasons, matchedKeys, 120);
+  if (recursionDelay && options.recursivePass && recursionDelay > options.recursionLevel && !isSticky) {
+    return inactive(record, 'recursion_delay_level', `Entry waits for recursion level ${recursionDelay}.`);
+  }
+  if (options.recursivePass && entry.excludeRecursion && !isSticky) {
+    return inactive(record, 'exclude_recursion', 'Entry is excluded from recursive activation.');
+  }
+  if (isSticky) {
+    return active(record, 'sticky', reasons, matchedKeys, 150);
   }
   if (options.forceActivate.has(record.fullId) || options.forceActivate.has(String(record.id))) {
     return active(record, 'force', reasons, matchedKeys, 999);
@@ -344,14 +395,8 @@ function evaluateEntry(record, messages, globalScanData, settings, options) {
   if (entry.constant) {
     return active(record, 'constant', reasons, matchedKeys, 100);
   }
-  if (options.recursivePass && entry.excludeRecursion) {
-    return inactive(record, 'exclude_recursion', 'Entry is excluded from recursive activation.');
-  }
   if (!entry.key.length) {
     return inactive(record, 'no_primary_keys', 'Entry has no primary keys and is not constant.');
-  }
-  if (!characterFilterMatches(entry, options.characterCard)) {
-    return inactive(record, 'character_filter', 'Character filter does not match.');
   }
 
   const scanText = buildScanText(messages, globalScanData, settings, entry, options.recursionBuffer);
@@ -368,17 +413,29 @@ function evaluateEntry(record, messages, globalScanData, settings, options) {
     return inactive(record, 'secondary_logic_failed', 'Secondary key logic did not pass.', matchedKeys);
   }
 
-  const probability = Number(entry.probability ?? 100);
-  if (entry.useProbability !== false && probability < 100) {
-    const roll = seededPercent(`${options.seed}:${record.fullId}`);
-    if (roll >= probability) {
-      return inactive(record, 'probability_failed', `Deterministic probability roll ${roll.toFixed(2)} >= ${probability}.`, matchedKeys);
-    }
-    reasons.push(`probability:${roll.toFixed(2)}`);
-  }
-
-  const score = primaryMatches.length + secondaryMatches.length + Number(entry.groupWeight || 0);
+  const score = primaryMatches.length + secondaryMatches.length;
   return active(record, 'keys', reasons, matchedKeys, score);
+}
+
+function applyProbability(item, seed) {
+  const entry = item.record.entry;
+  const probability = Number(entry.probability ?? 100);
+  if (item.trigger === 'sticky' || item.trigger === 'force' || entry.useProbability === false || probability >= 100) {
+    return item;
+  }
+  const roll = seededPercent(`${seed}:${item.record.fullId}`);
+  if (roll >= probability) {
+    return inactive(
+      item.record,
+      'probability_failed',
+      `Deterministic probability roll ${roll.toFixed(2)} >= ${probability}.`,
+      item.matchedKeys,
+    );
+  }
+  return {
+    ...item,
+    reasons: [...item.reasons, `probability:${roll.toFixed(2)}`],
+  };
 }
 
 function active(record, trigger, reasons, matchedKeys, score) {
@@ -403,51 +460,82 @@ function inactive(record, reason, message, matchedKeys = []) {
   };
 }
 
-function applyGrouping(activeItems, settings) {
-  const groups = new Map();
-  const passthrough = [];
-  for (const item of activeItems) {
-    const group = cleanText(item.record.entry.group);
-    if (!group) {
-      passthrough.push(item);
+function applyGrouping(activeItems, settings, options = {}) {
+  const remaining = new Set(activeItems);
+  const skipped = new Map();
+  const groupNames = [...new Set(activeItems.flatMap(item => entryGroups(item.record.entry)))];
+  const activatedGroups = new Set((options.activated || []).flatMap(item => entryGroups(item.record.entry)));
+
+  const remove = (item, group, reason = 'group_loser', message = `Another entry won group "${group}".`) => {
+    if (!remaining.delete(item)) return;
+    skipped.set(item.record.fullId, {
+      active: false,
+      record: item.record,
+      reason,
+      message,
+      matchedKeys: item.matchedKeys,
+    });
+  };
+
+  for (const group of groupNames) {
+    let items = activeItems.filter(item => remaining.has(item) && entryGroups(item.record.entry).includes(group));
+    if (activatedGroups.has(group)) {
+      for (const item of items) remove(item, group, 'group_already_active', `Group "${group}" already activated on an earlier scan.`);
       continue;
     }
-    if (!groups.has(group)) groups.set(group, []);
-    groups.get(group).push(item);
+    if (items.length <= 1) continue;
+
+    const stickyItems = items.filter(item => item.trigger === 'sticky');
+    if (stickyItems.length) {
+      for (const item of items) {
+        if (!stickyItems.includes(item)) remove(item, group);
+      }
+      continue;
+    }
+
+    if (settings.useGroupScoring || items.some(item => item.record.entry.useGroupScoring === true)) {
+      const maxScore = Math.max(...items.map(item => Number(item.score || 0)));
+      for (const item of items) {
+        const usesScoring = item.record.entry.useGroupScoring ?? settings.useGroupScoring;
+        if (usesScoring && Number(item.score || 0) < maxScore) remove(item, group);
+      }
+      items = items.filter(item => remaining.has(item));
+    }
+    if (items.length <= 1) continue;
+
+    const overrides = items.filter(item => item.record.entry.groupOverride).sort((left, right) => promptOrderSort(left.record, right.record));
+    const winner = overrides[0] || weightedGroupWinner(items, `${options.seed}:group:${options.pass}:${group}`);
+    for (const item of items) {
+      if (item !== winner) remove(item, group);
+    }
   }
 
-  const activated = [...passthrough];
-  const skipped = [];
-  for (const [group, items] of groups) {
-    if (items.length === 1) {
-      activated.push(items[0]);
-      continue;
-    }
-    const useScoring = settings.useGroupScoring || items.some(item => item.record.entry.useGroupScoring === true);
-    const winner = [...items].sort((left, right) => {
-      if (useScoring) {
-        const scoreDiff = Number(right.score || 0) - Number(left.score || 0);
-        if (scoreDiff) return scoreDiff;
-      }
-      if (left.record.entry.groupOverride !== right.record.entry.groupOverride) {
-        return left.record.entry.groupOverride ? -1 : 1;
-      }
-      return promptOrderSort(left.record, right.record);
-    })[0];
-    activated.push(winner);
-    for (const item of items) {
-      if (item !== winner) {
-        skipped.push({
-          active: false,
-          record: item.record,
-          reason: 'group_loser',
-          message: `Another entry won group "${group}".`,
-          matchedKeys: item.matchedKeys,
-        });
-      }
-    }
+  return {
+    activated: [...remaining].sort((left, right) => promptOrderSort(left.record, right.record)),
+    skipped: [...skipped.values()],
+  };
+}
+
+function weightedGroupWinner(items, seed) {
+  const weights = items.map(item => Math.max(0, numberOr(item.record.entry.groupWeight, 100)));
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  if (total <= 0) return items[0];
+  const roll = seededUnit(seed) * total;
+  let current = 0;
+  for (let index = 0; index < items.length; index++) {
+    current += weights[index];
+    if (roll <= current) return items[index];
   }
-  return { activated: activated.sort((left, right) => promptOrderSort(left.record, right.record)), skipped };
+  return items[items.length - 1];
+}
+
+function entryGroups(entry) {
+  return cleanText(entry?.group).split(/,\s*/).map(cleanText).filter(Boolean);
+}
+
+function normalizeRecursionDelay(value) {
+  if (value === true) return 1;
+  return Math.max(0, numberOr(value, 0));
 }
 
 function applyBudget(activeItems, settings) {
@@ -460,6 +548,7 @@ function applyBudget(activeItems, settings) {
   if (!limit) warnings.push({ code: 'budget_disabled', message: 'World info budget is disabled or zero.' });
 
   let used = 0;
+  let overflowed = false;
   const activated = [];
   const skipped = [];
   for (const item of activeItems) {
@@ -469,7 +558,18 @@ function applyBudget(activeItems, settings) {
       tokens: tokenResult.count,
       tokenAccuracy: tokenResult.accuracy,
     };
-    if (limit && !item.record.entry.ignoreBudget && used + tokenResult.count > limit) {
+    if (overflowed && !item.record.entry.ignoreBudget) {
+      skipped.push({
+        active: false,
+        record: item.record,
+        reason: 'budget',
+        message: `A higher-priority entry already exhausted the world info budget (${used}/${limit}).`,
+        matchedKeys: item.matchedKeys,
+      });
+      continue;
+    }
+    if (limit && !item.record.entry.ignoreBudget && used + tokenResult.count >= limit) {
+      overflowed = true;
       skipped.push({
         active: false,
         record: item.record,
@@ -553,7 +653,7 @@ function bucketActivatedEntries(activeItems, scenario, characterCard) {
   for (const value of Object.values(buckets)) {
     if (Array.isArray(value)) value.sort(bucketSort);
   }
-  for (const outlet of Object.values(buckets.outlets)) outlet.sort(bucketSort);
+  for (const outlet of Object.values(buckets.outlets)) outlet.sort(outletSort);
   return buckets;
 }
 
@@ -718,13 +818,18 @@ function parseRegex(value) {
 }
 
 function characterFilterMatches(entry, characterCard) {
-  const names = normalizeStringArray(entry.characterFilterNames).map(value => value.toLowerCase());
-  const tags = normalizeStringArray(entry.characterFilterTags).map(value => value.toLowerCase());
+  const filter = normalizeCharacterFilter(entry);
+  const names = filter.names.map(value => value.toLowerCase());
+  const tags = filter.tags.map(value => value.toLowerCase());
   if (!names.length && !tags.length) return true;
-  const cardName = cleanText(characterCard?.name).toLowerCase();
+  const cardNames = new Set([
+    cleanText(characterCard?.name),
+    cleanText(characterCard?.sourceName),
+    characterCard?.sourceName ? path.basename(characterCard.sourceName, path.extname(characterCard.sourceName)) : '',
+  ].map(value => value.toLowerCase()).filter(Boolean));
   const cardTags = normalizeStringArray(characterCard?.tags).map(value => value.toLowerCase());
-  const matched = (names.length && names.includes(cardName)) || (tags.length && tags.some(tag => cardTags.includes(tag)));
-  return entry.characterFilterExclude ? !matched : matched;
+  const matched = names.some(name => cardNames.has(name)) || tags.some(tag => cardTags.includes(tag));
+  return filter.isExclude ? !matched : matched;
 }
 
 function normalizeSettings(input = {}) {
@@ -791,14 +896,24 @@ function normalizeEntry(entry) {
   };
   out.key = normalizeStringArray(out.key);
   out.keysecondary = normalizeStringArray(out.keysecondary);
-  out.characterFilterNames = normalizeStringArray(out.characterFilterNames);
-  out.characterFilterTags = normalizeStringArray(out.characterFilterTags);
-  out.triggers = normalizeStringArray(out.triggers);
+  out.characterFilter = normalizeCharacterFilter(out);
+  out.triggers = normalizeStringArray(out.triggers).map(value => value.toLowerCase());
   out.position = numberOr(out.position, ENTRY_DEFAULTS.position);
   out.order = numberOr(out.order, ENTRY_DEFAULTS.order);
   out.depth = numberOr(out.depth, ENTRY_DEFAULTS.depth);
   out.probability = numberOr(out.probability, ENTRY_DEFAULTS.probability);
   return out;
+}
+
+function normalizeCharacterFilter(entry) {
+  const nested = entry?.characterFilter && typeof entry.characterFilter === 'object' && !Array.isArray(entry.characterFilter)
+    ? entry.characterFilter
+    : null;
+  return {
+    names: normalizeStringArray(nested ? nested.names : entry?.characterFilterNames),
+    tags: normalizeStringArray(nested ? nested.tags : entry?.characterFilterTags),
+    isExclude: booleanValue(nested ? nested.isExclude : entry?.characterFilterExclude),
+  };
 }
 
 function normalizeCharacterCardObject(card, sourceName, pngMetadata) {
@@ -1063,7 +1178,7 @@ function parseJsonLike(input, label) {
   throw new Error(`${label} input must be JSON text, Buffer, or object.`);
 }
 
-function buildGlobalScanData(characterCard) {
+function buildGlobalScanData(characterCard, scenario) {
   return {
     personaDescription: '',
     characterDescription: characterCard?.description || '',
@@ -1071,7 +1186,7 @@ function buildGlobalScanData(characterCard) {
     characterDepthPrompt: '',
     scenario: characterCard?.scenario || '',
     creatorNotes: characterCard?.creatorNotes || '',
-    trigger: 'normal',
+    trigger: normalizeGenerationTrigger(scenario?.trigger),
   };
 }
 
@@ -1092,14 +1207,29 @@ function promptOrderSort(left, right) {
 }
 
 function bucketSort(left, right) {
+  const orderDiff = Number(left.order || 0) - Number(right.order || 0);
+  if (orderDiff) return orderDiff;
+  return String(left.id).localeCompare(String(right.id));
+}
+
+function outletSort(left, right) {
   const orderDiff = Number(right.order || 0) - Number(left.order || 0);
   if (orderDiff) return orderDiff;
   return String(left.id).localeCompare(String(right.id));
 }
 
 function seededPercent(seed) {
+  return seededUnit(seed) * 100;
+}
+
+function seededUnit(seed) {
   const hash = crypto.createHash('sha256').update(String(seed)).digest();
-  return hash.readUInt32BE(0) / 0xffffffff * 100;
+  return hash.readUInt32BE(0) / 0x100000000;
+}
+
+function normalizeGenerationTrigger(value) {
+  const trigger = cleanText(value).toLowerCase();
+  return GENERATION_TRIGGERS.includes(trigger) ? trigger : 'normal';
 }
 
 function entryTitle(entry) {
@@ -1136,6 +1266,10 @@ function numberOr(value, fallback) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function booleanValue(value) {
+  return value === true || value === 1 || String(value).toLowerCase() === 'true';
+}
+
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
@@ -1148,6 +1282,7 @@ module.exports = {
   POSITION,
   ROLE,
   SELECTIVE_LOGIC,
+  GENERATION_TRIGGERS,
   ENTRY_DEFAULTS,
   DEFAULT_SETTINGS,
   createDefaultScenario,
