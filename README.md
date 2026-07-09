@@ -51,8 +51,10 @@ It can:
 - open a SillyTavern worldbook JSON file in a webview workbench
 - import a character card from JSON or PNG metadata
 - save preview scenarios as `<worldbook>.wbh.json`
+- browse entries in a compact list and edit strategy, position, order, keys, and content directly
 - show an ST-style system/user/assistant timeline for activated worldbook entries
-- explain activated and skipped entries, including keyword misses, group losers, and budget skips
+- explain activated and skipped entries, including keyword misses and group losers
+- show total timeline/worldbook token estimates and token counts for every entry
 
 The preview engine lives in `packages/core`. It is a clean-room compatibility implementation and does not copy SillyTavern source. Token counts are profile based: OpenAI profiles use `tiktoken` when it is installed, otherwise the preview clearly falls back to an estimate.
 
@@ -66,7 +68,7 @@ npm install
 npx vsce package
 ```
 
-Marketplace publishing is intentionally deferred; the first distributable target is a local `.vsix`.
+The package can be installed from a local `.vsix` and is prepared for distribution through Open VSX.
 
 ## Recommended Workflow
 

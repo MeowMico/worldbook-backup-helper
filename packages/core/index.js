@@ -78,9 +78,6 @@ const DEFAULT_SETTINGS = Object.freeze({
   worldInfoDepth: 4,
   minActivations: 0,
   minActivationsDepthMax: 0,
-  maxContextTokens: 8192,
-  budgetPercent: 25,
-  budgetCap: 0,
   recursive: true,
   maxRecursionSteps: 2,
   includeNames: false,
@@ -205,10 +202,13 @@ function compilePromptPreview(input = {}) {
     characterCard,
     trigger: globalScanData.trigger,
   });
-  const budget = applyBudget(evaluation.activated, settings);
-  const buckets = bucketActivatedEntries(budget.activated, scenario, characterCard);
+  const activated = annotateTokenUsage(evaluation.activated, settings, scenario, characterCard);
+  const skipped = annotateTokenUsage(evaluation.skipped, settings, scenario, characterCard);
+  const buckets = bucketActivatedEntries(activated, scenario, characterCard);
   const timeline = buildTimeline(buckets, messages, characterCard, scenario, settings);
   const tokenizer = tokenizerInfo(settings.tokenizerProfile);
+  const worldInfoTokens = activated.reduce((sum, item) => sum + item.tokens, 0);
+  const allEntriesTokens = worldInfoTokens + skipped.reduce((sum, item) => sum + item.tokens, 0);
   const timelineTokens = timeline.reduce((sum, item) => sum + countTokens(item.content, settings.tokenizerProfile).count, 0);
 
   return {
@@ -221,25 +221,19 @@ function compilePromptPreview(input = {}) {
       entryCount: source.records.length,
     })),
     timeline,
-    activatedEntries: budget.activated.map(toActivatedSummary),
-    skippedEntries: [
-      ...evaluation.skipped,
-      ...budget.skipped,
-    ].map(toSkippedSummary),
+    activatedEntries: activated.map(toActivatedSummary),
+    skippedEntries: skipped.map(toSkippedSummary),
     buckets: summarizeBuckets(buckets),
-    tokenBudget: {
+    tokenUsage: {
       profile: tokenizer.profile,
       accuracy: tokenizer.accuracy,
-      limit: budget.limit,
-      used: budget.used,
-      worldInfoTokens: budget.used,
+      allEntriesTokens,
+      worldInfoTokens,
       timelineTokens,
-      truncated: budget.skipped.length > 0,
     },
     warnings: [
       ...warnings,
-      ...budget.warnings,
-      ...runtimeWarnings(budget.activated),
+      ...runtimeWarnings(activated),
     ],
   };
 }
@@ -538,51 +532,17 @@ function normalizeRecursionDelay(value) {
   return Math.max(0, numberOr(value, 0));
 }
 
-function applyBudget(activeItems, settings) {
-  const tokenizerProfile = settings.tokenizerProfile;
-  const maxContext = Math.max(0, Number(settings.maxContextTokens || 0));
-  const percentLimit = Math.floor(maxContext * Math.max(0, Number(settings.budgetPercent || 0)) / 100);
-  const cap = Number(settings.budgetCap || 0);
-  const limit = cap > 0 ? Math.min(percentLimit || cap, cap) : percentLimit;
-  const warnings = [];
-  if (!limit) warnings.push({ code: 'budget_disabled', message: 'World info budget is disabled or zero.' });
-
-  let used = 0;
-  let overflowed = false;
-  const activated = [];
-  const skipped = [];
-  for (const item of activeItems) {
-    const tokenResult = countTokens(item.record.entry.content, tokenizerProfile);
-    const next = {
+function annotateTokenUsage(activeItems, settings, scenario, characterCard) {
+  return activeItems.map(item => {
+    const expandedContent = expandMacros(item.record.entry.content, characterCard, scenario);
+    const tokenResult = countTokens(expandedContent, settings.tokenizerProfile);
+    return {
       ...item,
+      expandedContent,
       tokens: tokenResult.count,
       tokenAccuracy: tokenResult.accuracy,
     };
-    if (overflowed && !item.record.entry.ignoreBudget) {
-      skipped.push({
-        active: false,
-        record: item.record,
-        reason: 'budget',
-        message: `A higher-priority entry already exhausted the world info budget (${used}/${limit}).`,
-        matchedKeys: item.matchedKeys,
-      });
-      continue;
-    }
-    if (limit && !item.record.entry.ignoreBudget && used + tokenResult.count >= limit) {
-      overflowed = true;
-      skipped.push({
-        active: false,
-        record: item.record,
-        reason: 'budget',
-        message: `Entry would exceed world info budget (${used + tokenResult.count}/${limit}).`,
-        matchedKeys: item.matchedKeys,
-      });
-      continue;
-    }
-    used += tokenResult.count;
-    activated.push(next);
-  }
-  return { activated, skipped, used, limit, warnings };
+  });
 }
 
 function bucketActivatedEntries(activeItems, scenario, characterCard) {
@@ -599,7 +559,7 @@ function bucketActivatedEntries(activeItems, scenario, characterCard) {
 
   for (const item of activeItems) {
     const entry = item.record.entry;
-    const content = expandMacros(entry.content, characterCard, scenario);
+    const content = item.expandedContent ?? expandMacros(entry.content, characterCard, scenario);
     const bucketItem = {
       id: item.record.fullId,
       title: entryTitle(entry),
@@ -833,13 +793,14 @@ function characterFilterMatches(entry, characterCard) {
 }
 
 function normalizeSettings(input = {}) {
+  const settings = { ...input };
+  delete settings.maxContextTokens;
+  delete settings.budgetPercent;
+  delete settings.budgetCap;
   return {
     ...DEFAULT_SETTINGS,
-    ...input,
+    ...settings,
     worldInfoDepth: numberOr(input.worldInfoDepth, DEFAULT_SETTINGS.worldInfoDepth),
-    maxContextTokens: numberOr(input.maxContextTokens, DEFAULT_SETTINGS.maxContextTokens),
-    budgetPercent: numberOr(input.budgetPercent, DEFAULT_SETTINGS.budgetPercent),
-    budgetCap: numberOr(input.budgetCap, DEFAULT_SETTINGS.budgetCap),
     maxRecursionSteps: numberOr(input.maxRecursionSteps, DEFAULT_SETTINGS.maxRecursionSteps),
     tokenizerProfile: cleanText(input.tokenizerProfile) || DEFAULT_SETTINGS.tokenizerProfile,
   };
@@ -1144,6 +1105,8 @@ function toSkippedSummary(item) {
     reason: item.reason,
     message: item.message,
     matchedKeys: item.matchedKeys || [],
+    tokens: item.tokens,
+    tokenAccuracy: item.tokenAccuracy,
   };
 }
 

@@ -215,6 +215,7 @@ class WorkbenchPanel {
     const uiRoot = vscode.Uri.file(resolveWebviewRoot(this.context.extensionPath));
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, 'style.css'));
     const scenarioFieldsUri = webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, 'scenario-fields.js'));
+    const worldbookEditorUri = webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, 'worldbook-editor.js'));
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, 'main.js'));
     const nonce = String(Date.now());
     return `<!doctype html>
@@ -242,46 +243,123 @@ class WorkbenchPanel {
         </div>
       </header>
       <main class="workspace">
-        <section class="pane editor-pane">
+        <section class="pane entries-pane">
           <div class="pane-head">
-            <h2 id="worldbookTitle">Worldbook</h2>
-            <span id="worldbookMeta"></span>
+            <div class="pane-title">
+              <h2 id="worldbookTitle">Worldbook</h2>
+              <span id="entryCount">0 entries</span>
+            </div>
+            <button id="newEntryButton" class="icon-button" type="button" title="New entry" aria-label="New entry">+</button>
           </div>
-          <textarea id="worldbookText" spellcheck="false"></textarea>
+          <div class="entry-tools">
+            <input id="entrySearch" type="search" placeholder="Search entries" aria-label="Search entries">
+            <div class="entry-actions">
+              <button id="duplicateEntryButton" type="button">Duplicate</button>
+              <button id="deleteEntryButton" class="danger-command" type="button">Delete</button>
+            </div>
+          </div>
+          <div id="entryList" class="entry-browser" role="listbox" aria-label="Worldbook entries"></div>
         </section>
-        <section class="pane settings-pane">
-          <div class="pane-head">
-            <h2>Scenario</h2>
-            <span id="cardMeta">No card</span>
+        <section class="pane workbench-pane">
+          <div class="tabbar" role="tablist" aria-label="Workbench views">
+            <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="entry">Entry</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-tab="scenario">Scenario</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-tab="json">JSON</button>
           </div>
-          <div class="form-grid">
-            <label>Seed<input id="seedInput" type="text"></label>
-            <label>User<input id="userInput" type="text"></label>
-            <label>Character<input id="charInput" type="text"></label>
-            <label>Generation<select id="triggerInput">
-              <option value="normal">Normal</option>
-              <option value="continue">Continue</option>
-              <option value="impersonate">Impersonate</option>
-              <option value="swipe">Swipe</option>
-              <option value="regenerate">Regenerate</option>
-              <option value="quiet">Quiet</option>
-            </select></label>
-            <label>Tokenizer<select id="tokenizerInput">
-              <option value="estimate">Estimate</option>
-              <option value="openai-cl100k">OpenAI cl100k</option>
-              <option value="openai-p50k">OpenAI p50k</option>
-              <option value="llama-estimate">Llama estimate</option>
-              <option value="claude-estimate">Claude estimate</option>
-            </select></label>
-            <label>Depth<input id="depthInput" type="number" min="0"></label>
-            <label>Max Context<input id="contextInput" type="number" min="0"></label>
-            <label>Budget %<input id="budgetInput" type="number" min="0" max="100"></label>
-            <label>Budget Cap<input id="budgetCapInput" type="number" min="0"></label>
-          </div>
-          <label class="check-row"><input id="recursiveInput" type="checkbox"> Recursive</label>
-          <label class="check-row"><input id="characterBookInput" type="checkbox"> Character book</label>
-          <label class="block-label">Messages JSON<textarea id="messagesText" spellcheck="false"></textarea></label>
-          <label class="block-label">Force Activate IDs<textarea id="forceText" spellcheck="false"></textarea></label>
+          <section id="entryTab" class="tab-panel active" role="tabpanel">
+            <div id="entryEmpty" class="empty-state">Select an entry to edit it.</div>
+            <div id="entryEditor" class="entry-editor hidden">
+              <div class="entry-editor-head">
+                <div>
+                  <h2 id="entryEditorTitle">Entry</h2>
+                  <span id="entryEditorMeta"></span>
+                </div>
+                <label class="enabled-toggle"><input id="entryEnabledInput" type="checkbox"> Enabled</label>
+              </div>
+              <div class="entry-editor-scroll">
+                <section class="editor-section">
+                  <label>Title<input id="entryTitleInput" type="text"></label>
+                  <div class="editor-grid">
+                    <label>Strategy<span class="strategy-control"><span id="entryStrategyIndicator" class="strategy-dot" aria-hidden="true"></span><select id="entryStrategyInput">
+                      <option value="selective">Selective</option>
+                      <option value="constant">Constant</option>
+                      <option value="vectorized">Vectorized</option>
+                      <option value="normal">Normal</option>
+                    </select></span></label>
+                    <label>Position<select id="entryPositionInput">
+                      <option value="0">Before Character</option>
+                      <option value="1">After Character</option>
+                      <option value="5">Before Example Messages</option>
+                      <option value="6">After Example Messages</option>
+                      <option value="2">Top of Author Note</option>
+                      <option value="3">Bottom of Author Note</option>
+                      <option value="4">At Depth</option>
+                      <option value="7">Outlet</option>
+                    </select></label>
+                    <label>Order<input id="entryOrderInput" type="number"></label>
+                    <label>Probability<input id="entryProbabilityInput" type="number" min="0" max="100"></label>
+                    <label id="entryDepthField" class="hidden">Depth<input id="entryDepthInput" type="number" min="0"></label>
+                    <label id="entryRoleField" class="hidden">Role<select id="entryRoleInput">
+                      <option value="0">System</option>
+                      <option value="1">User</option>
+                      <option value="2">Assistant</option>
+                    </select></label>
+                    <label id="entryOutletField" class="hidden">Outlet<input id="entryOutletInput" type="text"></label>
+                  </div>
+                </section>
+                <section class="editor-section">
+                  <div class="editor-grid">
+                    <label>Primary Keywords<textarea id="entryKeysInput" rows="3" spellcheck="false"></textarea></label>
+                    <label>Secondary Keywords<textarea id="entrySecondaryInput" rows="3" spellcheck="false"></textarea></label>
+                  </div>
+                  <label>Selective Logic<select id="entryLogicInput">
+                    <option value="0">AND Any</option>
+                    <option value="3">AND All</option>
+                    <option value="2">NOT Any</option>
+                    <option value="1">NOT All</option>
+                  </select></label>
+                </section>
+                <section class="editor-section content-section">
+                  <label>Content<textarea id="entryContentInput" rows="16" spellcheck="false"></textarea></label>
+                </section>
+              </div>
+            </div>
+          </section>
+          <section id="scenarioTab" class="tab-panel settings-pane" role="tabpanel">
+            <div class="section-head"><h2>Preview Scenario</h2><span id="cardMeta">No card</span></div>
+            <div class="form-grid">
+              <label>Seed<input id="seedInput" type="text"></label>
+              <label>User<input id="userInput" type="text"></label>
+              <label>Character<input id="charInput" type="text"></label>
+              <label>Generation<select id="triggerInput">
+                <option value="normal">Normal</option>
+                <option value="continue">Continue</option>
+                <option value="impersonate">Impersonate</option>
+                <option value="swipe">Swipe</option>
+                <option value="regenerate">Regenerate</option>
+                <option value="quiet">Quiet</option>
+              </select></label>
+              <label>Tokenizer<select id="tokenizerInput">
+                <option value="estimate">Estimate</option>
+                <option value="openai-cl100k">OpenAI cl100k</option>
+                <option value="openai-p50k">OpenAI p50k</option>
+                <option value="llama-estimate">Llama estimate</option>
+                <option value="claude-estimate">Claude estimate</option>
+              </select></label>
+              <label>Depth<input id="depthInput" type="number" min="0"></label>
+            </div>
+            <label class="check-row"><input id="recursiveInput" type="checkbox"> Recursive</label>
+            <label class="check-row"><input id="characterBookInput" type="checkbox"> Character book</label>
+            <label class="block-label">Messages JSON<textarea id="messagesText" spellcheck="false"></textarea></label>
+            <label class="block-label">Force Activate IDs<textarea id="forceText" spellcheck="false"></textarea></label>
+          </section>
+          <section id="jsonTab" class="tab-panel json-pane" role="tabpanel">
+            <div class="section-head">
+              <div><h2>Raw Worldbook JSON</h2><span id="worldbookMeta"></span></div>
+              <button id="applyJsonButton" type="button">Apply JSON</button>
+            </div>
+            <textarea id="rawJsonText" spellcheck="false"></textarea>
+          </section>
         </section>
         <section class="pane preview-pane">
           <div class="pane-head">
@@ -293,6 +371,7 @@ class WorkbenchPanel {
       </main>
     </div>
     <script nonce="${nonce}" src="${scenarioFieldsUri}"></script>
+    <script nonce="${nonce}" src="${worldbookEditorUri}"></script>
     <script nonce="${nonce}" src="${scriptUri}"></script>
   </body>
 </html>`;
@@ -312,6 +391,8 @@ async function resolveWorldbookUri(uri) {
 }
 
 function loadCore() {
+  const bundled = path.join(__dirname, 'dist', 'core', 'index.js');
+  if (require('fs').existsSync(bundled)) return require(bundled);
   try {
     return require('@worldbook-workbench/core');
   } catch {
@@ -320,6 +401,8 @@ function loadCore() {
 }
 
 function resolveWebviewRoot(extensionPath) {
+  const bundled = path.join(extensionPath, 'dist', 'webview');
+  if (require('fs').existsSync(bundled)) return bundled;
   const packaged = path.join(extensionPath, 'node_modules', '@worldbook-workbench', 'webview-ui');
   const local = path.join(extensionPath, '..', 'webview-ui');
   return require('fs').existsSync(packaged) ? packaged : local;

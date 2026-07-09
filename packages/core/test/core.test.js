@@ -77,25 +77,37 @@ test('compilePromptPreview activates constants and depth entries in timeline ord
   assert.ok(result.timeline.some(item => item.title === 'Before' && item.bucket === 'world_info_before_character'));
 });
 
-test('compilePromptPreview explains secondary logic and budget skips', () => {
+test('compilePromptPreview reports total and per-entry tokens without truncating entries', () => {
   const worldbook = {
     entries: {
       keep: { comment: 'Keep', content: 'short', key: ['alpha'], keysecondary: ['beta'], selective: true, selectiveLogic: 0, order: 100 },
       miss: { comment: 'Miss', content: 'short', key: ['alpha'], keysecondary: ['gamma'], selective: true, selectiveLogic: 0, order: 90 },
-      budget: { comment: 'Budget', content: 'x '.repeat(500), key: ['alpha'], order: 80 },
+      long: { comment: 'Long', content: 'x '.repeat(500), key: ['alpha'], order: 80 },
     },
   };
   const result = compilePromptPreview({
     worldbooks: [{ name: 'book', data: worldbook }],
     scenario: {
       ...createDefaultScenario(),
-      settings: { maxContextTokens: 100, budgetPercent: 10, recursive: false },
+      settings: { maxContextTokens: 100, budgetPercent: 10, budgetCap: 5, recursive: false },
       messages: [{ role: 'user', content: 'alpha beta' }],
     },
   });
   assert.ok(result.activatedEntries.some(entry => entry.title === 'Keep'));
   assert.ok(result.skippedEntries.some(entry => entry.title === 'Miss' && entry.reason === 'secondary_logic_failed'));
-  assert.ok(result.skippedEntries.some(entry => entry.title === 'Budget' && entry.reason === 'budget'));
+  assert.ok(result.activatedEntries.some(entry => entry.title === 'Long'));
+  assert.equal(result.skippedEntries.some(entry => entry.reason === 'budget'), false);
+  assert.equal(result.tokenUsage.worldInfoTokens, result.activatedEntries.reduce((sum, entry) => sum + entry.tokens, 0));
+  assert.equal(
+    result.tokenUsage.allEntriesTokens,
+    [...result.activatedEntries, ...result.skippedEntries].reduce((sum, entry) => sum + entry.tokens, 0),
+  );
+  assert.ok(result.tokenUsage.timelineTokens >= result.tokenUsage.worldInfoTokens);
+  assert.ok(result.activatedEntries.find(entry => entry.title === 'Long').tokens > result.activatedEntries.find(entry => entry.title === 'Keep').tokens);
+  assert.ok(result.skippedEntries.find(entry => entry.title === 'Miss').tokens > 0);
+  assert.equal(result.settings.maxContextTokens, undefined);
+  assert.equal(result.settings.budgetPercent, undefined);
+  assert.equal(result.settings.budgetCap, undefined);
 });
 
 test('compilePromptPreview handles groups, probability seed, recursion, and timed state', () => {
@@ -114,7 +126,7 @@ test('compilePromptPreview handles groups, probability seed, recursion, and time
     worldbooks: [{ name: 'book', data: worldbook }],
     scenario: {
       ...createDefaultScenario(),
-      settings: { recursive: true, maxRecursionSteps: 2, useGroupScoring: true, budgetPercent: 100 },
+      settings: { recursive: true, maxRecursionSteps: 2, useGroupScoring: true },
       messages: [{ role: 'user', content: 'root' }],
       timedState: { sticky: ['book:sticky'], cooldown: ['book:cooldown'] },
       seed: 'fixed',
@@ -181,7 +193,7 @@ test('compilePromptPreview delays entries until recursion and preserves final pr
     worldbooks: [{ name: 'book', data: worldbook }],
     scenario: {
       ...createDefaultScenario(),
-      settings: { ...createDefaultScenario().settings, recursive: true, maxRecursionSteps: 2, budgetPercent: 100 },
+      settings: { ...createDefaultScenario().settings, recursive: true, maxRecursionSteps: 2 },
       messages: [{ role: 'user', content: 'root' }],
     },
   });
@@ -200,7 +212,7 @@ test('group scoring uses keyword scores before deterministic weights', () => {
     worldbooks: [{ name: 'book', data: worldbook }],
     scenario: {
       ...createDefaultScenario(),
-      settings: { ...createDefaultScenario().settings, recursive: false, useGroupScoring: true, budgetPercent: 100 },
+      settings: { ...createDefaultScenario().settings, recursive: false, useGroupScoring: true },
       messages: [{ role: 'user', content: 'root second' }],
       seed: 'fixed',
     },
@@ -242,7 +254,7 @@ test('probability runs after grouping and still applies to constant entries', ()
     worldbooks: [{ name: 'book', data: worldbook }],
     scenario: {
       ...createDefaultScenario(),
-      settings: { ...createDefaultScenario().settings, recursive: false, budgetPercent: 100 },
+      settings: { ...createDefaultScenario().settings, recursive: false },
       messages: [{ role: 'user', content: 'root' }],
       seed: 'fixed',
     },

@@ -2,15 +2,46 @@
   "name": "worldbook-workbench-vscode",
   "displayName": "Worldbook Workbench",
   "description": "Edit SillyTavern worldbooks and preview ST-style prompt composition in VSCode or Cursor.",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "publisher": "meowmico",
   "private": true,
   "license": "MIT",
+  "icon": "media/icon.png",
+  "preview": true,
+  "pricing": "Free",
+  "galleryBanner": {
+    "color": "#1b1d22",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MeowMico/worldbook-backup-helper.git",
+    "directory": "packages/vscode-extension"
+  },
+  "homepage": "https://github.com/MeowMico/worldbook-backup-helper/tree/main/packages/vscode-extension",
+  "bugs": {
+    "url": "https://github.com/MeowMico/worldbook-backup-helper/issues"
+  },
+  "vsce": {
+    "dependencies": false
+  },
   "engines": {
     "vscode": "^1.88.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "sillytavern",
+    "worldbook",
+    "lorebook",
+    "character card",
+    "prompt preview",
+    "prompt engineering",
+    "cursor",
+    "roleplay",
+    "json"
   ],
   "activationEvents": [
     "onCommand:worldbookWorkbench.openWorkbench",
@@ -20,10 +51,6 @@
     "onCommand:worldbookWorkbench.exportWorldbookJson"
   ],
   "main": "./extension.js",
-  "dependencies": {
-    "@worldbook-workbench/core": "file:../core",
-    "@worldbook-workbench/webview-ui": "file:../webview-ui"
-  },
   "contributes": {
     "commands": [
       {
@@ -65,7 +92,9 @@
     }
   },
   "scripts": {
-    "check": "node --check extension.js"
+    "build": "node scripts/build-package.mjs",
+    "vscode:prepublish": "npm run build",
+    "check": "npm run build && node --check scripts/build-package.mjs && node --check extension.js && node --check dist/core/index.js && node --check dist/webview/main.js && node --check dist/webview/scenario-fields.js && node --check dist/webview/worldbook-editor.js"
   },
   "devDependencies": {
     "@types/vscode": "^1.88.0"

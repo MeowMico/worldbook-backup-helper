@@ -1,5 +1,7 @@
 .vscode/**
 .vscode-test/**
 test/**
+scripts/**
+node_modules/**
 *.vsix
 npm-debug.log
