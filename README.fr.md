@@ -16,7 +16,7 @@ Elle est conçue pour les créateurs qui testent leurs sorties de jeu de rôle t
 - Comparer la version actuelle, la version précédente, la base, le résultat et les versions enregistrées avec des différences surlignées.
 - Restaurer l'origine, le résultat d'une expérience ou toute version enregistrée.
 - Rechercher des mots-clés dans les entrées du worldbook, passer d'une occurrence à l'autre, remplacer des occurrences ou les supprimer.
-- Sélectionner plusieurs entrées et les copier vers un autre worldbook tout en conservant leur contenu et leurs paramètres.
+- Sélectionner plusieurs entrées pour les activer, les désactiver, les supprimer ou les copier vers un autre worldbook tout en conservant leur contenu et leurs paramètres.
 - Associer des presets MVU InitVar aux salutations de personnage et aux swipes d'ouverture du chat actuel pour les tests côté auteur.
 - Renommer des expériences, ajouter des notes d'expérience et rechercher dans l'historique des expériences.
 - Exporter une seule expérience/version en JSON ou exporter tout l'historique local d'un worldbook.
@@ -40,6 +40,17 @@ https://github.com/MeowMico/worldbook-backup-helper
 ```
 
 Après l'installation, ouvrez l'extension depuis le menu des extensions de SillyTavern.
+
+## Extension autonome pour VS Code / Cursor
+
+Ce dépôt fournit également une version autonome pour VS Code, Cursor et les éditeurs compatibles. Elle ouvre directement les fichiers JSON de worldbook, permet les modifications par lot et la copie entre fichiers, puis affiche l'ordre final des entrées dans les messages system/user/assistant. Les instantanés, expériences, Diff et restaurations sont conservés dans un fichier latéral `<worldbook>.wbh-history.json`, sans ajouter de métadonnées au JSON du worldbook.
+
+Installez-la depuis la place de marché utilisée par votre éditeur :
+
+- Microsoft Visual Studio Code : [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=MeowMico.worldbook-workbench-vscode)
+- Cursor, VSCodium et les autres clients Open VSX : [Open VSX](https://open-vsx.org/extension/meowmico/worldbook-workbench-vscode)
+
+L'installation depuis une place de marché est recommandée afin de recevoir les mises à jour normales. L'installation manuelle d'un fichier `.vsix` est principalement destinée aux tests locaux.
 
 ## Flux de travail recommandé
 

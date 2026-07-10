@@ -2,6 +2,15 @@
 
 All notable changes to the VS Code and Cursor extension are documented here.
 
+## 0.2.0 - 2026-07-10
+
+- Added entry multi-select actions for select all, enable, disable, delete, and cross-worldbook copy.
+- Added batch find, replace, and match deletion across titles, keywords, and content.
+- Added snapshots and named experiments stored in a separate `.wbh-history.json` sidecar.
+- Added native VS Code Diff views for snapshots and experiment baselines/results.
+- Added guarded Restore with an automatic pre-restore snapshot.
+- Added automatic before/after history around saves and cross-worldbook copies.
+
 ## 0.1.3 - 2026-07-09
 
 - Added the compact worldbook entry browser and detailed entry editor.

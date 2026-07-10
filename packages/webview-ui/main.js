@@ -9,8 +9,10 @@
     worldbookData: null,
     records: [],
     selectedStorageKey: null,
+    selectedEntryIds: new Set(),
     scenario: null,
     characterCard: null,
+    history: null,
     lastPreview: null,
     previewEntries: new Map(),
     previewStale: false,
@@ -27,6 +29,12 @@
     newEntryButton: document.querySelector('#newEntryButton'),
     duplicateEntryButton: document.querySelector('#duplicateEntryButton'),
     deleteEntryButton: document.querySelector('#deleteEntryButton'),
+    selectAllEntries: document.querySelector('#selectAllEntries'),
+    selectedEntryCount: document.querySelector('#selectedEntryCount'),
+    enableSelectedButton: document.querySelector('#enableSelectedButton'),
+    disableSelectedButton: document.querySelector('#disableSelectedButton'),
+    copySelectedButton: document.querySelector('#copySelectedButton'),
+    deleteSelectedButton: document.querySelector('#deleteSelectedButton'),
     entryEmpty: document.querySelector('#entryEmpty'),
     entryEditor: document.querySelector('#entryEditor'),
     entryEditorTitle: document.querySelector('#entryEditorTitle'),
@@ -61,6 +69,22 @@
     messagesText: document.querySelector('#messagesText'),
     forceText: document.querySelector('#forceText'),
     cardMeta: document.querySelector('#cardMeta'),
+    batchFindInput: document.querySelector('#batchFindInput'),
+    batchReplaceInput: document.querySelector('#batchReplaceInput'),
+    batchTitleField: document.querySelector('#batchTitleField'),
+    batchKeywordsField: document.querySelector('#batchKeywordsField'),
+    batchContentField: document.querySelector('#batchContentField'),
+    batchCaseSensitive: document.querySelector('#batchCaseSensitive'),
+    batchSummary: document.querySelector('#batchSummary'),
+    batchResults: document.querySelector('#batchResults'),
+    batchReplaceButton: document.querySelector('#batchReplaceButton'),
+    batchDeleteButton: document.querySelector('#batchDeleteButton'),
+    historyMeta: document.querySelector('#historyMeta'),
+    snapshotButton: document.querySelector('#snapshotButton'),
+    startExperimentButton: document.querySelector('#startExperimentButton'),
+    finishExperimentButton: document.querySelector('#finishExperimentButton'),
+    experimentList: document.querySelector('#experimentList'),
+    snapshotList: document.querySelector('#snapshotList'),
     tokenMeta: document.querySelector('#tokenMeta'),
     preview: document.querySelector('#preview'),
     compileButton: document.querySelector('#compileButton'),
@@ -72,6 +96,8 @@
     tabPanels: {
       entry: document.querySelector('#entryTab'),
       scenario: document.querySelector('#scenarioTab'),
+      batch: document.querySelector('#batchTab'),
+      history: document.querySelector('#historyTab'),
       json: document.querySelector('#jsonTab'),
     },
   };
@@ -95,6 +121,21 @@
   el.newEntryButton.addEventListener('click', createEntry);
   el.duplicateEntryButton.addEventListener('click', duplicateEntry);
   el.deleteEntryButton.addEventListener('click', deleteSelectedEntry);
+  el.selectAllEntries.addEventListener('change', toggleAllVisibleEntries);
+  el.enableSelectedButton.addEventListener('click', () => setSelectedEntriesEnabled(true));
+  el.disableSelectedButton.addEventListener('click', () => setSelectedEntriesEnabled(false));
+  el.deleteSelectedButton.addEventListener('click', deleteCheckedEntries);
+  el.copySelectedButton.addEventListener('click', copyCheckedEntries);
+  [el.batchFindInput, el.batchTitleField, el.batchKeywordsField, el.batchContentField, el.batchCaseSensitive]
+    .forEach(input => input.addEventListener('input', renderBatchResults));
+  el.batchReplaceButton.addEventListener('click', () => applyBatchReplacement(false));
+  el.batchDeleteButton.addEventListener('click', () => applyBatchReplacement(true));
+  el.snapshotButton.addEventListener('click', () => withWorldbookText(worldbookText => post('createSnapshot', { worldbookText })));
+  el.startExperimentButton.addEventListener('click', () => withWorldbookText(worldbookText => post('startExperiment', { worldbookText })));
+  el.finishExperimentButton.addEventListener('click', () => withWorldbookText(worldbookText => {
+    const active = state.history?.experiments?.find(experiment => experiment.status === 'active');
+    post('finishExperiment', { worldbookText, experimentId: active?.id || '' });
+  }));
   el.applyJsonButton.addEventListener('click', () => applyRawJson(true));
   el.rawJsonText.addEventListener('input', () => {
     state.rawJsonDirty = true;
@@ -129,8 +170,22 @@
     if (message.type === 'preview') applyPreview(message);
     if (message.type === 'saved') {
       if (message.worldbookText) loadWorldbookText(message.worldbookText, true);
+      if (message.history) applyHistory(message.history);
       setStatus(message.message || 'Saved');
     }
+    if (message.type === 'history') {
+      applyHistory(message.history);
+      setStatus(message.message || 'History updated.');
+    }
+    if (message.type === 'restored') {
+      if (message.worldbookText) loadWorldbookText(message.worldbookText, false);
+      if (message.history) applyHistory(message.history);
+      state.previewStale = true;
+      el.preview.classList.add('stale');
+      el.tokenMeta.textContent = 'Preview out of date';
+      setStatus(message.message || 'Snapshot restored.');
+    }
+    if (message.type === 'copiedEntries') setStatus(message.message || 'Entries copied.');
     if (message.type === 'error') setStatus(message.message || 'Error', true);
   });
 
@@ -140,6 +195,8 @@
     state.worldbookPath = message.worldbookPath || '';
     state.scenario = message.scenario || {};
     state.characterCard = message.characterCard || null;
+    state.history = message.history || null;
+    state.selectedEntryIds.clear();
     state.lastPreview = null;
     state.previewEntries = new Map();
     state.previewStale = false;
@@ -149,6 +206,8 @@
     el.worldbookMeta.title = state.worldbookPath;
     renderScenario(state.scenario);
     renderCharacterCard();
+    renderHistory();
+    renderBatchResults();
     renderPreview(null);
     setStatus('Ready');
   }
@@ -174,12 +233,14 @@
     try {
       state.worldbookData = worldbook.parseWorldbookText(text);
       state.records = worldbook.getEntryRecords(state.worldbookData);
+      pruneCheckedEntries();
       state.selectedStorageKey = selectStorageKey(selectedId);
       state.rawJsonDirty = false;
       el.rawJsonText.value = worldbook.serializeWorldbook(state.worldbookData);
       el.rawJsonText.removeAttribute('aria-invalid');
       renderEntryBrowser();
       renderEntryEditor();
+      renderBatchResults();
     } catch (error) {
       state.worldbookData = null;
       state.records = [];
@@ -213,7 +274,7 @@
   function renderEntryBrowser() {
     el.entryList.replaceChildren();
     const query = el.entrySearch.value.trim().toLowerCase();
-    const filtered = state.records.filter(record => entrySearchText(record.entry).includes(query));
+    const filtered = visibleEntryRecords();
     el.entryCount.textContent = query
       ? `${filtered.length} of ${state.records.length} entries`
       : `${state.records.length} ${state.records.length === 1 ? 'entry' : 'entries'}`;
@@ -223,6 +284,7 @@
       empty.className = 'empty-list';
       empty.textContent = state.records.length ? 'No matching entries.' : 'This worldbook has no entries.';
       el.entryList.append(empty);
+      renderSelectionToolbar(filtered);
       return;
     }
 
@@ -231,13 +293,31 @@
       const entry = record.entry || {};
       const strategy = worldbook.entryStrategy(entry);
       const previewState = previewStateFor(record);
-      const row = document.createElement('button');
-      row.type = 'button';
+      const row = document.createElement('div');
       row.className = 'entry-browser-row';
       if (String(record.storageKey) === String(state.selectedStorageKey)) row.classList.add('selected');
+      if (state.selectedEntryIds.has(String(record.id))) row.classList.add('checked');
       if (entry.disable) row.classList.add('disabled-entry');
       row.setAttribute('role', 'option');
       row.setAttribute('aria-selected', String(String(record.storageKey) === String(state.selectedStorageKey)));
+
+      const checkWrap = document.createElement('label');
+      checkWrap.className = 'entry-select-check';
+      checkWrap.title = 'Select for batch actions';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = state.selectedEntryIds.has(String(record.id));
+      checkbox.setAttribute('aria-label', `Select ${worldbook.entryTitle(entry)}`);
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) state.selectedEntryIds.add(String(record.id));
+        else state.selectedEntryIds.delete(String(record.id));
+        renderEntryBrowser();
+      });
+      checkWrap.append(checkbox);
+
+      const openButton = document.createElement('button');
+      openButton.type = 'button';
+      openButton.className = 'entry-browser-open';
 
       const top = document.createElement('span');
       top.className = 'entry-browser-main';
@@ -261,10 +341,76 @@
       else if (previewState?.active) parts.push('triggered');
       else if (previewState) parts.push('not triggered');
       meta.textContent = parts.join(' | ');
-      row.append(top, meta);
-      row.addEventListener('click', () => selectRecord(record));
+      openButton.append(top, meta);
+      openButton.addEventListener('click', () => selectRecord(record));
+      row.append(checkWrap, openButton);
       el.entryList.append(row);
     }
+    renderSelectionToolbar(filtered);
+  }
+
+  function visibleEntryRecords() {
+    const query = el.entrySearch.value.trim().toLowerCase();
+    return state.records.filter(record => entrySearchText(record.entry).includes(query));
+  }
+
+  function renderSelectionToolbar(filtered = visibleEntryRecords()) {
+    pruneCheckedEntries();
+    const selectedCount = state.selectedEntryIds.size;
+    const selectedVisible = filtered.filter(record => state.selectedEntryIds.has(String(record.id))).length;
+    el.selectedEntryCount.textContent = `${selectedCount} selected`;
+    el.selectAllEntries.checked = Boolean(filtered.length) && selectedVisible === filtered.length;
+    el.selectAllEntries.indeterminate = selectedVisible > 0 && selectedVisible < filtered.length;
+    el.selectAllEntries.disabled = !filtered.length;
+    [el.enableSelectedButton, el.disableSelectedButton, el.copySelectedButton, el.deleteSelectedButton]
+      .forEach(button => { button.disabled = !selectedCount; });
+  }
+
+  function pruneCheckedEntries() {
+    const valid = new Set(state.records.map(record => String(record.id)));
+    for (const id of [...state.selectedEntryIds]) {
+      if (!valid.has(id)) state.selectedEntryIds.delete(id);
+    }
+  }
+
+  function toggleAllVisibleEntries() {
+    const records = visibleEntryRecords();
+    if (el.selectAllEntries.checked) {
+      for (const record of records) state.selectedEntryIds.add(String(record.id));
+    } else {
+      for (const record of records) state.selectedEntryIds.delete(String(record.id));
+    }
+    renderEntryBrowser();
+  }
+
+  function setSelectedEntriesEnabled(enabled) {
+    if (!ensureWorldbookData()) return;
+    const changed = worldbook.setEntriesDisabled(state.worldbookData, [...state.selectedEntryIds], !enabled);
+    if (!changed) {
+      setStatus(`Selected entries are already ${enabled ? 'enabled' : 'disabled'}.`);
+      return;
+    }
+    refreshRecords(selectedRecord()?.id);
+    markWorldbookChanged(`${changed} ${changed === 1 ? 'entry' : 'entries'} ${enabled ? 'enabled' : 'disabled'}.`);
+  }
+
+  function deleteCheckedEntries() {
+    if (!ensureWorldbookData() || !state.selectedEntryIds.size) return;
+    const count = state.selectedEntryIds.size;
+    if (!window.confirm(`Delete ${count} selected ${count === 1 ? 'entry' : 'entries'}?`)) return;
+    const activeId = selectedRecord()?.id;
+    const deleted = worldbook.deleteEntries(state.worldbookData, [...state.selectedEntryIds]);
+    state.selectedEntryIds.clear();
+    refreshRecords(activeId);
+    markWorldbookChanged(`${deleted} ${deleted === 1 ? 'entry' : 'entries'} deleted.`);
+  }
+
+  function copyCheckedEntries() {
+    if (!state.selectedEntryIds.size) return;
+    withWorldbookText(worldbookText => post('copyEntriesToWorldbook', {
+      worldbookText,
+      entryIds: [...state.selectedEntryIds],
+    }));
   }
 
   function renderEntryEditor() {
@@ -369,11 +515,82 @@
     markWorldbookChanged('Entry deleted.');
   }
 
+  function batchOptions() {
+    const fields = [];
+    if (el.batchTitleField.checked) fields.push('title');
+    if (el.batchKeywordsField.checked) fields.push('keywords');
+    if (el.batchContentField.checked) fields.push('content');
+    return { fields, caseSensitive: el.batchCaseSensitive.checked };
+  }
+
+  function renderBatchResults() {
+    el.batchResults.replaceChildren();
+    const query = el.batchFindInput.value;
+    const options = batchOptions();
+    const matches = state.worldbookData && query && options.fields.length
+      ? worldbook.findEntryMatches(state.worldbookData, query, options)
+      : [];
+    const total = matches.reduce((sum, match) => sum + match.count, 0);
+    el.batchReplaceButton.disabled = !total;
+    el.batchDeleteButton.disabled = !total;
+
+    if (!query) el.batchSummary.textContent = 'Enter text to find.';
+    else if (!options.fields.length) el.batchSummary.textContent = 'Choose at least one field.';
+    else el.batchSummary.textContent = `${total} ${total === 1 ? 'match' : 'matches'} in ${matches.length} ${matches.length === 1 ? 'entry' : 'entries'}.`;
+
+    if (!matches.length) {
+      const empty = document.createElement('p');
+      empty.className = 'empty-list';
+      empty.textContent = query && options.fields.length ? 'No matches.' : 'Matches will appear here.';
+      el.batchResults.append(empty);
+      return;
+    }
+
+    for (const match of matches) {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'batch-result-row';
+      const title = document.createElement('strong');
+      title.textContent = match.title;
+      const detail = document.createElement('span');
+      const fields = [...new Set(match.details.map(item => item.field))].join(', ');
+      detail.textContent = `${match.count} ${match.count === 1 ? 'match' : 'matches'} | ${fields}`;
+      row.append(title, detail);
+      row.addEventListener('click', () => {
+        const record = state.records.find(item => item.id === match.id);
+        if (record) selectRecord(record);
+      });
+      el.batchResults.append(row);
+    }
+  }
+
+  function applyBatchReplacement(deleteMatches) {
+    if (!ensureWorldbookData()) return;
+    const query = el.batchFindInput.value;
+    const options = batchOptions();
+    if (!query || !options.fields.length) return;
+    const matches = worldbook.findEntryMatches(state.worldbookData, query, options);
+    const total = matches.reduce((sum, match) => sum + match.count, 0);
+    if (!total) return;
+    const action = deleteMatches ? 'delete' : 'replace';
+    if (!window.confirm(`${action === 'delete' ? 'Delete' : 'Replace'} ${total} ${total === 1 ? 'match' : 'matches'} across ${matches.length} ${matches.length === 1 ? 'entry' : 'entries'}?`)) return;
+    const result = worldbook.replaceEntryMatches(
+      state.worldbookData,
+      query,
+      deleteMatches ? '' : el.batchReplaceInput.value,
+      options,
+    );
+    refreshRecords(selectedRecord()?.id);
+    markWorldbookChanged(`${result.replacements} ${result.replacements === 1 ? 'match' : 'matches'} ${action === 'delete' ? 'deleted' : 'replaced'}.`);
+    renderBatchResults();
+  }
+
   function refreshRecords(preferredId) {
     state.records = worldbook.getEntryRecords(state.worldbookData);
     state.selectedStorageKey = selectStorageKey(preferredId);
     renderEntryBrowser();
     renderEntryEditor();
+    renderBatchResults();
   }
 
   function markWorldbookChanged(message = 'Unsaved worldbook changes.') {
@@ -443,6 +660,98 @@
     if (card.hasCharacterBook) parts.push('book');
     if (card.alternateGreetingCount) parts.push(`${card.alternateGreetingCount} greetings`);
     el.cardMeta.textContent = parts.join(' | ');
+  }
+
+  function applyHistory(history) {
+    state.history = history || null;
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const history = state.history || { snapshots: [], experiments: [] };
+    const snapshots = [...(history.snapshots || [])].reverse();
+    const experiments = [...(history.experiments || [])].reverse();
+    const active = experiments.find(experiment => experiment.status === 'active');
+    el.startExperimentButton.disabled = Boolean(active);
+    el.finishExperimentButton.disabled = !active;
+    el.historyMeta.textContent = active
+      ? `Active experiment: ${active.title}`
+      : `${snapshots.length} ${snapshots.length === 1 ? 'snapshot' : 'snapshots'} | ${basename(historyFileName())}`;
+
+    el.experimentList.replaceChildren();
+    if (!experiments.length) el.experimentList.append(historyEmpty('No experiments yet.'));
+    for (const experiment of experiments) {
+      const row = document.createElement('article');
+      row.className = `history-row experiment-${experiment.status}`;
+      const copy = document.createElement('div');
+      const title = document.createElement('strong');
+      title.textContent = experiment.title;
+      const meta = document.createElement('span');
+      meta.textContent = `${experiment.status === 'active' ? 'Active' : 'Finished'} | ${formatDate(experiment.createdAt)}`;
+      copy.append(title, meta);
+      const actions = document.createElement('div');
+      actions.className = 'history-row-actions';
+      actions.append(historyAction('Diff', () => withWorldbookText(worldbookText => post('diffExperiment', { experimentId: experiment.id, worldbookText }))));
+      if (experiment.baselineSnapshotId) {
+        actions.append(historyAction('Restore baseline', () => restoreFromHistory(experiment.baselineSnapshotId)));
+      }
+      if (experiment.afterSnapshotId) {
+        actions.append(historyAction('Restore result', () => restoreFromHistory(experiment.afterSnapshotId)));
+      }
+      row.append(copy, actions);
+      el.experimentList.append(row);
+    }
+
+    el.snapshotList.replaceChildren();
+    if (!snapshots.length) el.snapshotList.append(historyEmpty('No snapshots yet.'));
+    for (const snapshot of snapshots) {
+      const row = document.createElement('article');
+      row.className = 'history-row';
+      const copy = document.createElement('div');
+      const title = document.createElement('strong');
+      title.textContent = snapshot.label;
+      const meta = document.createElement('span');
+      meta.textContent = `${snapshot.entryCount || 0} entries | ${formatDate(snapshot.createdAt)} | ${String(snapshot.reason || 'snapshot').replaceAll('-', ' ')}`;
+      copy.append(title, meta);
+      const actions = document.createElement('div');
+      actions.className = 'history-row-actions';
+      actions.append(
+        historyAction('Diff', () => withWorldbookText(worldbookText => post('diffSnapshot', { snapshotId: snapshot.id, worldbookText }))),
+        historyAction('Restore', () => restoreFromHistory(snapshot.id), true),
+      );
+      row.append(copy, actions);
+      el.snapshotList.append(row);
+    }
+  }
+
+  function historyAction(label, handler, danger = false) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    if (danger) button.className = 'danger-command';
+    button.addEventListener('click', handler);
+    return button;
+  }
+
+  function historyEmpty(message) {
+    const empty = document.createElement('p');
+    empty.className = 'empty-list';
+    empty.textContent = message;
+    return empty;
+  }
+
+  function restoreFromHistory(snapshotId) {
+    withWorldbookText(worldbookText => post('restoreSnapshot', { snapshotId, worldbookText }));
+  }
+
+  function historyFileName() {
+    const file = basename(state.worldbookPath || 'worldbook.json');
+    return file.replace(/\.json$/i, '') + '.wbh-history.json';
+  }
+
+  function formatDate(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleString();
   }
 
   function renderPreview(result) {

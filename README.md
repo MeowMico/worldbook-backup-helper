@@ -20,7 +20,7 @@ It is designed for creators who test roleplay output while actively revising wor
 - Bind MVU InitVar presets to character greetings and current chat opening swipes for author testing.
 - Rename experiments, add experiment notes, and search experiment history.
 - Export a single experiment/version JSON or export the full local history for one worldbook.
-- Preview worldbook prompt composition in the experimental VSCode/Cursor package.
+- Use the standalone VS Code/Cursor workbench for batch editing, cross-file copy, prompt preview, snapshots, experiments, Diff, and Restore.
 - Supports English and Chinese UI.
 - Includes light and dark themes.
 
@@ -42,9 +42,16 @@ https://github.com/MeowMico/worldbook-backup-helper
 
 After installing, open the extension from the SillyTavern extensions menu.
 
-## VSCode/Cursor Preview Package
+## VS Code / Cursor Extension
 
-This repository also contains an experimental VSCode/Cursor package under `packages/vscode-extension`.
+This repository also contains a standalone preview extension for VS Code, Cursor, and other compatible editors under `packages/vscode-extension`.
+
+Install it from the marketplace used by your editor:
+
+- [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=MeowMico.worldbook-workbench-vscode) for Microsoft Visual Studio Code.
+- [Open VSX](https://open-vsx.org/extension/meowmico/worldbook-workbench-vscode) for Cursor, VSCodium, and other Open VSX clients.
+
+Marketplace installation is recommended because it enables normal extension updates. A manually installed `.vsix` is mainly intended for local testing.
 
 It can:
 
@@ -55,6 +62,9 @@ It can:
 - show an ST-style system/user/assistant timeline for activated worldbook entries
 - explain activated and skipped entries, including keyword misses and group losers
 - show total timeline/worldbook token estimates and token counts for every entry
+- multi-select entries to enable, disable, delete, or copy them into another worldbook JSON file
+- find, replace, or delete matching text across titles, keywords, and content
+- save snapshots and experiments in `<worldbook>.wbh-history.json`, with native VS Code Diff and Restore
 
 The preview engine lives in `packages/core`. It is a clean-room compatibility implementation and does not copy SillyTavern source. Token counts are profile based: OpenAI profiles use `tiktoken` when it is installed, otherwise the preview clearly falls back to an estimate.
 
@@ -65,10 +75,11 @@ npm run check
 npm test
 cd packages/vscode-extension
 npm install
-npx vsce package
+npm run package:openvsx
+npm run package:microsoft
 ```
 
-The package can be installed from a local `.vsix` and is prepared for distribution through Open VSX.
+See the [dual-market publishing guide](docs/vscode-publishing.md) for the release checklist and publisher identifiers.
 
 ## Recommended Workflow
 

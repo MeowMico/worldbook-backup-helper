@@ -7,6 +7,15 @@ const {
   createDefaultScenario,
   parseScenarioJson,
   scenarioFilePath,
+  historyFilePath,
+  createDefaultHistory,
+  parseHistoryJson,
+  createHistorySnapshot,
+  startHistoryExperiment,
+  finishHistoryExperiment,
+  summarizeHistory,
+  getHistorySnapshot,
+  copyWorldbookEntries,
   parseWorldbookJson,
   serializeWorldbookJson,
   parseCharacterCard,
@@ -14,9 +23,17 @@ const {
 } = loadCore();
 
 let activePanel = null;
+const DIFF_SCHEME = 'worldbook-workbench-diff';
+const diffDocuments = new Map();
+let diffDocumentSequence = 0;
 
 function activate(context) {
   context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, {
+      provideTextDocumentContent(uri) {
+        return diffDocuments.get(uri.toString()) || '';
+      },
+    }),
     vscode.commands.registerCommand('worldbookWorkbench.openWorkbench', uri => WorkbenchPanel.createOrShow(context, uri, 'edit')),
     vscode.commands.registerCommand('worldbookWorkbench.openPromptPreview', uri => WorkbenchPanel.createOrShow(context, uri, 'preview')),
     vscode.commands.registerCommand('worldbookWorkbench.importCharacterCard', () => withPanel(context, panel => panel.importCharacterCard())),
@@ -73,6 +90,7 @@ class WorkbenchPanel {
     this.scenario = createDefaultScenario('');
     this.characterCard = null;
     this.characterCardPath = '';
+    this.history = createDefaultHistory('');
     this.mode = 'edit';
     this.panel.webview.html = this.html();
     this.panel.webview.onDidReceiveMessage(message => this.onMessage(message), null, context.subscriptions);
@@ -82,6 +100,9 @@ class WorkbenchPanel {
     this.worldbookUri = uri;
     this.mode = mode;
     this.worldbookText = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+    const parsed = parseWorldbookJson(this.worldbookText, { filePath: uri.fsPath });
+    this.worldbookText = serializeWorldbookJson(parsed);
+    this.history = await this.loadHistoryForWorldbook(uri.fsPath, parsed.data);
     this.scenario = await this.loadScenarioForWorldbook(uri);
     this.scenario.worldbookPath = uri.fsPath;
     this.characterCardPath = this.scenario.characterCardPath || '';
@@ -120,6 +141,27 @@ class WorkbenchPanel {
         case 'exportWorldbookJson':
           await this.exportWorldbookJson(message.worldbookText);
           break;
+        case 'copyEntriesToWorldbook':
+          await this.copyEntriesToWorldbook(message.worldbookText, message.entryIds);
+          break;
+        case 'createSnapshot':
+          await this.createSnapshot(message.worldbookText);
+          break;
+        case 'startExperiment':
+          await this.startExperiment(message.worldbookText);
+          break;
+        case 'finishExperiment':
+          await this.finishExperiment(message.worldbookText, message.experimentId);
+          break;
+        case 'diffSnapshot':
+          await this.diffSnapshot(message.snapshotId, message.worldbookText);
+          break;
+        case 'restoreSnapshot':
+          await this.restoreSnapshot(message.snapshotId, message.worldbookText);
+          break;
+        case 'diffExperiment':
+          await this.diffExperiment(message.experimentId, message.worldbookText);
+          break;
         default:
           break;
       }
@@ -150,9 +192,209 @@ class WorkbenchPanel {
       filePath: this.worldbookUri.fsPath,
     });
     const text = serializeWorldbookJson(parsed);
+    const diskText = Buffer.from(await vscode.workspace.fs.readFile(this.worldbookUri)).toString('utf8');
+    const disk = parseWorldbookJson(diskText, { filePath: this.worldbookUri.fsPath });
+    let snapshotResult = createHistorySnapshot(this.history, disk.data, {
+      label: 'Before save',
+      reason: 'save-before',
+      worldbookPath: this.worldbookUri.fsPath,
+    });
+    this.history = snapshotResult.history;
+    if (snapshotResult.created) await this.writeHistory(this.worldbookUri.fsPath, this.history);
+    await vscode.workspace.fs.writeFile(this.worldbookUri, Buffer.from(text, 'utf8'));
+    snapshotResult = createHistorySnapshot(this.history, parsed.data, {
+      label: 'After save',
+      reason: 'save-after',
+      worldbookPath: this.worldbookUri.fsPath,
+    });
+    this.history = snapshotResult.history;
+    await this.writeHistory(this.worldbookUri.fsPath, this.history);
+    this.worldbookText = text;
+    this.post({
+      type: 'saved',
+      message: 'Worldbook saved.',
+      worldbookText: text,
+      history: summarizeHistory(this.history),
+    });
+  }
+
+  async loadHistoryForWorldbook(worldbookPath, worldbookData) {
+    const target = historyFilePath(worldbookPath);
+    let history;
+    let needsWrite = false;
+    try {
+      history = parseHistoryJson(await fs.readFile(target, 'utf8'), { worldbookPath });
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw new Error(`Could not read ${path.basename(target)}: ${error.message}`);
+      history = createDefaultHistory(worldbookPath);
+      needsWrite = true;
+    }
+    const hasSnapshots = history.snapshots.length > 0;
+    const result = createHistorySnapshot(history, worldbookData, {
+      label: hasSnapshots ? 'Opened state' : 'Origin',
+      reason: hasSnapshots ? 'open' : 'origin',
+      worldbookPath,
+    });
+    if (needsWrite || result.created) await this.writeHistory(worldbookPath, result.history);
+    return result.history;
+  }
+
+  async writeHistory(worldbookPath, history) {
+    await fs.writeFile(historyFilePath(worldbookPath), `${JSON.stringify(history, null, 2)}\n`, 'utf8');
+  }
+
+  async createSnapshot(worldbookText = this.worldbookText) {
+    const label = await vscode.window.showInputBox({
+      title: 'Create Worldbook Snapshot',
+      prompt: 'Name this snapshot',
+      value: `Snapshot ${new Date().toLocaleString()}`,
+      ignoreFocusOut: true,
+    });
+    if (label === undefined) return;
+    const parsed = parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath });
+    const result = createHistorySnapshot(this.history, parsed.data, {
+      label: label.trim() || 'Snapshot',
+      reason: 'manual',
+      skipDuplicate: false,
+      worldbookPath: this.worldbookUri.fsPath,
+    });
+    this.history = result.history;
+    await this.writeHistory(this.worldbookUri.fsPath, this.history);
+    this.postHistory(`Snapshot created: ${result.snapshot.label}`);
+  }
+
+  async startExperiment(worldbookText = this.worldbookText) {
+    const title = await vscode.window.showInputBox({
+      title: 'Start Worldbook Experiment',
+      prompt: 'What are you testing?',
+      value: 'New experiment',
+      ignoreFocusOut: true,
+    });
+    if (title === undefined) return;
+    const parsed = parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath });
+    const result = startHistoryExperiment(this.history, parsed.data, title.trim() || 'Experiment', {
+      worldbookPath: this.worldbookUri.fsPath,
+    });
+    this.history = result.history;
+    await this.writeHistory(this.worldbookUri.fsPath, this.history);
+    this.postHistory(`Experiment started: ${result.experiment.title}`);
+  }
+
+  async finishExperiment(worldbookText = this.worldbookText, experimentId = '') {
+    const active = this.history.experiments.find(experiment => experiment.id === String(experimentId || '') && experiment.status === 'active')
+      || this.history.experiments.find(experiment => experiment.status === 'active');
+    if (!active) throw new Error('There is no active experiment to finish.');
+    const parsed = parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath });
+    const result = finishHistoryExperiment(this.history, active.id, parsed.data, {
+      worldbookPath: this.worldbookUri.fsPath,
+    });
+    this.history = result.history;
+    await this.writeHistory(this.worldbookUri.fsPath, this.history);
+    this.postHistory(`Experiment finished: ${result.experiment.title}`);
+  }
+
+  async diffSnapshot(snapshotId, worldbookText = this.worldbookText) {
+    const snapshot = getHistorySnapshot(this.history, snapshotId);
+    if (!snapshot?.data) throw new Error('Snapshot not found.');
+    const current = parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath });
+    await openWorldbookDiff(
+      serializeWorldbookJson(snapshot.data),
+      serializeWorldbookJson(current.data),
+      `${snapshot.label} <-> Current`,
+      snapshot.label,
+      'Current draft',
+    );
+  }
+
+  async diffExperiment(experimentId, worldbookText = this.worldbookText) {
+    const experiment = this.history.experiments.find(item => item.id === String(experimentId || ''));
+    if (!experiment) throw new Error('Experiment not found.');
+    const baseline = getHistorySnapshot(this.history, experiment.baselineSnapshotId);
+    if (!baseline?.data) throw new Error('Experiment baseline not found.');
+    const after = experiment.afterSnapshotId ? getHistorySnapshot(this.history, experiment.afterSnapshotId) : null;
+    const right = after?.data || parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath }).data;
+    await openWorldbookDiff(
+      serializeWorldbookJson(baseline.data),
+      serializeWorldbookJson(right),
+      `Experiment: ${experiment.title}`,
+      'Baseline',
+      after ? 'After' : 'Current draft',
+    );
+  }
+
+  async restoreSnapshot(snapshotId, worldbookText = this.worldbookText) {
+    const snapshot = getHistorySnapshot(this.history, snapshotId);
+    if (!snapshot?.data) throw new Error('Snapshot not found.');
+    const choice = await vscode.window.showWarningMessage(
+      `Restore "${snapshot.label}"? The current draft will be saved to history first.`,
+      { modal: true },
+      'Restore',
+    );
+    if (choice !== 'Restore') return;
+
+    const current = parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath });
+    const before = createHistorySnapshot(this.history, current.data, {
+      label: `Before restore: ${snapshot.label}`,
+      reason: 'restore-before',
+      skipDuplicate: false,
+      worldbookPath: this.worldbookUri.fsPath,
+    });
+    this.history = before.history;
+    await this.writeHistory(this.worldbookUri.fsPath, this.history);
+    const text = serializeWorldbookJson(snapshot.data);
     await vscode.workspace.fs.writeFile(this.worldbookUri, Buffer.from(text, 'utf8'));
     this.worldbookText = text;
-    this.post({ type: 'saved', message: 'Worldbook saved.', worldbookText: text });
+    this.post({
+      type: 'restored',
+      message: `Restored: ${snapshot.label}`,
+      worldbookText: text,
+      history: summarizeHistory(this.history),
+    });
+  }
+
+  async copyEntriesToWorldbook(worldbookText = this.worldbookText, entryIds = []) {
+    const source = parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath });
+    const [targetUri] = await vscode.window.showOpenDialog({
+      title: 'Copy Entries to Worldbook',
+      defaultUri: vscode.Uri.file(path.dirname(this.worldbookUri.fsPath)),
+      canSelectMany: false,
+      filters: { 'Worldbook JSON': ['json'] },
+    }) || [];
+    if (!targetUri) return;
+    if (path.resolve(targetUri.fsPath) === path.resolve(this.worldbookUri.fsPath)) {
+      throw new Error('Choose a different worldbook as the copy target.');
+    }
+
+    const targetText = Buffer.from(await vscode.workspace.fs.readFile(targetUri)).toString('utf8');
+    const target = parseWorldbookJson(targetText, { filePath: targetUri.fsPath });
+    let targetHistory = await this.loadHistoryForWorldbook(targetUri.fsPath, target.data);
+    let snapshotResult = createHistorySnapshot(targetHistory, target.data, {
+      label: `Before copy from ${path.basename(this.worldbookUri.fsPath)}`,
+      reason: 'copy-before',
+      skipDuplicate: false,
+      worldbookPath: targetUri.fsPath,
+    });
+    targetHistory = snapshotResult.history;
+    await this.writeHistory(targetUri.fsPath, targetHistory);
+
+    const result = copyWorldbookEntries(source.data, target.data, entryIds);
+    if (!result.copied.length) throw new Error('No selected entries were found to copy.');
+    const copiedText = serializeWorldbookJson(result.data);
+    await vscode.workspace.fs.writeFile(targetUri, Buffer.from(copiedText, 'utf8'));
+    snapshotResult = createHistorySnapshot(targetHistory, result.data, {
+      label: `After copy from ${path.basename(this.worldbookUri.fsPath)}`,
+      reason: 'copy-after',
+      skipDuplicate: false,
+      worldbookPath: targetUri.fsPath,
+    });
+    await this.writeHistory(targetUri.fsPath, snapshotResult.history);
+    const message = `Copied ${result.copied.length} ${result.copied.length === 1 ? 'entry' : 'entries'} to ${path.basename(targetUri.fsPath)}.`;
+    this.post({ type: 'copiedEntries', message });
+    vscode.window.showInformationMessage(message);
+  }
+
+  postHistory(message) {
+    this.post({ type: 'history', message, history: summarizeHistory(this.history) });
   }
 
   async importCharacterCard() {
@@ -203,6 +445,7 @@ class WorkbenchPanel {
       worldbookText: this.worldbookText,
       scenario: this.scenario,
       characterCard: summarizeCharacterCard(this.characterCard),
+      history: summarizeHistory(this.history),
     });
   }
 
@@ -258,12 +501,24 @@ class WorkbenchPanel {
               <button id="deleteEntryButton" class="danger-command" type="button">Delete</button>
             </div>
           </div>
+          <div class="selection-toolbar" aria-label="Selected entry actions">
+            <label class="select-all"><input id="selectAllEntries" type="checkbox"> All shown</label>
+            <span id="selectedEntryCount">0 selected</span>
+            <div class="selection-actions">
+              <button id="enableSelectedButton" type="button" disabled>Enable</button>
+              <button id="disableSelectedButton" type="button" disabled>Disable</button>
+              <button id="copySelectedButton" type="button" disabled>Copy to...</button>
+              <button id="deleteSelectedButton" class="danger-command" type="button" disabled>Delete</button>
+            </div>
+          </div>
           <div id="entryList" class="entry-browser" role="listbox" aria-label="Worldbook entries"></div>
         </section>
         <section class="pane workbench-pane">
           <div class="tabbar" role="tablist" aria-label="Workbench views">
             <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="entry">Entry</button>
             <button class="tab" type="button" role="tab" aria-selected="false" data-tab="scenario">Scenario</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-tab="batch">Batch</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-tab="history">History</button>
             <button class="tab" type="button" role="tab" aria-selected="false" data-tab="json">JSON</button>
           </div>
           <section id="entryTab" class="tab-panel active" role="tabpanel">
@@ -353,6 +608,45 @@ class WorkbenchPanel {
             <label class="block-label">Messages JSON<textarea id="messagesText" spellcheck="false"></textarea></label>
             <label class="block-label">Force Activate IDs<textarea id="forceText" spellcheck="false"></textarea></label>
           </section>
+          <section id="batchTab" class="tab-panel batch-pane" role="tabpanel">
+            <div class="section-head">
+              <div><h2>Batch Find and Replace</h2><span id="batchSummary">Enter text to find.</span></div>
+            </div>
+            <div class="batch-form">
+              <label>Find<input id="batchFindInput" type="search" spellcheck="false"></label>
+              <label>Replace with<input id="batchReplaceInput" type="text" spellcheck="false"></label>
+              <fieldset>
+                <legend>Fields</legend>
+                <label class="check-row"><input id="batchTitleField" type="checkbox" checked> Title</label>
+                <label class="check-row"><input id="batchKeywordsField" type="checkbox" checked> Keywords</label>
+                <label class="check-row"><input id="batchContentField" type="checkbox" checked> Content</label>
+                <label class="check-row"><input id="batchCaseSensitive" type="checkbox"> Case-sensitive</label>
+              </fieldset>
+              <div class="batch-actions">
+                <button id="batchReplaceButton" class="primary" type="button" disabled>Replace all</button>
+                <button id="batchDeleteButton" class="danger-command" type="button" disabled>Delete matches</button>
+              </div>
+            </div>
+            <div id="batchResults" class="batch-results"></div>
+          </section>
+          <section id="historyTab" class="tab-panel history-pane" role="tabpanel">
+            <div class="section-head history-head">
+              <div><h2>Snapshots and Experiments</h2><span id="historyMeta">History is stored beside the worldbook.</span></div>
+              <div class="history-create-actions">
+                <button id="snapshotButton" type="button">Snapshot</button>
+                <button id="startExperimentButton" class="primary" type="button">Start experiment</button>
+                <button id="finishExperimentButton" type="button" disabled>Finish experiment</button>
+              </div>
+            </div>
+            <section class="history-section">
+              <h3>Experiments</h3>
+              <div id="experimentList" class="history-list"></div>
+            </section>
+            <section class="history-section">
+              <h3>Snapshots</h3>
+              <div id="snapshotList" class="history-list"></div>
+            </section>
+          </section>
           <section id="jsonTab" class="tab-panel json-pane" role="tabpanel">
             <div class="section-head">
               <div><h2>Raw Worldbook JSON</h2><span id="worldbookMeta"></span></div>
@@ -388,6 +682,21 @@ async function resolveWorldbookUri(uri) {
     filters: { JSON: ['json'] },
   }) || [];
   return selected || null;
+}
+
+async function openWorldbookDiff(leftText, rightText, title, leftLabel, rightLabel) {
+  const left = createDiffDocument(leftLabel, leftText);
+  const right = createDiffDocument(rightLabel, rightText);
+  await vscode.commands.executeCommand('vscode.diff', left, right, title, { preview: true });
+}
+
+function createDiffDocument(label, content) {
+  const sequence = ++diffDocumentSequence;
+  const safeLabel = String(label || 'worldbook').replace(/[^a-z0-9._-]+/gi, '-').replace(/^-|-$/g, '') || 'worldbook';
+  const uri = vscode.Uri.from({ scheme: DIFF_SCHEME, path: `/${sequence}-${safeLabel}.json` });
+  diffDocuments.set(uri.toString(), String(content || ''));
+  while (diffDocuments.size > 40) diffDocuments.delete(diffDocuments.keys().next().value);
+  return uri;
 }
 
 function loadCore() {

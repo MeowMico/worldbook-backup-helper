@@ -47,3 +47,56 @@ test('worldbook editor maps strategies, positions, lists, and token estimates', 
   assert.ok(editor.estimateTokens('中文 English') > 0);
   assert.equal(entry.custom, 'kept');
 });
+
+test('worldbook editor batch selection actions support object and array entries', () => {
+  const objectData = editor.parseWorldbookText(JSON.stringify({
+    entries: {
+      a: { uid: 1, comment: 'A', disable: false },
+      b: { uid: 2, comment: 'B', disable: false },
+    },
+  }));
+  assert.equal(editor.setEntriesDisabled(objectData, ['a', 'b'], true), 2);
+  assert.equal(objectData.entries.a.disable, true);
+  assert.equal(editor.deleteEntries(objectData, ['a']), 1);
+  assert.deepEqual(Object.keys(objectData.entries), ['b']);
+
+  const arrayData = editor.parseWorldbookText(JSON.stringify({
+    entries: [{ uid: 1 }, { uid: 2 }, { uid: 3 }],
+  }));
+  assert.equal(editor.deleteEntries(arrayData, ['1', '3']), 2);
+  assert.deepEqual(arrayData.entries.map(entry => entry.uid), [2]);
+});
+
+test('worldbook editor batch find and replace reports literal field matches', () => {
+  const data = editor.parseWorldbookText(JSON.stringify({
+    entries: {
+      a: {
+        uid: 1,
+        comment: '{{user}} title',
+        key: ['{{user}}', 'other'],
+        keysecondary: [],
+        content: 'Hello {{user}} and {{USER}}.',
+      },
+      b: { uid: 2, comment: 'No match', key: [], content: 'Text' },
+    },
+  }));
+  const matches = editor.findEntryMatches(data, '{{user}}');
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].count, 4);
+  assert.deepEqual(new Set(matches[0].details.map(detail => detail.field)), new Set(['title', 'keywords', 'content']));
+
+  const result = editor.replaceEntryMatches(data, '{{user}}', '<user>');
+  assert.deepEqual(result, { entriesChanged: 1, replacements: 4 });
+  assert.equal(data.entries.a.comment, '<user> title');
+  assert.deepEqual(data.entries.a.key, ['<user>', 'other']);
+  assert.equal(data.entries.a.content, 'Hello <user> and <user>.');
+
+  const contentOnly = editor.findEntryMatches(data, '<user>', { fields: ['content'], caseSensitive: true });
+  assert.equal(contentOnly[0].count, 2);
+  assert.deepEqual(contentOnly[0].details.map(detail => detail.field), ['content']);
+
+  data.entries.a.key = ['remove', 'remove', 'keep'];
+  const deleted = editor.replaceEntryMatches(data, 'remove', '', { fields: ['keywords'] });
+  assert.deepEqual(deleted, { entriesChanged: 1, replacements: 2 });
+  assert.deepEqual(data.entries.a.key, ['keep']);
+});

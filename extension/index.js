@@ -217,6 +217,9 @@ const TRANSLATIONS = {
     'status.deletedMatch': 'Deleted match',
     'status.noMatchesToDelete': 'No matches to delete',
     'status.deletedMatches': 'Deleted {count} {noun}',
+    'status.selectedEntriesEnabled': 'Enabled {count} selected entries',
+    'status.selectedEntriesDisabled': 'Disabled {count} selected entries',
+    'status.selectedEntriesDeleted': 'Deleted {count} selected entries',
     'status.unsavedEdits': 'Unsaved edits',
     'status.undo': 'Undo: {label}',
     'status.redo': 'Redo: {label}',
@@ -307,6 +310,9 @@ const TRANSLATIONS = {
     'action.duplicate': 'Duplicate',
     'action.copyTo': 'Copy to...',
     'action.copy': 'Copy',
+    'action.selectAll': 'Select all',
+    'action.enable': 'Enable',
+    'action.disable': 'Disable',
     'action.cancel': 'Cancel',
     'action.delete': 'Delete',
     'action.reload': 'Reload',
@@ -482,6 +488,7 @@ const TRANSLATIONS = {
     'confirm.replaceMatches': 'Replace {count} {noun}?',
     'confirm.deleteMatches': 'Delete {count} {noun}?',
     'confirm.deleteEntry': 'Delete "{title}"?',
+    'confirm.deleteSelectedEntries': 'Delete {count} selected entries?',
     'confirm.copyUnsavedEntries': 'Current worldbook has unsaved edits. Copy selected entries from the workbench draft?',
     'confirm.discardEdits': 'Discard unsaved workbench edits?',
     'confirm.saveBeforeFinish': 'Save workbench edits before finishing this experiment?',
@@ -563,6 +570,9 @@ const TRANSLATIONS = {
     'status.deletedMatch': '已删除匹配项',
     'status.noMatchesToDelete': '没有可删除的匹配项',
     'status.deletedMatches': '已删除 {count} 个匹配项',
+    'status.selectedEntriesEnabled': '已启用选中的 {count} 个条目',
+    'status.selectedEntriesDisabled': '已禁用选中的 {count} 个条目',
+    'status.selectedEntriesDeleted': '已删除选中的 {count} 个条目',
     'status.unsavedEdits': '有未保存编辑',
     'status.undo': '已撤回：{label}',
     'status.redo': '已重做：{label}',
@@ -653,6 +663,9 @@ const TRANSLATIONS = {
     'action.duplicate': '复制',
     'action.copyTo': '复制到…',
     'action.copy': '复制',
+    'action.selectAll': '全选',
+    'action.enable': '启用',
+    'action.disable': '禁用',
     'action.cancel': '取消',
     'action.delete': '删除',
     'action.reload': '重新读取',
@@ -828,6 +841,7 @@ const TRANSLATIONS = {
     'confirm.replaceMatches': '替换 {count} 个匹配项吗？',
     'confirm.deleteMatches': '删除 {count} 个匹配项吗？',
     'confirm.deleteEntry': '删除“{title}”吗？',
+    'confirm.deleteSelectedEntries': '删除选中的 {count} 个条目吗？',
     'confirm.copyUnsavedEntries': '当前世界书有未保存编辑。要从工作台草稿复制选中的条目吗？',
     'confirm.discardEdits': '放弃未保存的工作台编辑吗？',
     'confirm.saveBeforeFinish': '完成实验前保存工作台编辑吗？',
@@ -1341,6 +1355,18 @@ function ensureLocalWorkbench() {
                 <strong data-wbh-i18n="section.entries">${t('section.entries')}</strong>
                 <button id="wbh-toggle-find" type="button" title="${t('tooltip.findReplace')}">${t('action.find')}</button>
               </div>
+              <div class="wbh-entry-selection-toolbar">
+                <label>
+                  <input id="wbh-select-all-entries" type="checkbox">
+                  <span data-wbh-i18n="action.selectAll">${t('action.selectAll')}</span>
+                </label>
+                <span id="wbh-selected-entry-count">${t('value.selectedEntries', { count: 0 })}</span>
+                <div>
+                  <button id="wbh-enable-selected" type="button" disabled data-wbh-i18n="action.enable">${t('action.enable')}</button>
+                  <button id="wbh-disable-selected" type="button" disabled data-wbh-i18n="action.disable">${t('action.disable')}</button>
+                  <button id="wbh-delete-selected" type="button" class="danger" disabled data-wbh-i18n="action.delete">${t('action.delete')}</button>
+                </div>
+              </div>
               <div class="wbh-findbar">
                 <div class="wbh-find-row">
                   <input id="wbh-entry-search" type="search" placeholder="${t('placeholder.findEntries')}" data-wbh-i18n-placeholder="placeholder.findEntries">
@@ -1716,6 +1742,10 @@ function ensureLocalWorkbench() {
   root.querySelector('#wbh-replace-all').addEventListener('click', replaceAllFindMatches);
   root.querySelector('#wbh-delete-match').addEventListener('click', deleteCurrentFindMatch);
   root.querySelector('#wbh-delete-all-matches').addEventListener('click', deleteAllFindMatches);
+  root.querySelector('#wbh-select-all-entries').addEventListener('change', toggleAllVisibleEntrySelection);
+  root.querySelector('#wbh-enable-selected').addEventListener('click', () => setSelectedEntriesDisabled(false));
+  root.querySelector('#wbh-disable-selected').addEventListener('click', () => setSelectedEntriesDisabled(true));
+  root.querySelector('#wbh-delete-selected').addEventListener('click', deleteSelectedEntries);
   root.querySelector('#wbh-tab-edit').addEventListener('click', () => setMainTab('edit'));
   root.querySelector('#wbh-tab-diff').addEventListener('click', () => setMainTab('diff'));
   root.querySelector('#wbh-tab-mvu').addEventListener('click', () => setMainTab('mvu'));
@@ -2823,6 +2853,8 @@ function renderEditorState() {
   pruneSelectedEntryIds();
   const selectedCount = app.selectedEntryIds.size;
   const hasCopyTarget = Boolean(app.activeBook) && app.books.some(book => book.name !== app.activeBook.name);
+  const visibleRecords = getVisibleEntryRecords();
+  const selectedVisibleCount = visibleRecords.filter(record => app.selectedEntryIds.has(record.id)).length;
 
   root.querySelector('#wbh-tab-edit').classList.toggle('active', app.mainTab === 'edit');
   root.querySelector('#wbh-tab-diff').classList.toggle('active', app.mainTab === 'diff');
@@ -2843,6 +2875,14 @@ function renderEditorState() {
   copyButton.textContent = selectedCount ? `${t('action.copyTo')} (${selectedCount})` : t('action.copyTo');
   copyButton.title = hasCopyTarget ? t('tooltip.copyEntries') : t('empty.noCopyTargets');
   root.querySelector('#wbh-entry-delete').disabled = !getActiveEntryRecord();
+  const selectAll = root.querySelector('#wbh-select-all-entries');
+  selectAll.disabled = !visibleRecords.length;
+  selectAll.checked = Boolean(visibleRecords.length) && selectedVisibleCount === visibleRecords.length;
+  selectAll.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < visibleRecords.length;
+  root.querySelector('#wbh-selected-entry-count').textContent = t('value.selectedEntries', { count: selectedCount });
+  root.querySelector('#wbh-enable-selected').disabled = !selectedCount;
+  root.querySelector('#wbh-disable-selected').disabled = !selectedCount;
+  root.querySelector('#wbh-delete-selected').disabled = !selectedCount;
   renderLayoutMode();
   renderFindControls();
   updateDiffChangeControls();
@@ -2871,13 +2911,8 @@ function renderEntryList() {
   const list = root.querySelector('#wbh-entries');
   pruneSelectedEntryIds();
   refreshFindMatches();
-  const search = app.findQuery.trim();
   const matchesByEntry = getFindCountsByEntry();
-  const entries = getSortedEntryRecords(app.activeData)
-    .filter(record => {
-      if (!search) return true;
-      return matchesByEntry.has(record.id);
-    });
+  const entries = getVisibleEntryRecords(matchesByEntry);
 
   if (!app.activeData) {
     const empty = document.createElement('div');
@@ -2938,6 +2973,51 @@ function renderEntryList() {
   }));
   renderFindControls();
   renderEditorState();
+}
+
+function getVisibleEntryRecords(matchesByEntry = getFindCountsByEntry()) {
+  const search = app.findQuery.trim();
+  return getSortedEntryRecords(app.activeData).filter(record => !search || matchesByEntry.has(record.id));
+}
+
+function toggleAllVisibleEntrySelection(event) {
+  const selected = Boolean(event?.currentTarget?.checked);
+  for (const record of getVisibleEntryRecords()) {
+    if (selected) app.selectedEntryIds.add(record.id);
+    else app.selectedEntryIds.delete(record.id);
+  }
+  renderEntryList();
+  renderEditorState();
+}
+
+function setSelectedEntriesDisabled(disabled) {
+  if (!app.activeData) return;
+  const records = getSelectedEntryRecords();
+  const changed = records.filter(record => Boolean(record.entry.disable) !== disabled);
+  if (!changed.length) return;
+
+  finishInputHistory();
+  captureUndoState(disabled ? t('action.disable') : t('action.enable'));
+  changed.forEach(record => { record.entry.disable = disabled; });
+  setEditorDirty(true);
+  renderEditor();
+  setStatus(t(disabled ? 'status.selectedEntriesDisabled' : 'status.selectedEntriesEnabled', { count: changed.length }));
+}
+
+function deleteSelectedEntries() {
+  if (!app.activeData) return;
+  const records = getSelectedEntryRecords();
+  if (!records.length) return;
+  if (!window.confirm(t('confirm.deleteSelectedEntries', { count: records.length }))) return;
+
+  finishInputHistory();
+  captureUndoState(t('action.delete'));
+  removeEntryRecords(app.activeData, records);
+  app.selectedEntryIds.clear();
+  ensureActiveEntry();
+  setEditorDirty(true);
+  renderEditor();
+  setStatus(t('status.selectedEntriesDeleted', { count: records.length }));
 }
 
 function toggleEntrySelection(entryId, selected) {

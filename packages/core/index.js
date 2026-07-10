@@ -88,6 +88,9 @@ const DEFAULT_SETTINGS = Object.freeze({
 });
 
 const DEFAULT_SCENARIO_VERSION = 1;
+const HISTORY_TYPE = 'worldbook-workbench.history';
+const HISTORY_VERSION = 1;
+const DEFAULT_HISTORY_LIMIT = 200;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 function parseWorldbookJson(input, options = {}) {
@@ -108,7 +111,7 @@ function parseWorldbookJson(input, options = {}) {
 }
 
 function serializeWorldbookJson(worldbook) {
-  const data = worldbook && worldbook.data ? worldbook.data : worldbook;
+  const data = isParsedWorldbook(worldbook) ? worldbook.data : worldbook;
   return `${JSON.stringify(data, null, 2)}\n`;
 }
 
@@ -159,6 +162,235 @@ function normalizeScenario(input) {
 function scenarioFilePath(worldbookPath) {
   const parsed = path.parse(worldbookPath || 'worldbook.json');
   return path.join(parsed.dir, `${parsed.name}.wbh.json`);
+}
+
+function historyFilePath(worldbookPath) {
+  const parsed = path.parse(worldbookPath || 'worldbook.json');
+  return path.join(parsed.dir, `${parsed.name}.wbh-history.json`);
+}
+
+function createDefaultHistory(worldbookPath = '') {
+  return {
+    type: HISTORY_TYPE,
+    version: HISTORY_VERSION,
+    worldbookPath: String(worldbookPath || ''),
+    snapshots: [],
+    experiments: [],
+  };
+}
+
+function parseHistoryJson(input, options = {}) {
+  const raw = parseJsonLike(input, 'History');
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('History JSON must be an object.');
+  }
+  if (raw.type && raw.type !== HISTORY_TYPE) {
+    throw new Error('History JSON has an unsupported type.');
+  }
+
+  return {
+    ...raw,
+    type: HISTORY_TYPE,
+    version: Number(raw.version || HISTORY_VERSION),
+    worldbookPath: String(options.worldbookPath || raw.worldbookPath || ''),
+    snapshots: Array.isArray(raw.snapshots)
+      ? raw.snapshots.filter(snapshot => snapshot && typeof snapshot === 'object').map(normalizeHistorySnapshot)
+      : [],
+    experiments: Array.isArray(raw.experiments)
+      ? raw.experiments.filter(experiment => experiment && typeof experiment === 'object').map(normalizeHistoryExperiment)
+      : [],
+  };
+}
+
+function createHistorySnapshot(historyInput, worldbookInput, options = {}) {
+  const history = normalizeHistory(historyInput, options.worldbookPath);
+  const data = normalizeWorldbookData(worldbookInput);
+  const hash = hashWorldbookData(data);
+  const skipDuplicate = options.skipDuplicate !== false;
+  const latest = history.snapshots[history.snapshots.length - 1];
+  if (skipDuplicate && latest?.hash === hash) {
+    return { history, snapshot: latest, created: false };
+  }
+
+  const createdAt = historyTimestamp(options.now);
+  const snapshot = {
+    id: String(options.id || createHistoryId('snapshot')),
+    label: String(options.label || 'Snapshot'),
+    reason: String(options.reason || 'manual'),
+    createdAt,
+    hash,
+    entryCount: getEntryRecords(data).length,
+    data: clone(data),
+  };
+  history.snapshots.push(snapshot);
+
+  const limit = Math.max(1, numberOr(options.limit, DEFAULT_HISTORY_LIMIT));
+  if (history.snapshots.length > limit) {
+    const protectedIds = new Set(history.experiments.flatMap(experiment => [
+      experiment.baselineSnapshotId,
+      experiment.afterSnapshotId,
+    ]).filter(Boolean));
+    while (history.snapshots.length > limit) {
+      const removableIndex = history.snapshots.findIndex(item => !protectedIds.has(item.id));
+      if (removableIndex < 0) break;
+      history.snapshots.splice(removableIndex, 1);
+    }
+  }
+
+  return { history, snapshot, created: true };
+}
+
+function startHistoryExperiment(historyInput, worldbookInput, title = '', options = {}) {
+  let history = normalizeHistory(historyInput, options.worldbookPath);
+  const openExperiment = history.experiments.find(experiment => experiment.status === 'active');
+  if (openExperiment) throw new Error('Finish the active experiment before starting another one.');
+
+  const snapshotResult = createHistorySnapshot(history, worldbookInput, {
+    ...options,
+    id: options.snapshotId,
+    label: options.snapshotLabel || `Baseline: ${title || 'Experiment'}`,
+    reason: 'experiment-baseline',
+    skipDuplicate: false,
+  });
+  history = snapshotResult.history;
+  const experiment = {
+    id: String(options.id || createHistoryId('experiment')),
+    title: String(title || 'Experiment'),
+    status: 'active',
+    createdAt: historyTimestamp(options.now),
+    completedAt: '',
+    baselineSnapshotId: snapshotResult.snapshot.id,
+    afterSnapshotId: '',
+  };
+  history.experiments.push(experiment);
+  return { history, experiment, snapshot: snapshotResult.snapshot };
+}
+
+function finishHistoryExperiment(historyInput, experimentId, worldbookInput, options = {}) {
+  let history = normalizeHistory(historyInput, options.worldbookPath);
+  const experiment = history.experiments.find(item => item.id === String(experimentId || ''));
+  if (!experiment) throw new Error('Experiment not found.');
+  if (experiment.status !== 'active') throw new Error('Experiment is already finished.');
+
+  const snapshotResult = createHistorySnapshot(history, worldbookInput, {
+    ...options,
+    id: options.snapshotId,
+    label: options.snapshotLabel || `After: ${experiment.title}`,
+    reason: 'experiment-after',
+    skipDuplicate: false,
+  });
+  history = snapshotResult.history;
+  const nextExperiment = history.experiments.find(item => item.id === experiment.id);
+  nextExperiment.status = 'complete';
+  nextExperiment.completedAt = historyTimestamp(options.now);
+  nextExperiment.afterSnapshotId = snapshotResult.snapshot.id;
+  return { history, experiment: nextExperiment, snapshot: snapshotResult.snapshot };
+}
+
+function summarizeHistory(historyInput) {
+  const history = normalizeHistory(historyInput);
+  return {
+    type: history.type,
+    version: history.version,
+    worldbookPath: history.worldbookPath,
+    snapshots: history.snapshots.map(({ data, ...snapshot }) => ({ ...snapshot })),
+    experiments: history.experiments.map(experiment => ({ ...experiment })),
+  };
+}
+
+function getHistorySnapshot(historyInput, snapshotId) {
+  const history = normalizeHistory(historyInput);
+  return history.snapshots.find(snapshot => snapshot.id === String(snapshotId || '')) || null;
+}
+
+function copyWorldbookEntries(sourceInput, targetInput, entryIds = []) {
+  const sourceData = normalizeWorldbookData(sourceInput);
+  const targetData = clone(normalizeWorldbookData(targetInput));
+  const selectedIds = new Set((Array.isArray(entryIds) ? entryIds : []).map(String));
+  const selected = getEntryRecords(sourceData).filter(record => selectedIds.has(String(record.id)));
+  const copied = [];
+
+  for (const record of selected) {
+    const id = nextWorldbookEntryId(targetData);
+    const entry = clone(record.originalEntry);
+    entry.uid = id;
+    if (Object.prototype.hasOwnProperty.call(entry, 'id')) entry.id = id;
+    if (Array.isArray(targetData.entries)) targetData.entries.push(entry);
+    else targetData.entries[String(id)] = entry;
+    copied.push({ sourceId: String(record.id), id: String(id) });
+  }
+
+  return { data: targetData, copied };
+}
+
+function normalizeHistory(historyInput, worldbookPath = '') {
+  if (!historyInput) return createDefaultHistory(worldbookPath);
+  return parseHistoryJson(historyInput, { worldbookPath: worldbookPath || historyInput.worldbookPath });
+}
+
+function normalizeHistorySnapshot(snapshot) {
+  const data = snapshot.data && typeof snapshot.data === 'object' ? clone(snapshot.data) : null;
+  return {
+    ...snapshot,
+    id: String(snapshot.id || createHistoryId('snapshot')),
+    label: String(snapshot.label || 'Snapshot'),
+    reason: String(snapshot.reason || 'manual'),
+    createdAt: String(snapshot.createdAt || ''),
+    hash: String(snapshot.hash || (data ? hashWorldbookData(data) : '')),
+    entryCount: Number.isFinite(Number(snapshot.entryCount))
+      ? Number(snapshot.entryCount)
+      : data ? getEntryRecords(data).length : 0,
+    data,
+  };
+}
+
+function normalizeHistoryExperiment(experiment) {
+  const status = experiment.status === 'complete' ? 'complete' : 'active';
+  return {
+    ...experiment,
+    id: String(experiment.id || createHistoryId('experiment')),
+    title: String(experiment.title || 'Experiment'),
+    status,
+    createdAt: String(experiment.createdAt || ''),
+    completedAt: status === 'complete' ? String(experiment.completedAt || '') : '',
+    baselineSnapshotId: String(experiment.baselineSnapshotId || ''),
+    afterSnapshotId: status === 'complete' ? String(experiment.afterSnapshotId || '') : '',
+  };
+}
+
+function normalizeWorldbookData(input) {
+  return isParsedWorldbook(input) ? parseWorldbookJson(input.data).data : parseWorldbookJson(input).data;
+}
+
+function isParsedWorldbook(input) {
+  return Boolean(
+    input
+    && typeof input === 'object'
+    && input.data
+    && Array.isArray(input.records)
+    && (input.entriesShape === 'object' || input.entriesShape === 'array')
+  );
+}
+
+function hashWorldbookData(data) {
+  return crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
+}
+
+function historyTimestamp(value) {
+  const date = value instanceof Date ? value : value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) throw new Error('Invalid history timestamp.');
+  return date.toISOString();
+}
+
+function createHistoryId(prefix) {
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
+function nextWorldbookEntryId(data) {
+  const ids = getEntryRecords(data).flatMap(record => [record.id, record.originalEntry?.uid, record.originalEntry?.id])
+    .map(Number)
+    .filter(Number.isFinite);
+  return (ids.length ? Math.max(...ids) : -1) + 1;
 }
 
 function parseCharacterCard(input, options = {}) {
@@ -1250,6 +1482,15 @@ module.exports = {
   DEFAULT_SETTINGS,
   createDefaultScenario,
   scenarioFilePath,
+  historyFilePath,
+  createDefaultHistory,
+  parseHistoryJson,
+  createHistorySnapshot,
+  startHistoryExperiment,
+  finishHistoryExperiment,
+  summarizeHistory,
+  getHistorySnapshot,
+  copyWorldbookEntries,
   parseScenarioJson,
   parseWorldbookJson,
   serializeWorldbookJson,

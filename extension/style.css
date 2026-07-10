@@ -975,6 +975,73 @@
   font-size: 13px;
 }
 
+.wbh-entry-selection-toolbar {
+  display: grid;
+  gap: 7px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--wbh-border);
+  background: var(--wbh-surface-0);
+}
+
+.wbh-entry-selection-toolbar > label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--wbh-text);
+  font-size: 12px;
+}
+
+.wbh-entry-selection-toolbar input {
+  width: auto;
+  margin: 0;
+}
+
+#wbh-selected-entry-count {
+  color: var(--wbh-muted);
+  font-size: 12px;
+}
+
+.wbh-entry-selection-toolbar > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.wbh-entry-selection-toolbar button {
+  min-height: 32px;
+  border: 1px solid var(--wbh-border);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: var(--wbh-control-bg);
+  color: var(--wbh-control-text);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.wbh-entry-selection-toolbar button:hover:not(:disabled) {
+  border-color: var(--wbh-control-hover-border);
+  background: var(--wbh-control-hover);
+  color: var(--wbh-text);
+}
+
+.wbh-entry-selection-toolbar button:focus-visible {
+  outline: 2px solid var(--wbh-focus);
+  outline-offset: 1px;
+}
+
+.wbh-entry-selection-toolbar button.danger {
+  border-color: rgb(214 57 57 / 34%);
+  color: var(--wbh-danger-text);
+}
+
+.wbh-entry-selection-toolbar button:disabled {
+  border-color: var(--wbh-border);
+  background: var(--wbh-disabled-bg);
+  color: var(--wbh-disabled-text);
+  cursor: default;
+  opacity: 0.45;
+}
+
 .wbh-findbar {
   display: grid;
   gap: 8px;

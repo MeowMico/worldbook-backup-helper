@@ -6,10 +6,20 @@ const zlib = require('node:zlib');
 const {
   POSITION,
   parseWorldbookJson,
+  serializeWorldbookJson,
   parseCharacterCard,
   createDefaultScenario,
   parseScenarioJson,
   compilePromptPreview,
+  historyFilePath,
+  createDefaultHistory,
+  parseHistoryJson,
+  createHistorySnapshot,
+  startHistoryExperiment,
+  finishHistoryExperiment,
+  summarizeHistory,
+  getHistorySnapshot,
+  copyWorldbookEntries,
 } = require('../index.js');
 
 test('parseWorldbookJson supports object entries and preserves unknown fields', () => {
@@ -23,6 +33,12 @@ test('parseWorldbookJson supports object entries and preserves unknown fields', 
   assert.equal(parsed.data.custom, 'kept');
   assert.equal(parsed.records[0].id, '7');
   assert.equal(parsed.records[0].originalEntry.extra, true);
+});
+
+test('serializeWorldbookJson preserves a worldbook root data field', () => {
+  const raw = { data: { custom: 'kept' }, entries: {} };
+  assert.deepEqual(JSON.parse(serializeWorldbookJson(raw)), raw);
+  assert.deepEqual(JSON.parse(serializeWorldbookJson(parseWorldbookJson(raw))), raw);
 });
 
 test('parseWorldbookJson supports array entries', () => {
@@ -59,6 +75,66 @@ test('scenario JSON round trip normalizes defaults', () => {
   assert.equal(parsed.worldbookPath, '/tmp/book.json');
   assert.equal(parsed.includeCharacterBook, true);
   assert.equal(parsed.trigger, 'normal');
+});
+
+test('history sidecar snapshots and experiments preserve worldbook data', () => {
+  const worldbook = { custom: true, entries: { 1: { uid: 1, comment: 'One', content: 'Alpha' } } };
+  assert.equal(historyFilePath('/tmp/book.json'), '/tmp/book.wbh-history.json');
+
+  let result = createHistorySnapshot(createDefaultHistory('/tmp/book.json'), worldbook, {
+    id: 'origin',
+    label: 'Origin',
+    reason: 'origin',
+    now: '2026-07-10T10:00:00.000Z',
+  });
+  assert.equal(result.created, true);
+  assert.equal(result.snapshot.entryCount, 1);
+  assert.equal(result.snapshot.data.custom, true);
+
+  const duplicate = createHistorySnapshot(result.history, worldbook, {
+    id: 'duplicate',
+    now: '2026-07-10T10:01:00.000Z',
+  });
+  assert.equal(duplicate.created, false);
+  assert.equal(duplicate.history.snapshots.length, 1);
+
+  result = startHistoryExperiment(duplicate.history, worldbook, 'Rewrite', {
+    id: 'experiment-1',
+    snapshotId: 'baseline',
+    now: '2026-07-10T10:02:00.000Z',
+  });
+  const edited = JSON.parse(JSON.stringify(worldbook));
+  edited.entries[1].content = 'Beta';
+  result = finishHistoryExperiment(result.history, 'experiment-1', edited, {
+    snapshotId: 'after',
+    now: '2026-07-10T10:03:00.000Z',
+  });
+  assert.equal(result.experiment.status, 'complete');
+  assert.equal(getHistorySnapshot(result.history, 'baseline').data.entries[1].content, 'Alpha');
+  assert.equal(getHistorySnapshot(result.history, 'after').data.entries[1].content, 'Beta');
+  assert.equal(summarizeHistory(result.history).snapshots[0].data, undefined);
+
+  const roundTrip = parseHistoryJson(JSON.stringify(result.history));
+  assert.equal(roundTrip.experiments[0].afterSnapshotId, 'after');
+});
+
+test('copyWorldbookEntries preserves target shape and assigns fresh IDs', () => {
+  const source = {
+    entries: {
+      a: { uid: 2, id: 2, comment: 'Copy me', content: 'Alpha', unknown: { kept: true } },
+      b: { uid: 3, comment: 'Leave me', content: 'Beta' },
+    },
+  };
+  const target = { targetField: true, entries: [{ uid: 7, comment: 'Existing', content: 'Text' }] };
+  const result = copyWorldbookEntries(source, target, ['a']);
+  assert.equal(Array.isArray(result.data.entries), true);
+  assert.equal(result.data.entries.length, 2);
+  assert.equal(result.data.entries[1].uid, 8);
+  assert.equal(result.data.entries[1].id, 8);
+  assert.deepEqual(result.data.entries[1].unknown, { kept: true });
+  assert.equal(result.data.targetField, true);
+  assert.equal(target.entries.length, 1);
+  assert.deepEqual(result.copied, [{ sourceId: 'a', id: '8' }]);
 });
 
 test('compilePromptPreview activates constants and depth entries in timeline order', () => {

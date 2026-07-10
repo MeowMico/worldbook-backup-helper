@@ -16,7 +16,7 @@
 - 支持当前版本、上一版、实验改前/改后、历史版本之间的 Diff 对比。
 - 支持回溯到原版、实验结果或任意历史版本。
 - 支持关键词查找、定位、替换、全部替换、删除、全部删除。
-- 支持多选条目，并一键复制到另一本世界书，同时保留条目内容和设置。
+- 支持多选条目，并批量启用、禁用、删除或一键复制到另一本世界书，同时保留条目内容和设置。
 - 支持作者端 MVU InitVar presets：给角色开场和当前聊天开场 swipes 绑定变量初始化预设。
 - 支持实验改名、实验备注和实验历史搜索。
 - 支持导出单个实验/版本 JSON，也支持导出某本世界书的全部本地历史。
@@ -40,6 +40,17 @@ https://github.com/MeowMico/worldbook-backup-helper
 ```
 
 安装后，可以从酒馆的扩展菜单中打开 `Worldbook Workbench / 世界书工作台`。
+
+## VS Code / Cursor 独立版
+
+本仓库同时提供不依赖 SillyTavern 运行环境的 VS Code / Cursor 独立版。它可以直接打开世界书 JSON、批量编辑和跨文件复制条目，并预览世界书条目最终进入 system/user/assistant 消息的顺序。快照、实验、Diff 和 Restore 会保存在同目录的 `<世界书名>.wbh-history.json` 旁路文件中，不会向原世界书 JSON 添加工作台字段。
+
+请根据编辑器使用对应的商店安装：
+
+- Microsoft 官方 VS Code：[Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=MeowMico.worldbook-workbench-vscode)
+- Cursor、VSCodium 及其他 Open VSX 客户端：[Open VSX](https://open-vsx.org/extension/meowmico/worldbook-workbench-vscode)
+
+建议从商店安装，这样后续版本可以正常自动更新。手动安装 `.vsix` 更适合本地测试；在 Microsoft 官方 VS Code 中，这类安装默认不会自动跟随商店版本更新。
 
 ## 推荐使用流程
 

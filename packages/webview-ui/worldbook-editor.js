@@ -100,6 +100,160 @@
     return true;
   }
 
+  function deleteEntries(data, entryIds) {
+    const selected = new Set((Array.isArray(entryIds) ? entryIds : []).map(String));
+    const records = getEntryRecords(data).filter(record => selected.has(String(record.id)));
+    if (Array.isArray(data?.entries)) {
+      records.sort((left, right) => Number(right.storageKey) - Number(left.storageKey));
+    }
+    let deleted = 0;
+    for (const record of records) {
+      if (deleteEntry(data, record.storageKey)) deleted++;
+    }
+    return deleted;
+  }
+
+  function setEntriesDisabled(data, entryIds, disabled) {
+    const selected = new Set((Array.isArray(entryIds) ? entryIds : []).map(String));
+    let changed = 0;
+    for (const record of getEntryRecords(data)) {
+      if (!selected.has(String(record.id))) continue;
+      const next = Boolean(disabled);
+      if (Boolean(record.entry.disable) === next) continue;
+      record.entry.disable = next;
+      changed++;
+    }
+    return changed;
+  }
+
+  function findEntryMatches(data, query, options = {}) {
+    const needle = String(query || '');
+    if (!needle) return [];
+    const fields = normalizeBatchFields(options.fields);
+    const caseSensitive = Boolean(options.caseSensitive);
+    const matches = [];
+
+    for (const record of getEntryRecords(data)) {
+      const details = [];
+      for (const field of batchFieldValues(record.entry, fields)) {
+        const count = countLiteralMatches(field.value, needle, caseSensitive);
+        if (count) details.push({ field: field.group, key: field.key, count });
+      }
+      if (!details.length) continue;
+      matches.push({
+        id: String(record.id),
+        storageKey: record.storageKey,
+        title: entryTitle(record.entry),
+        count: details.reduce((sum, detail) => sum + detail.count, 0),
+        details,
+      });
+    }
+    return matches;
+  }
+
+  function replaceEntryMatches(data, query, replacement, options = {}) {
+    const needle = String(query || '');
+    if (!needle) return { entriesChanged: 0, replacements: 0 };
+    const fields = normalizeBatchFields(options.fields);
+    const caseSensitive = Boolean(options.caseSensitive);
+    let entriesChanged = 0;
+    let replacements = 0;
+
+    for (const record of getEntryRecords(data)) {
+      let changed = false;
+      for (const field of batchFieldValues(record.entry, fields)) {
+        const result = replaceLiteralMatches(field.value, needle, replacement, caseSensitive);
+        if (!result.count) continue;
+        field.assign(result.value);
+        replacements += result.count;
+        changed = true;
+      }
+      if (changed) {
+        for (const key of ['key', 'keysecondary']) {
+          if (Array.isArray(record.entry?.[key])) {
+            record.entry[key] = record.entry[key].map(item => String(item).trim()).filter(Boolean);
+          }
+        }
+        entriesChanged++;
+      }
+    }
+    return { entriesChanged, replacements };
+  }
+
+  function normalizeBatchFields(fields) {
+    const values = Array.isArray(fields) && fields.length ? fields : ['title', 'keywords', 'content'];
+    return new Set(values.filter(value => ['title', 'keywords', 'content'].includes(value)));
+  }
+
+  function batchFieldValues(entry, fields) {
+    const values = [];
+    if (fields.has('title')) {
+      for (const key of ['comment', 'name']) {
+        if (!Object.prototype.hasOwnProperty.call(entry || {}, key)) continue;
+        values.push({
+          group: 'title',
+          key,
+          value: String(entry[key] ?? ''),
+          assign: value => { entry[key] = value; },
+        });
+      }
+    }
+    if (fields.has('keywords')) {
+      for (const key of ['key', 'keysecondary']) {
+        if (Array.isArray(entry?.[key])) {
+          entry[key].forEach((item, index) => values.push({
+            group: 'keywords',
+            key,
+            value: String(item ?? ''),
+            assign: value => { entry[key][index] = value; },
+          }));
+        } else if (entry && Object.prototype.hasOwnProperty.call(entry, key)) {
+          values.push({
+            group: 'keywords',
+            key,
+            value: String(entry[key] ?? ''),
+            assign: value => { entry[key] = value; },
+          });
+        }
+      }
+    }
+    if (fields.has('content')) {
+      values.push({
+        group: 'content',
+        key: 'content',
+        value: String(entry?.content ?? ''),
+        assign: value => { entry.content = value; },
+      });
+    }
+    return values;
+  }
+
+  function countLiteralMatches(value, query, caseSensitive) {
+    const source = caseSensitive ? String(value) : String(value).toLocaleLowerCase();
+    const needle = caseSensitive ? String(query) : String(query).toLocaleLowerCase();
+    if (!needle) return 0;
+    let count = 0;
+    let index = 0;
+    while ((index = source.indexOf(needle, index)) >= 0) {
+      count++;
+      index += needle.length;
+    }
+    return count;
+  }
+
+  function replaceLiteralMatches(value, query, replacement, caseSensitive) {
+    const input = String(value);
+    const needle = String(query);
+    const count = countLiteralMatches(input, needle, caseSensitive);
+    if (!count) return { value: input, count: 0 };
+    const expression = new RegExp(escapeRegex(needle), caseSensitive ? 'g' : 'gi');
+    return { value: input.replace(expression, () => String(replacement ?? '')), count };
+  }
+
+  function escapeRegex(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
   function nextEntryId(data) {
     const ids = getEntryRecords(data).flatMap(record => {
       const values = [record.id, record.entry?.uid, record.entry?.id]
@@ -198,6 +352,10 @@
     getEntryRecords,
     createEntry,
     deleteEntry,
+    deleteEntries,
+    setEntriesDisabled,
+    findEntryMatches,
+    replaceEntryMatches,
     entryStrategy,
     applyEntryStrategy,
     applyEntryPosition,
