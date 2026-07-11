@@ -47,8 +47,8 @@ The preview combines the selected worldbook, optional character card, and a loca
 
 Strategy indicators use familiar worldbook states:
 
-- Blue: selective entry
-- Green: constant entry
+- Blue: constant entry
+- Green: selective keyword-triggered entry
 - Purple: vectorized entry
 - Gray: normal or disabled entry
 

@@ -12,8 +12,8 @@
   --selection: var(--vscode-list-activeSelectionBackground, #094771);
   --selection-text: var(--vscode-list-activeSelectionForeground, #ffffff);
   --hover: var(--vscode-list-hoverBackground, #2a2d2e);
-  --strategy-selective: #4f8df7;
-  --strategy-constant: #2fa66f;
+  --strategy-selective: #2fa66f;
+  --strategy-constant: #4f8df7;
   --strategy-vectorized: #a06ed1;
   --strategy-normal: #8a929e;
   --triggered: #2fa66f;

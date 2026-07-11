@@ -2,6 +2,10 @@
 
 All notable changes to the VS Code and Cursor extension are documented here.
 
+## 0.2.3 - 2026-07-11
+
+- Aligned strategy indicator colors with SillyTavern conventions: blue for constant entries and green for keyword-triggered selective entries.
+
 ## 0.2.2 - 2026-07-11
 
 - Renamed the entry search to Filter entries and the Batch tab to Find & Replace to clarify which controls modify content.
