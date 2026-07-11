@@ -18,6 +18,7 @@
     previewStale: false,
     rawJsonDirty: false,
     scenarioJsonDirty: false,
+    entryToolsCollapsed: false,
   };
 
   const el = {
@@ -27,6 +28,9 @@
     entryCount: document.querySelector('#entryCount'),
     entrySearch: document.querySelector('#entrySearch'),
     entryList: document.querySelector('#entryList'),
+    entryToolbox: document.querySelector('#entryToolbox'),
+    toggleEntryToolsButton: document.querySelector('#toggleEntryToolsButton'),
+    entryToolsToggleIcon: document.querySelector('#entryToolsToggleIcon'),
     newEntryButton: document.querySelector('#newEntryButton'),
     duplicateEntryButton: document.querySelector('#duplicateEntryButton'),
     deleteEntryButton: document.querySelector('#deleteEntryButton'),
@@ -94,6 +98,7 @@
     preview: document.querySelector('#preview'),
     compileButton: document.querySelector('#compileButton'),
     saveButton: document.querySelector('#saveButton'),
+    historyButton: document.querySelector('#historyButton'),
     scenarioButton: document.querySelector('#scenarioButton'),
     cardButton: document.querySelector('#cardButton'),
     exportButton: document.querySelector('#exportButton'),
@@ -114,6 +119,7 @@
   el.saveButton.addEventListener('click', () => withWorldbookText(worldbookText => {
     post('saveWorldbook', { worldbookText });
   }));
+  el.historyButton.addEventListener('click', () => setActiveTab('history'));
   el.exportButton.addEventListener('click', () => withWorldbookText(worldbookText => {
     post('exportWorldbookJson', { worldbookText });
   }));
@@ -126,6 +132,7 @@
     if (scenario) post('importCharacterCard', { scenario });
   });
   el.entrySearch.addEventListener('input', renderEntryBrowser);
+  el.toggleEntryToolsButton.addEventListener('click', toggleEntryTools);
   el.newEntryButton.addEventListener('click', createEntry);
   el.duplicateEntryButton.addEventListener('click', duplicateEntry);
   el.deleteEntryButton.addEventListener('click', deleteSelectedEntry);
@@ -170,6 +177,7 @@
   ];
   scenarioInputs.forEach(input => input.addEventListener('input', handleScenarioControlsChanged));
   el.tabs.forEach(tab => tab.addEventListener('click', () => setActiveTab(tab.dataset.tab)));
+  renderEntryToolsVisibility();
 
   const entryInputs = [
     el.entryEnabledInput,
@@ -376,6 +384,20 @@
   function visibleEntryRecords() {
     const query = el.entrySearch.value.trim().toLowerCase();
     return state.records.filter(record => entrySearchText(record.entry).includes(query));
+  }
+
+  function toggleEntryTools() {
+    state.entryToolsCollapsed = !state.entryToolsCollapsed;
+    renderEntryToolsVisibility();
+  }
+
+  function renderEntryToolsVisibility() {
+    const expanded = !state.entryToolsCollapsed;
+    el.entryToolbox.classList.toggle('hidden', !expanded);
+    el.toggleEntryToolsButton.setAttribute('aria-expanded', String(expanded));
+    el.toggleEntryToolsButton.setAttribute('aria-label', expanded ? 'Hide entry tools' : 'Show entry tools');
+    el.toggleEntryToolsButton.title = expanded ? 'Hide entry tools' : 'Show entry tools';
+    el.entryToolsToggleIcon.textContent = expanded ? '\u25B2' : '\u25BC';
   }
 
   function renderSelectionToolbar(filtered = visibleEntryRecords()) {
@@ -845,6 +867,8 @@
     const active = experiments.find(experiment => experiment.status === 'active');
     el.startExperimentButton.disabled = Boolean(active);
     el.finishExperimentButton.disabled = !active;
+    el.historyButton.classList.toggle('has-active-experiment', Boolean(active));
+    el.historyButton.title = active ? `Active experiment: ${active.title}` : 'Open snapshots and experiments';
     el.historyMeta.textContent = active
       ? `Active experiment: ${active.title}`
       : `${snapshots.length} ${snapshots.length === 1 ? 'snapshot' : 'snapshots'} | ${basename(historyFileName())}`;
@@ -1111,6 +1135,9 @@
       tab.setAttribute('aria-selected', String(active));
     });
     for (const [key, panel] of Object.entries(el.tabPanels)) panel.classList.toggle('active', key === name);
+    const historyActive = name === 'history';
+    el.historyButton.classList.toggle('active-command', historyActive);
+    el.historyButton.setAttribute('aria-pressed', String(historyActive));
   }
 
   function metric(label, value) {

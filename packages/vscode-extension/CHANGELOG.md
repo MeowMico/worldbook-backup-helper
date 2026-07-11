@@ -2,6 +2,12 @@
 
 All notable changes to the VS Code and Cursor extension are documented here.
 
+## 0.2.2 - 2026-07-11
+
+- Renamed the entry search to Filter entries and the Batch tab to Find & Replace to clarify which controls modify content.
+- Added a compact toggle that collapses the entry filter and multi-select tools.
+- Added a top-level Experiments shortcut and clearer New experiment and Save result actions.
+
 ## 0.2.1 - 2026-07-11
 
 - Replaced the raw messages field with structured chat-message editors for role, content, ordering, and deletion.

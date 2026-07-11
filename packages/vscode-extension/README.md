@@ -16,6 +16,7 @@ Install from your editor's marketplace to receive normal extension updates. Manu
 ## Highlights
 
 - Browse worldbook entries in a compact, searchable list.
+- Collapse the entry filter and multi-select tools when more room is needed for the entry list.
 - Select multiple entries to enable, disable, delete, or copy them into any other worldbook JSON file.
 - Find, replace, or delete matching text across titles, keywords, and content in one batch.
 - Edit title, strategy, position, order, probability, depth, role, keywords, selective logic, and content.
@@ -70,7 +71,7 @@ The sidecar file does not modify or add workbench metadata to the worldbook itse
 
 ## History Files
 
-Snapshots and experiments are stored beside the worldbook as `<worldbook>.wbh-history.json`. The history file contains complete restore points, experiment baselines and results, and automatic before/after records for saves and cross-worldbook copies.
+Snapshots and experiments are stored beside the worldbook as `<worldbook>.wbh-history.json`. Open them from **Experiments** in the top toolbar or the **History** tab. **New experiment** captures the baseline, and **Save result** captures the edited result for Diff or Restore. The history file also contains automatic before/after records for saves and cross-worldbook copies.
 
 History never adds workbench fields to the worldbook JSON. Restoring a snapshot saves the current draft to history before writing the selected version, so the restore itself remains reversible.
 

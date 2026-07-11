@@ -148,6 +148,16 @@ textarea[aria-invalid="true"] {
   gap: 7px;
 }
 
+.actions button.active-command {
+  border-color: var(--accent);
+  background: var(--selection);
+  color: var(--selection-text);
+}
+
+#historyButton.has-active-experiment {
+  border-color: var(--triggered);
+}
+
 .workspace {
   min-width: 0;
   min-height: 0;
@@ -187,6 +197,19 @@ textarea[aria-invalid="true"] {
   min-width: 0;
 }
 
+.pane-head-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+}
+
+.pane-head-actions .icon-button span {
+  overflow: visible;
+  margin: 0;
+  color: inherit;
+  font-size: 14px;
+}
+
 .pane-head h2,
 .section-head h2,
 .entry-editor-head h2 {
@@ -215,6 +238,10 @@ textarea[aria-invalid="true"] {
   padding: 9px;
   border-bottom: 1px solid var(--border);
   background: var(--panel);
+}
+
+.entry-toolbox {
+  flex: 0 0 auto;
 }
 
 .entry-actions {
@@ -386,9 +413,14 @@ textarea[aria-invalid="true"] {
   display: flex;
   align-items: end;
   gap: 2px;
+  overflow-x: auto;
   padding: 0 8px;
   border-bottom: 1px solid var(--border);
   background: var(--panel);
+}
+
+.tab.tab-wide {
+  min-width: 116px;
 }
 
 .tab {
@@ -537,7 +569,12 @@ label,
 }
 
 .history-head {
-  align-items: flex-start;
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.history-head .history-create-actions {
+  justify-content: flex-start;
 }
 
 .history-section {

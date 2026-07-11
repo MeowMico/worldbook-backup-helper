@@ -265,7 +265,7 @@ class WorkbenchPanel {
 
   async startExperiment(worldbookText = this.worldbookText) {
     const title = await vscode.window.showInputBox({
-      title: 'Start Worldbook Experiment',
+      title: 'New Worldbook Experiment',
       prompt: 'What are you testing?',
       value: 'New experiment',
       ignoreFocusOut: true,
@@ -283,14 +283,14 @@ class WorkbenchPanel {
   async finishExperiment(worldbookText = this.worldbookText, experimentId = '') {
     const active = this.history.experiments.find(experiment => experiment.id === String(experimentId || '') && experiment.status === 'active')
       || this.history.experiments.find(experiment => experiment.status === 'active');
-    if (!active) throw new Error('There is no active experiment to finish.');
+    if (!active) throw new Error('There is no active experiment to save.');
     const parsed = parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath });
     const result = finishHistoryExperiment(this.history, active.id, parsed.data, {
       worldbookPath: this.worldbookUri.fsPath,
     });
     this.history = result.history;
     await this.writeHistory(this.worldbookUri.fsPath, this.history);
-    this.postHistory(`Experiment finished: ${result.experiment.title}`);
+    this.postHistory(`Experiment result saved: ${result.experiment.title}`);
   }
 
   async diffSnapshot(snapshotId, worldbookText = this.worldbookText) {
@@ -481,6 +481,7 @@ class WorkbenchPanel {
         <div class="actions">
           <button id="compileButton" class="primary" type="button">Preview</button>
           <button id="saveButton" type="button">Save</button>
+          <button id="historyButton" type="button" title="Open snapshots and experiments" aria-pressed="false">Experiments</button>
           <button id="scenarioButton" type="button">Save Scenario</button>
           <button id="cardButton" type="button">Import Card</button>
           <button id="exportButton" type="button">Export JSON</button>
@@ -493,23 +494,28 @@ class WorkbenchPanel {
               <h2 id="worldbookTitle">Worldbook</h2>
               <span id="entryCount">0 entries</span>
             </div>
-            <button id="newEntryButton" class="icon-button" type="button" title="New entry" aria-label="New entry">+</button>
-          </div>
-          <div class="entry-tools">
-            <input id="entrySearch" type="search" placeholder="Search entries" aria-label="Search entries">
-            <div class="entry-actions">
-              <button id="duplicateEntryButton" type="button">Duplicate</button>
-              <button id="deleteEntryButton" class="danger-command" type="button">Delete</button>
+            <div class="pane-head-actions">
+              <button id="toggleEntryToolsButton" class="icon-button" type="button" title="Hide entry tools" aria-label="Hide entry tools" aria-expanded="true" aria-controls="entryToolbox"><span id="entryToolsToggleIcon" aria-hidden="true">&#x25B2;</span></button>
+              <button id="newEntryButton" class="icon-button" type="button" title="New entry" aria-label="New entry">+</button>
             </div>
           </div>
-          <div class="selection-toolbar" aria-label="Selected entry actions">
-            <label class="select-all"><input id="selectAllEntries" type="checkbox"> All shown</label>
-            <span id="selectedEntryCount">0 selected</span>
-            <div class="selection-actions">
-              <button id="enableSelectedButton" type="button" disabled>Enable</button>
-              <button id="disableSelectedButton" type="button" disabled>Disable</button>
-              <button id="copySelectedButton" type="button" disabled>Copy to...</button>
-              <button id="deleteSelectedButton" class="danger-command" type="button" disabled>Delete</button>
+          <div id="entryToolbox" class="entry-toolbox">
+            <div class="entry-tools">
+              <input id="entrySearch" type="search" placeholder="Filter entries" aria-label="Filter entries">
+              <div class="entry-actions">
+                <button id="duplicateEntryButton" type="button">Duplicate</button>
+                <button id="deleteEntryButton" class="danger-command" type="button">Delete</button>
+              </div>
+            </div>
+            <div class="selection-toolbar" aria-label="Selected entry actions">
+              <label class="select-all"><input id="selectAllEntries" type="checkbox"> All shown</label>
+              <span id="selectedEntryCount">0 selected</span>
+              <div class="selection-actions">
+                <button id="enableSelectedButton" type="button" disabled>Enable</button>
+                <button id="disableSelectedButton" type="button" disabled>Disable</button>
+                <button id="copySelectedButton" type="button" disabled>Copy to...</button>
+                <button id="deleteSelectedButton" class="danger-command" type="button" disabled>Delete</button>
+              </div>
             </div>
           </div>
           <div id="entryList" class="entry-browser" role="listbox" aria-label="Worldbook entries"></div>
@@ -518,7 +524,7 @@ class WorkbenchPanel {
           <div class="tabbar" role="tablist" aria-label="Workbench views">
             <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="entry">Entry</button>
             <button class="tab" type="button" role="tab" aria-selected="false" data-tab="scenario">Scenario</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" data-tab="batch">Batch</button>
+            <button class="tab tab-wide" type="button" role="tab" aria-selected="false" data-tab="batch">Find &amp; Replace</button>
             <button class="tab" type="button" role="tab" aria-selected="false" data-tab="history">History</button>
             <button class="tab" type="button" role="tab" aria-selected="false" data-tab="json">JSON</button>
           </div>
@@ -627,7 +633,7 @@ class WorkbenchPanel {
           </section>
           <section id="batchTab" class="tab-panel batch-pane" role="tabpanel">
             <div class="section-head">
-              <div><h2>Batch Find and Replace</h2><span id="batchSummary">Enter text to find.</span></div>
+              <div><h2>Find and Replace</h2><span id="batchSummary">Enter text to find.</span></div>
             </div>
             <div class="batch-form">
               <label>Find<input id="batchFindInput" type="search" spellcheck="false"></label>
@@ -651,8 +657,8 @@ class WorkbenchPanel {
               <div><h2>Snapshots and Experiments</h2><span id="historyMeta">History is stored beside the worldbook.</span></div>
               <div class="history-create-actions">
                 <button id="snapshotButton" type="button">Snapshot</button>
-                <button id="startExperimentButton" class="primary" type="button">Start experiment</button>
-                <button id="finishExperimentButton" type="button" disabled>Finish experiment</button>
+                <button id="startExperimentButton" class="primary" type="button">New experiment</button>
+                <button id="finishExperimentButton" type="button" disabled>Save result</button>
               </div>
             </div>
             <section class="history-section">
