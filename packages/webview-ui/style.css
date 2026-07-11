@@ -603,16 +603,117 @@ label,
   padding: 0 12px 10px;
 }
 
+.scenario-structured-fields {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.scenario-structured-fields:disabled {
+  opacity: 0.62;
+}
+
+.scenario-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.scenario-editor-section,
+.scenario-json-section {
+  border-top: 1px solid var(--border);
+  padding: 12px;
+}
+
+.scenario-section-head {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.scenario-section-head > div {
+  min-width: 0;
+}
+
+.scenario-section-head h3 {
+  margin: 0;
+}
+
+.scenario-section-head span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.scenario-message-list {
+  display: grid;
+  gap: 8px;
+}
+
+.scenario-message-row {
+  min-width: 0;
+  display: grid;
+  gap: 9px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--muted);
+  border-radius: 5px;
+  padding: 9px;
+  background: var(--panel);
+}
+
+.scenario-message-head {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(130px, 180px) minmax(0, 1fr);
+  align-items: end;
+  gap: 10px;
+}
+
+.scenario-message-head > strong {
+  align-self: center;
+  white-space: nowrap;
+}
+
+.scenario-message-actions {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.scenario-message-actions button {
+  min-height: 31px;
+}
+
+.scenario-message-row textarea {
+  min-height: 96px;
+}
+
+.scenario-message-empty {
+  margin: 0;
+}
+
 .block-label {
   padding: 0 12px 12px;
 }
 
-#messagesText {
-  height: 170px;
-}
-
 #forceText {
   height: 74px;
+}
+
+.scenario-json-section {
+  padding-bottom: 16px;
+}
+
+#scenarioJsonText {
+  min-height: 280px;
+  resize: vertical;
 }
 
 .json-pane .section-head {
@@ -843,6 +944,15 @@ h3 {
   }
 
   .history-row-actions {
+    justify-content: flex-start;
+  }
+
+  .scenario-message-head {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .scenario-message-actions {
     justify-content: flex-start;
   }
 

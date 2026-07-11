@@ -24,7 +24,8 @@ Install from your editor's marketplace to receive normal extension updates. Manu
 - See why each entry activated or did not activate.
 - Display token estimates for every entry, all entries, active world info, and the complete timeline.
 - Import character cards from JSON or PNG metadata, including embedded character books.
-- Save reusable chat and activation scenarios beside the worldbook.
+- Edit chat messages as ordered system/user/assistant rows and inspect the synchronized full scenario JSON.
+- Save reusable chat and activation scenarios beside the worldbook while keeping `{{user}}` portable.
 - Create snapshots and named experiments, compare them in VS Code's native Diff editor, and restore earlier versions.
 - Preserve unknown worldbook fields and the original object/array shape of `entries`.
 
@@ -56,8 +57,8 @@ Token profiles identify whether their result is exact for the selected tokenizer
 
 Preview settings are stored next to the worldbook as `<worldbook>.wbh.json`. A scenario can include:
 
-- chat messages
-- user and character names
+- ordered system, user, and assistant chat messages
+- the portable `{{user}}` macro and an optional character name
 - generation mode
 - deterministic probability seed
 - recursion and scan settings
@@ -65,7 +66,7 @@ Preview settings are stored next to the worldbook as `<worldbook>.wbh.json`. A s
 - manually forced entry IDs
 - an optional character-card path
 
-The sidecar file does not modify or add workbench metadata to the worldbook itself. Imported character cards are read-only.
+The sidecar file does not modify or add workbench metadata to the worldbook itself. Imported character cards are read-only. Unknown scenario and message fields are retained when the structured editor updates the file.
 
 ## History Files
 

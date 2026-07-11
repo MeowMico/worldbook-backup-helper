@@ -2,7 +2,7 @@
   'use strict';
 
   const vscode = acquireVsCodeApi();
-  const { parseJsonArrayText } = window.WorldbookScenarioFields;
+  const { parseJsonObjectText, parseStringListText } = window.WorldbookScenarioFields;
   const worldbook = window.WorldbookEditor;
   const state = {
     worldbookPath: '',
@@ -17,6 +17,7 @@
     previewEntries: new Map(),
     previewStale: false,
     rawJsonDirty: false,
+    scenarioJsonDirty: false,
   };
 
   const el = {
@@ -58,16 +59,20 @@
     entryContentInput: document.querySelector('#entryContentInput'),
     rawJsonText: document.querySelector('#rawJsonText'),
     applyJsonButton: document.querySelector('#applyJsonButton'),
+    scenarioStructuredFields: document.querySelector('#scenarioStructuredFields'),
     seedInput: document.querySelector('#seedInput'),
-    userInput: document.querySelector('#userInput'),
     charInput: document.querySelector('#charInput'),
     triggerInput: document.querySelector('#triggerInput'),
     tokenizerInput: document.querySelector('#tokenizerInput'),
     depthInput: document.querySelector('#depthInput'),
     recursiveInput: document.querySelector('#recursiveInput'),
     characterBookInput: document.querySelector('#characterBookInput'),
-    messagesText: document.querySelector('#messagesText'),
+    messageCount: document.querySelector('#messageCount'),
+    messageList: document.querySelector('#messageList'),
+    addMessageButton: document.querySelector('#addMessageButton'),
     forceText: document.querySelector('#forceText'),
+    scenarioJsonText: document.querySelector('#scenarioJsonText'),
+    applyScenarioJsonButton: document.querySelector('#applyScenarioJsonButton'),
     cardMeta: document.querySelector('#cardMeta'),
     batchFindInput: document.querySelector('#batchFindInput'),
     batchReplaceInput: document.querySelector('#batchReplaceInput'),
@@ -116,7 +121,10 @@
     const scenario = gatherScenario();
     if (scenario) post('saveScenario', { scenario });
   });
-  el.cardButton.addEventListener('click', () => post('importCharacterCard'));
+  el.cardButton.addEventListener('click', () => {
+    const scenario = gatherScenario();
+    if (scenario) post('importCharacterCard', { scenario });
+  });
   el.entrySearch.addEventListener('input', renderEntryBrowser);
   el.newEntryButton.addEventListener('click', createEntry);
   el.duplicateEntryButton.addEventListener('click', duplicateEntry);
@@ -142,9 +150,25 @@
     el.rawJsonText.removeAttribute('aria-invalid');
     setStatus('Raw JSON changes are not applied yet.');
   });
-  [el.messagesText, el.forceText].forEach(input => {
-    input.addEventListener('input', () => input.removeAttribute('aria-invalid'));
+  el.applyScenarioJsonButton.addEventListener('click', () => applyScenarioJson(true));
+  el.scenarioJsonText.addEventListener('input', () => {
+    state.scenarioJsonDirty = true;
+    el.scenarioJsonText.removeAttribute('aria-invalid');
+    el.scenarioStructuredFields.disabled = true;
+    setStatus('Scenario JSON changes are not applied yet.');
   });
+  el.addMessageButton.addEventListener('click', addScenarioMessage);
+  const scenarioInputs = [
+    el.seedInput,
+    el.charInput,
+    el.triggerInput,
+    el.tokenizerInput,
+    el.depthInput,
+    el.recursiveInput,
+    el.characterBookInput,
+    el.forceText,
+  ];
+  scenarioInputs.forEach(input => input.addEventListener('input', handleScenarioControlsChanged));
   el.tabs.forEach(tab => tab.addEventListener('click', () => setActiveTab(tab.dataset.tab)));
 
   const entryInputs = [
@@ -602,6 +626,13 @@
     setStatus(message);
   }
 
+  function markScenarioChanged(message = 'Scenario changes have not been previewed.') {
+    state.previewStale = true;
+    el.preview.classList.add('stale');
+    el.tokenMeta.textContent = 'Preview out of date';
+    setStatus(message);
+  }
+
   function applyRawJson(showStatus) {
     if (!state.rawJsonDirty) return true;
     const selectedId = selectedRecord()?.id;
@@ -637,17 +668,157 @@
   }
 
   function renderScenario(scenario) {
-    const settings = scenario.settings || {};
-    el.seedInput.value = scenario.seed || '';
-    el.userInput.value = scenario.userName || '{{user}}';
-    el.charInput.value = scenario.charName || '';
-    el.triggerInput.value = scenario.trigger || 'normal';
+    const source = isObject(scenario) ? cloneValue(scenario) : {};
+    const settings = isObject(source.settings) ? source.settings : {};
+    source.settings = settings;
+    source.userName = '{{user}}';
+    source.messages = Array.isArray(source.messages)
+      ? source.messages.map(normalizeScenarioMessage)
+      : [];
+    source.forceActivate = Array.isArray(source.forceActivate)
+      ? source.forceActivate.map(value => String(value)).filter(Boolean)
+      : [];
+    state.scenario = source;
+
+    el.seedInput.value = source.seed || '';
+    el.charInput.value = source.charName || '';
+    el.triggerInput.value = source.trigger || 'normal';
     el.tokenizerInput.value = settings.tokenizerProfile || 'estimate';
     el.depthInput.value = settings.worldInfoDepth ?? 4;
     el.recursiveInput.checked = settings.recursive !== false;
-    el.characterBookInput.checked = scenario.includeCharacterBook !== false;
-    el.messagesText.value = JSON.stringify(scenario.messages || [], null, 2);
-    el.forceText.value = JSON.stringify(scenario.forceActivate || [], null, 2);
+    el.characterBookInput.checked = source.includeCharacterBook !== false;
+    el.forceText.value = source.forceActivate.join('\n');
+    el.forceText.removeAttribute('aria-invalid');
+    el.scenarioStructuredFields.disabled = false;
+    renderScenarioMessages();
+    syncScenarioJsonText();
+  }
+
+  function renderScenarioMessages() {
+    const messages = state.scenario?.messages || [];
+    el.messageList.replaceChildren();
+    el.messageCount.textContent = `${messages.length} ${messages.length === 1 ? 'message' : 'messages'}`;
+    if (!messages.length) {
+      const empty = document.createElement('p');
+      empty.className = 'empty-list scenario-message-empty';
+      empty.textContent = 'No chat messages.';
+      el.messageList.append(empty);
+      return;
+    }
+
+    messages.forEach((message, index) => {
+      const row = document.createElement('article');
+      row.className = `scenario-message-row role-${message.role}`;
+
+      const head = document.createElement('div');
+      head.className = 'scenario-message-head';
+      const number = document.createElement('strong');
+      number.textContent = `Message ${index + 1}`;
+
+      const roleLabel = document.createElement('label');
+      roleLabel.textContent = 'Role';
+      const role = document.createElement('select');
+      role.setAttribute('aria-label', `Message ${index + 1} role`);
+      for (const value of ['system', 'user', 'assistant']) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value[0].toUpperCase() + value.slice(1);
+        role.append(option);
+      }
+      role.value = message.role;
+      role.addEventListener('input', () => {
+        message.role = role.value;
+        row.className = `scenario-message-row role-${message.role}`;
+        handleScenarioControlsChanged();
+      });
+      roleLabel.append(role);
+
+      const actions = document.createElement('div');
+      actions.className = 'scenario-message-actions';
+      actions.append(
+        scenarioMessageAction('Up', 'Move message up', index === 0, () => moveScenarioMessage(index, -1)),
+        scenarioMessageAction('Down', 'Move message down', index === messages.length - 1, () => moveScenarioMessage(index, 1)),
+        scenarioMessageAction('Delete', 'Delete message', false, () => deleteScenarioMessage(index), true),
+      );
+      head.append(number, roleLabel, actions);
+
+      const contentLabel = document.createElement('label');
+      contentLabel.textContent = 'Content';
+      const content = document.createElement('textarea');
+      content.rows = 4;
+      content.spellcheck = false;
+      content.value = message.content;
+      content.setAttribute('aria-label', `Message ${index + 1} content`);
+      content.addEventListener('input', () => {
+        message.content = content.value;
+        handleScenarioControlsChanged();
+      });
+      contentLabel.append(content);
+      row.append(head, contentLabel);
+      el.messageList.append(row);
+    });
+  }
+
+  function normalizeScenarioMessage(message, index) {
+    const source = isObject(message) ? cloneValue(message) : { content: String(message ?? '') };
+    const role = String(source.role || '').toLowerCase();
+    return {
+      ...source,
+      role: ['system', 'user', 'assistant'].includes(role) ? role : (index % 2 ? 'assistant' : 'user'),
+      content: String(source.content ?? ''),
+    };
+  }
+
+  function scenarioMessageAction(label, title, disabled, handler, danger = false) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.title = title;
+    button.disabled = disabled;
+    if (danger) button.className = 'danger-command';
+    button.addEventListener('click', handler);
+    return button;
+  }
+
+  function addScenarioMessage() {
+    const messages = state.scenario.messages;
+    const role = messages.at(-1)?.role === 'user' ? 'assistant' : 'user';
+    messages.push({ role, content: '' });
+    renderScenarioMessages();
+    handleScenarioControlsChanged();
+    el.messageList.querySelector('.scenario-message-row:last-child textarea')?.focus();
+  }
+
+  function moveScenarioMessage(index, offset) {
+    const messages = state.scenario.messages;
+    const target = index + offset;
+    if (target < 0 || target >= messages.length) return;
+    const [message] = messages.splice(index, 1);
+    messages.splice(target, 0, message);
+    renderScenarioMessages();
+    handleScenarioControlsChanged();
+  }
+
+  function deleteScenarioMessage(index) {
+    state.scenario.messages.splice(index, 1);
+    renderScenarioMessages();
+    handleScenarioControlsChanged();
+  }
+
+  function handleScenarioControlsChanged() {
+    const scenario = updateScenarioFromControls();
+    if (!scenario) return;
+    syncScenarioJsonText();
+    renderEntryBrowser();
+    renderEntryEditor();
+    markScenarioChanged();
+  }
+
+  function syncScenarioJsonText() {
+    el.scenarioJsonText.value = JSON.stringify(state.scenario || {}, null, 2);
+    el.scenarioJsonText.removeAttribute('aria-invalid');
+    state.scenarioJsonDirty = false;
+    el.scenarioStructuredFields.disabled = false;
   }
 
   function renderCharacterCard() {
@@ -878,39 +1049,58 @@
   }
 
   function gatherScenario() {
+    if (state.scenarioJsonDirty && !applyScenarioJson(false)) return null;
+    const scenario = updateScenarioFromControls();
+    if (!scenario) return null;
+    syncScenarioJsonText();
+    return cloneValue(scenario);
+  }
+
+  function updateScenarioFromControls() {
     try {
-      const previous = state.scenario || {};
-      return {
+      const previous = isObject(state.scenario) ? state.scenario : {};
+      const previousSettings = isObject(previous.settings) ? previous.settings : {};
+      const scenario = {
         ...previous,
         seed: el.seedInput.value,
         trigger: el.triggerInput.value || 'normal',
-        userName: el.userInput.value,
+        userName: '{{user}}',
         charName: el.charInput.value,
         includeCharacterBook: el.characterBookInput.checked,
         settings: {
-          ...(previous.settings || {}),
+          ...previousSettings,
           tokenizerProfile: el.tokenizerInput.value,
-          worldInfoDepth: numberValue(el.depthInput.value, 4),
+          worldInfoDepth: Math.max(0, numberValue(el.depthInput.value, 4)),
           recursive: el.recursiveInput.checked,
         },
-        messages: parseJsonArrayField(el.messagesText, 'Messages JSON'),
-        forceActivate: parseJsonArrayField(el.forceText, 'Force Activate IDs'),
+        messages: Array.isArray(previous.messages) ? previous.messages : [],
+        forceActivate: parseStringListText(el.forceText.value, 'Force Activate IDs'),
       };
+      el.forceText.removeAttribute('aria-invalid');
+      state.scenario = scenario;
+      return scenario;
     } catch (error) {
+      el.forceText.setAttribute('aria-invalid', 'true');
       setStatus(error.message, true);
       setActiveTab('scenario');
       return null;
     }
   }
 
-  function parseJsonArrayField(input, label) {
+  function applyScenarioJson(showStatus) {
     try {
-      const value = parseJsonArrayText(input.value, label);
-      input.removeAttribute('aria-invalid');
-      return value;
+      const scenario = parseJsonObjectText(el.scenarioJsonText.value, 'Scenario JSON');
+      scenario.userName = '{{user}}';
+      state.scenarioJsonDirty = false;
+      renderScenario(scenario);
+      markScenarioChanged(showStatus ? 'Scenario JSON applied.' : 'Scenario JSON applied for preview.');
+      return true;
     } catch (error) {
-      input.setAttribute('aria-invalid', 'true');
-      throw error;
+      el.scenarioJsonText.setAttribute('aria-invalid', 'true');
+      el.scenarioStructuredFields.disabled = true;
+      setStatus(error.message, true);
+      setActiveTab('scenario');
+      return false;
     }
   }
 
@@ -958,6 +1148,15 @@
 
   function reasonLabel(reason) {
     return String(reason || 'not triggered').replaceAll('_', ' ');
+  }
+
+  function isObject(value) {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function cloneValue(value) {
+    if (value === undefined) return undefined;
+    return JSON.parse(JSON.stringify(value));
   }
 
   function numberValue(value, fallback) {

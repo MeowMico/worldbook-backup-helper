@@ -77,6 +77,17 @@ test('scenario JSON round trip normalizes defaults', () => {
   assert.equal(parsed.trigger, 'normal');
 });
 
+test('scenario JSON preserves unknown scenario and message fields', () => {
+  const parsed = parseScenarioJson(JSON.stringify({
+    customScenarioField: { enabled: true },
+    messages: [
+      { role: 'user', content: 'hello', customMessageField: 'kept' },
+    ],
+  }));
+  assert.deepEqual(parsed.customScenarioField, { enabled: true });
+  assert.equal(parsed.messages[0].customMessageField, 'kept');
+});
+
 test('history sidecar snapshots and experiments preserve worldbook data', () => {
   const worldbook = { custom: true, entries: { 1: { uid: 1, comment: 'One', content: 'Alpha' } } };
   assert.equal(historyFilePath('/tmp/book.json'), '/tmp/book.wbh-history.json');

@@ -133,7 +133,7 @@ class WorkbenchPanel {
           await this.saveWorldbook(message.worldbookText);
           break;
         case 'importCharacterCard':
-          await this.importCharacterCard();
+          await this.importCharacterCard(message.scenario);
           break;
         case 'saveScenario':
           await this.saveScenario(message.scenario);
@@ -397,7 +397,8 @@ class WorkbenchPanel {
     this.post({ type: 'history', message, history: summarizeHistory(this.history) });
   }
 
-  async importCharacterCard() {
+  async importCharacterCard(scenario = this.scenario) {
+    this.scenario = normalizeScenarioForPanel(scenario, this.worldbookUri.fsPath, this.characterCardPath);
     const [uri] = await vscode.window.showOpenDialog({
       title: 'Import Character Card',
       canSelectMany: false,
@@ -582,31 +583,47 @@ class WorkbenchPanel {
           </section>
           <section id="scenarioTab" class="tab-panel settings-pane" role="tabpanel">
             <div class="section-head"><h2>Preview Scenario</h2><span id="cardMeta">No card</span></div>
-            <div class="form-grid">
-              <label>Seed<input id="seedInput" type="text"></label>
-              <label>User<input id="userInput" type="text"></label>
-              <label>Character<input id="charInput" type="text"></label>
-              <label>Generation<select id="triggerInput">
-                <option value="normal">Normal</option>
-                <option value="continue">Continue</option>
-                <option value="impersonate">Impersonate</option>
-                <option value="swipe">Swipe</option>
-                <option value="regenerate">Regenerate</option>
-                <option value="quiet">Quiet</option>
-              </select></label>
-              <label>Tokenizer<select id="tokenizerInput">
-                <option value="estimate">Estimate</option>
-                <option value="openai-cl100k">OpenAI cl100k</option>
-                <option value="openai-p50k">OpenAI p50k</option>
-                <option value="llama-estimate">Llama estimate</option>
-                <option value="claude-estimate">Claude estimate</option>
-              </select></label>
-              <label>Depth<input id="depthInput" type="number" min="0"></label>
-            </div>
-            <label class="check-row"><input id="recursiveInput" type="checkbox"> Recursive</label>
-            <label class="check-row"><input id="characterBookInput" type="checkbox"> Character book</label>
-            <label class="block-label">Messages JSON<textarea id="messagesText" spellcheck="false"></textarea></label>
-            <label class="block-label">Force Activate IDs<textarea id="forceText" spellcheck="false"></textarea></label>
+            <fieldset id="scenarioStructuredFields" class="scenario-structured-fields">
+              <div class="form-grid">
+                <label title="Keeps probability and group choices stable between previews.">Preview Seed<input id="seedInput" type="text"></label>
+                <label>Character<input id="charInput" type="text"></label>
+                <label>Generation<select id="triggerInput">
+                  <option value="normal">Normal</option>
+                  <option value="continue">Continue</option>
+                  <option value="impersonate">Impersonate</option>
+                  <option value="swipe">Swipe</option>
+                  <option value="regenerate">Regenerate</option>
+                  <option value="quiet">Quiet</option>
+                </select></label>
+                <label>Tokenizer<select id="tokenizerInput">
+                  <option value="estimate">Estimate</option>
+                  <option value="openai-cl100k">OpenAI cl100k</option>
+                  <option value="openai-p50k">OpenAI p50k</option>
+                  <option value="llama-estimate">Llama estimate</option>
+                  <option value="claude-estimate">Claude estimate</option>
+                </select></label>
+                <label>Depth<input id="depthInput" type="number" min="0"></label>
+              </div>
+              <div class="scenario-toggles">
+                <label class="check-row"><input id="recursiveInput" type="checkbox"> Recursive</label>
+                <label class="check-row"><input id="characterBookInput" type="checkbox"> Character book</label>
+              </div>
+              <section class="scenario-editor-section">
+                <div class="scenario-section-head">
+                  <div><h3>Chat Messages</h3><span id="messageCount">0 messages</span></div>
+                  <button id="addMessageButton" type="button">Add message</button>
+                </div>
+                <div id="messageList" class="scenario-message-list"></div>
+              </section>
+              <label class="block-label">Force Activate IDs<textarea id="forceText" spellcheck="false" placeholder="One entry ID per line"></textarea></label>
+            </fieldset>
+            <section class="scenario-json-section">
+              <div class="scenario-section-head">
+                <div><h3>Full Scenario JSON</h3><span>Advanced</span></div>
+                <button id="applyScenarioJsonButton" type="button">Apply JSON</button>
+              </div>
+              <textarea id="scenarioJsonText" spellcheck="false" aria-label="Full Scenario JSON"></textarea>
+            </section>
           </section>
           <section id="batchTab" class="tab-panel batch-pane" role="tabpanel">
             <div class="section-head">

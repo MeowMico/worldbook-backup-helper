@@ -2,6 +2,14 @@
 
 All notable changes to the VS Code and Cursor extension are documented here.
 
+## 0.2.1 - 2026-07-11
+
+- Replaced the raw messages field with structured chat-message editors for role, content, ordering, and deletion.
+- Added a synchronized full Scenario JSON editor below the structured controls.
+- Fixed preview scenarios to keep the portable `{{user}}` macro instead of storing a custom simulated user name.
+- Preserved unknown scenario and message fields through preview and save round trips.
+- Made force-activation IDs editable as a newline- or comma-separated list while retaining legacy JSON-array support.
+
 ## 0.2.0 - 2026-07-10
 
 - Added entry multi-select actions for select all, enable, disable, delete, and cross-worldbook copy.

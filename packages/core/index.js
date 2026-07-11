@@ -142,19 +142,21 @@ function createDefaultScenario(worldbookPath = '') {
 }
 
 function normalizeScenario(input) {
+  const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const scenario = {
-    version: Number(input.version || DEFAULT_SCENARIO_VERSION),
-    worldbookPath: cleanText(input.worldbookPath),
-    characterCardPath: cleanText(input.characterCardPath),
-    includeCharacterBook: input.includeCharacterBook !== false,
-    seed: cleanText(input.seed) || 'worldbook-workbench',
-    trigger: normalizeGenerationTrigger(input.trigger),
-    userName: cleanText(input.userName) || '{{user}}',
-    charName: cleanText(input.charName),
-    settings: normalizeSettings(input.settings),
-    messages: normalizeMessages(input.messages),
-    forceActivate: normalizeStringArray(input.forceActivate),
-    timedState: normalizeTimedState(input.timedState),
+    ...source,
+    version: Number(source.version || DEFAULT_SCENARIO_VERSION),
+    worldbookPath: cleanText(source.worldbookPath),
+    characterCardPath: cleanText(source.characterCardPath),
+    includeCharacterBook: source.includeCharacterBook !== false,
+    seed: cleanText(source.seed) || 'worldbook-workbench',
+    trigger: normalizeGenerationTrigger(source.trigger),
+    userName: cleanText(source.userName) || '{{user}}',
+    charName: cleanText(source.charName),
+    settings: normalizeSettings(source.settings),
+    messages: normalizeMessages(source.messages),
+    forceActivate: normalizeStringArray(source.forceActivate),
+    timedState: normalizeTimedState(source.timedState),
   };
   return scenario;
 }
@@ -1040,11 +1042,15 @@ function normalizeSettings(input = {}) {
 
 function normalizeMessages(messages) {
   if (!Array.isArray(messages)) return [];
-  return messages.map((message, index) => ({
-    role: normalizeRoleName(message?.role || (index % 2 ? 'assistant' : 'user')),
-    name: cleanText(message?.name),
-    content: cleanText(message?.content),
-  })).filter(message => message.content || message.name);
+  return messages.map((message, index) => {
+    const source = message && typeof message === 'object' && !Array.isArray(message) ? message : {};
+    return {
+      ...source,
+      role: normalizeRoleName(source.role || (index % 2 ? 'assistant' : 'user')),
+      name: cleanText(source.name),
+      content: cleanText(source.content),
+    };
+  }).filter(message => message.content || message.name);
 }
 
 function normalizeTimedState(value) {
