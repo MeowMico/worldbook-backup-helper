@@ -199,6 +199,8 @@
     'Entries copied.': '条目已复制。',
     'Error': '错误',
     'Preview out of date': '预览已过期',
+    'Preview is out of date. Recent edits are not reflected below.': '预览已过期，下面仍显示修改前的结果。',
+    'Refresh preview': '重新预览',
     'Unsaved worldbook changes.': '世界书有未保存的修改。',
     'Raw JSON changes are not applied yet.': 'Raw JSON 修改尚未应用。',
     'Scenario JSON changes are not applied yet.': '场景 JSON 修改尚未应用。',

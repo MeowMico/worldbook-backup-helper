@@ -154,6 +154,8 @@
     experimentList: document.querySelector('#experimentList'),
     snapshotList: document.querySelector('#snapshotList'),
     tokenMeta: document.querySelector('#tokenMeta'),
+    previewStaleBanner: document.querySelector('#previewStaleBanner'),
+    refreshPreviewButton: document.querySelector('#refreshPreviewButton'),
     preview: document.querySelector('#preview'),
     languageInput: document.querySelector('#languageInput'),
     undoButton: document.querySelector('#undoButton'),
@@ -186,10 +188,15 @@
   });
   el.undoButton.addEventListener('click', undoWorldbookChange);
   el.redoButton.addEventListener('click', redoWorldbookChange);
-  el.compileButton.addEventListener('click', () => withWorldbookText(worldbookText => {
-    const scenario = gatherScenario();
-    if (scenario) post('compilePreview', { worldbookText, scenario });
-  }));
+  el.compileButton.addEventListener('click', requestPreview);
+  el.refreshPreviewButton.addEventListener('click', requestPreview);
+
+  function requestPreview() {
+    withWorldbookText(worldbookText => {
+      const scenario = gatherScenario();
+      if (scenario) post('compilePreview', { worldbookText, scenario });
+    });
+  }
   el.saveButton.addEventListener('click', () => withWorldbookText(worldbookText => {
     post('saveWorldbook', { worldbookText });
   }));
@@ -297,9 +304,7 @@
     state.rawJsonDirty = false;
     el.rawJsonText.value = worldbook.serializeWorldbook(state.worldbookData);
     el.rawJsonText.removeAttribute('aria-invalid');
-    state.previewStale = true;
-    el.preview.classList.add('stale');
-    el.tokenMeta.textContent = t('Preview out of date');
+    setPreviewStale(true);
     renderEntryBrowser();
     renderEntryEditor();
     renderBatchResults();
@@ -499,9 +504,7 @@
       if (message.worldbookText) loadWorldbookText(message.worldbookText, false);
       resetWorldbookUndoHistory();
       if (message.history) applyHistory(message.history);
-      state.previewStale = true;
-      el.preview.classList.add('stale');
-      el.tokenMeta.textContent = t('Preview out of date');
+      setPreviewStale(true);
       setStatus(message.message || 'Snapshot restored.');
     }
     if (message.type === 'copiedEntries') setStatus(message.message || 'Entries copied.');
@@ -519,7 +522,7 @@
     state.selectedEntryIds.clear();
     state.lastPreview = null;
     state.previewEntries = new Map();
-    state.previewStale = false;
+    setPreviewStale(false);
     loadWorldbookText(message.worldbookText || '', false);
     resetWorldbookUndoHistory();
     el.worldbookTitle.textContent = basename(state.worldbookPath) || t('Worldbook');
@@ -562,8 +565,7 @@
   function applyPreview(message) {
     state.lastPreview = message.result || null;
     state.previewEntries = buildPreviewEntryMap(state.lastPreview);
-    state.previewStale = false;
-    el.preview.classList.remove('stale');
+    setPreviewStale(false);
     if (message.result?.scenario) {
       state.scenario = message.result.scenario;
       renderScenario(state.scenario);
@@ -1060,18 +1062,21 @@
   function markWorldbookChanged(message = 'Unsaved worldbook changes.') {
     state.rawJsonDirty = false;
     el.rawJsonText.value = worldbook.serializeWorldbook(state.worldbookData);
-    state.previewStale = true;
-    el.preview.classList.add('stale');
-    el.tokenMeta.textContent = t('Preview out of date');
+    setPreviewStale(true);
     renderUndoControls();
     setStatus(message);
   }
 
   function markScenarioChanged(message = 'Preview setup changes have not been previewed.') {
-    state.previewStale = true;
-    el.preview.classList.add('stale');
-    el.tokenMeta.textContent = t('Preview out of date');
+    setPreviewStale(true);
     setStatus(message);
+  }
+
+  function setPreviewStale(stale) {
+    state.previewStale = Boolean(stale);
+    el.preview.classList.toggle('stale', state.previewStale);
+    el.previewStaleBanner.classList.toggle('hidden', !state.previewStale);
+    if (state.previewStale) el.tokenMeta.textContent = t('Preview out of date');
   }
 
   function applyRawJson(showStatus) {
@@ -1091,9 +1096,7 @@
       state.rawJsonDirty = false;
       el.rawJsonText.value = worldbook.serializeWorldbook(state.worldbookData);
       el.rawJsonText.removeAttribute('aria-invalid');
-      state.previewStale = true;
-      el.preview.classList.add('stale');
-      el.tokenMeta.textContent = t('Preview out of date');
+      setPreviewStale(true);
       renderEntryBrowser();
       renderEntryEditor();
       renderBatchResults();

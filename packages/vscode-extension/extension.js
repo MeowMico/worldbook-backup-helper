@@ -853,6 +853,10 @@ class WorkbenchPanel {
             <h2>Prompt Preview</h2>
             <span id="tokenMeta"></span>
           </div>
+          <div id="previewStaleBanner" class="preview-stale-banner hidden" role="status">
+            <span>Preview is out of date. Recent edits are not reflected below.</span>
+            <button id="refreshPreviewButton" class="primary" type="button">Refresh preview</button>
+          </div>
           <div id="preview"></div>
         </section>
       </main>

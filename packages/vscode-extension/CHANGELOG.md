@@ -2,6 +2,11 @@
 
 All notable changes to the VS Code and Cursor extension are documented here.
 
+## 0.2.10 - 2026-07-12
+
+- Added a prominent stale-preview banner with a direct refresh action so recent keyword and preview-setup edits are not mistaken for failed activation.
+- Added regression coverage confirming that assistant chat messages activate entries with Chinese primary keywords.
+
 ## 0.2.9 - 2026-07-12
 
 - Renamed the user-facing Scenario workspace to Preview Setup so it is not confused with the character-card Scenario field.

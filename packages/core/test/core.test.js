@@ -125,6 +125,35 @@ test('scenario matching sources support persona description and character note',
   assert.deepEqual(result.activatedEntries.map(entry => entry.title), ['Persona match', 'Note match']);
 });
 
+test('assistant chat messages activate entries with Chinese primary keywords', () => {
+  const scenario = createDefaultScenario();
+  scenario.messages = [
+    { role: 'user', content: '你好' },
+    { role: 'assistant', content: '我是一只猫娘' },
+  ];
+
+  const result = compilePromptPreview({
+    worldbooks: [{
+      name: 'book',
+      data: {
+        entries: {
+          catgirl: {
+            comment: '猫娘设定',
+            content: '猫娘世界观内容',
+            key: ['猫娘'],
+            selective: true,
+            keysecondary: [],
+          },
+        },
+      },
+    }],
+    scenario,
+  });
+
+  assert.deepEqual(result.activatedEntries.map(entry => entry.title), ['猫娘设定']);
+  assert.deepEqual(result.activatedEntries[0].matchedKeys, [{ type: 'primary', key: '猫娘' }]);
+});
+
 test('history sidecar snapshots and experiments preserve worldbook data', () => {
   const worldbook = { custom: true, entries: { 1: { uid: 1, comment: 'One', content: 'Alpha' } } };
   assert.equal(historyFilePath('/tmp/book.json'), '/tmp/book.wbh-history.json');
