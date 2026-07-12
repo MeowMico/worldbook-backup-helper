@@ -9,6 +9,7 @@
   --accent: var(--vscode-button-background, #0e639c);
   --accent-text: var(--vscode-button-foreground, #ffffff);
   --danger: var(--vscode-errorForeground, #f48771);
+  --warning: var(--vscode-editorWarning-foreground, #cca700);
   --selection: var(--vscode-list-activeSelectionBackground, #094771);
   --selection-text: var(--vscode-list-activeSelectionForeground, #ffffff);
   --hover: var(--vscode-list-hoverBackground, #2a2d2e);
@@ -657,6 +658,39 @@ label,
   gap: 4px 14px;
 }
 
+.scenario-source-toggles {
+  padding-left: 0;
+}
+
+.scenario-global-settings {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.scenario-global-settings > summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.scenario-global-settings[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.scenario-global-grid {
+  padding-bottom: 8px;
+}
+
+.scenario-global-toggles {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 12px;
+  padding: 0 0 2px;
+}
+
 .scenario-editor-section,
 .scenario-json-section {
   border-top: 1px solid var(--border);
@@ -817,8 +851,7 @@ h3 {
 
 .warnings {
   padding: 10px;
-  border: 1px solid var(--danger);
-  border-radius: 5px;
+  border-left: 3px solid var(--warning);
   color: var(--text);
   background: var(--panel);
 }
@@ -1001,6 +1034,7 @@ h3 {
 
   .editor-grid,
   .form-grid,
+  .scenario-global-toggles,
   .details-grid,
   .summary-strip {
     grid-template-columns: 1fr;

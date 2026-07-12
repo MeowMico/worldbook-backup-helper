@@ -59,10 +59,12 @@ Token profiles identify whether their result is exact for the selected tokenizer
 Preview settings are stored next to the worldbook as `<worldbook>.wbh.json`. A scenario can include:
 
 - ordered system, user, and assistant chat messages
-- the portable `{{user}}` macro and an optional character name
+- the portable `{{user}}` macro
 - generation mode
 - deterministic probability seed
-- recursion and scan settings
+- world-info scan depth, recursion limits, and minimum activations
+- optional context-budget experiments and matching behavior
+- character/global lore insertion strategy
 - tokenizer profile
 - manually forced entry IDs
 - an optional character-card path

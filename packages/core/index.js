@@ -24,6 +24,12 @@ const ROLE = Object.freeze({
 const ROLE_NAMES = ['system', 'user', 'assistant'];
 const GENERATION_TRIGGERS = Object.freeze(['normal', 'continue', 'impersonate', 'swipe', 'regenerate', 'quiet']);
 
+const WORLD_INFO_INSERTION_STRATEGY = Object.freeze({
+  EVENLY: 'evenly',
+  CHARACTER_FIRST: 'character-first',
+  GLOBAL_FIRST: 'global-first',
+});
+
 const SELECTIVE_LOGIC = Object.freeze({
   AND_ANY: 0,
   NOT_ALL: 1,
@@ -78,12 +84,17 @@ const DEFAULT_SETTINGS = Object.freeze({
   worldInfoDepth: 4,
   minActivations: 0,
   minActivationsDepthMax: 0,
+  maxContextTokens: 0,
+  budgetPercent: 100,
+  budgetCap: 0,
   recursive: true,
   maxRecursionSteps: 2,
   includeNames: false,
   caseSensitive: false,
   matchWholeWords: false,
   useGroupScoring: false,
+  alertOnOverflow: false,
+  worldInfoInsertionStrategy: WORLD_INFO_INSERTION_STRATEGY.CHARACTER_FIRST,
   tokenizerProfile: 'estimate',
 });
 
@@ -434,10 +445,14 @@ function compilePromptPreview(input = {}) {
     forceActivate,
     timedState,
     characterCard,
+    scenario,
     trigger: globalScanData.trigger,
   });
-  const activated = annotateTokenUsage(evaluation.activated, settings, scenario, characterCard);
-  const skipped = annotateTokenUsage(evaluation.skipped, settings, scenario, characterCard);
+  const evaluatedActivated = annotateTokenUsage(evaluation.activated, settings, scenario, characterCard);
+  const evaluatedSkipped = annotateTokenUsage(evaluation.skipped, settings, scenario, characterCard);
+  const budget = applyBudget(evaluatedActivated, settings);
+  const activated = budget.activated;
+  const skipped = [...evaluatedSkipped, ...budget.skipped];
   const buckets = bucketActivatedEntries(activated, scenario, characterCard);
   const timeline = buildTimeline(buckets, messages, characterCard, scenario, settings);
   const tokenizer = tokenizerInfo(settings.tokenizerProfile);
@@ -449,6 +464,7 @@ function compilePromptPreview(input = {}) {
     scenario,
     settings,
     tokenizer,
+    activationScanDepth: evaluation.scanDepth,
     sources: sources.map(source => ({
       name: source.name,
       type: source.type,
@@ -465,8 +481,14 @@ function compilePromptPreview(input = {}) {
       worldInfoTokens,
       timelineTokens,
     },
+    tokenBudget: {
+      limit: budget.limit,
+      used: budget.used,
+      overflowed: budget.overflowed,
+    },
     warnings: [
       ...warnings,
+      ...budget.warnings,
       ...runtimeWarnings(activated),
     ],
   };
@@ -517,69 +539,104 @@ function evaluateEntries(records, messages, globalScanData, settings, options) {
   const activated = new Map();
   const skipped = new Map();
   const recursionBuffer = [];
-  const maxPasses = settings.recursive ? Math.max(1, Number(settings.maxRecursionSteps || 0) + 1) : 1;
-  const sorted = [...records].sort(promptOrderSort);
+  const sorted = sortRecordsForInsertionStrategy(records, settings.worldInfoInsertionStrategy);
   const recursionDelayLevels = [...new Set(sorted
     .map(record => normalizeRecursionDelay(record.entry.delayUntilRecursion))
     .filter(level => level > 0))].sort((left, right) => left - right);
   let recursionLevel = recursionDelayLevels[0] || 0;
+  const configuredMaxSteps = Math.max(0, numberOr(settings.maxRecursionSteps, 0));
+  const maxPasses = settings.recursive
+    ? configuredMaxSteps || Math.max(1, sorted.length + recursionDelayLevels.length + 1)
+    : 1;
+  const minActivations = configuredMaxSteps > 0 ? 0 : Math.max(0, numberOr(settings.minActivations, 0));
+  const initialScanDepth = Math.max(0, numberOr(settings.worldInfoDepth, 0));
+  const configuredDepthMax = Math.max(0, numberOr(settings.minActivationsDepthMax, 0));
+  const availableDepth = messages.length;
+  const minActivationDepthLimit = configuredDepthMax > 0
+    ? Math.min(configuredDepthMax, availableDepth)
+    : availableDepth;
+  const maxScanDepth = minActivations > 0
+    ? Math.max(initialScanDepth, minActivationDepthLimit)
+    : initialScanDepth;
+  let scanDepth = initialScanDepth;
+  let passIndex = 0;
 
-  for (let pass = 0; pass < maxPasses; pass++) {
-    const recursivePass = pass > 0;
-    const candidates = [];
-    for (const record of sorted) {
-      if (activated.has(record.fullId)) continue;
-      const result = evaluateEntry(record, messages, globalScanData, settings, {
-        ...options,
-        recursionBuffer,
-        recursivePass,
-        recursionLevel,
+  while (true) {
+    const scanSettings = { ...settings, worldInfoDepth: scanDepth };
+    for (let pass = 0; pass < maxPasses; pass++, passIndex++) {
+      const recursivePass = pass > 0;
+      const minimumActivationPass = scanDepth > initialScanDepth && !recursivePass;
+      const candidates = [];
+      for (const record of sorted) {
+        if (activated.has(record.fullId)) continue;
+        const result = evaluateEntry(record, messages, globalScanData, scanSettings, {
+          ...options,
+          recursionBuffer: minimumActivationPass ? [] : recursionBuffer,
+          recursivePass,
+          recursionLevel,
+        });
+        if (result.active) {
+          candidates.push(result);
+        } else {
+          skipped.set(record.fullId, result);
+        }
+      }
+
+      const grouped = applyGrouping(candidates, scanSettings, {
+        seed: options.seed,
+        pass: passIndex,
+        activated: [...activated.values()],
       });
-      if (result.active) {
-        candidates.push(result);
-      } else {
-        skipped.set(record.fullId, result);
+      for (const loser of grouped.skipped) skipped.set(loser.record.fullId, loser);
+
+      const probabilityPassed = [];
+      for (const item of grouped.activated) {
+        const result = applyProbability(item, options.seed);
+        if (result.active) {
+          probabilityPassed.push(result);
+        } else {
+          skipped.set(result.record.fullId, result);
+        }
       }
-    }
 
-    const grouped = applyGrouping(candidates, settings, {
-      seed: options.seed,
-      pass,
-      activated: [...activated.values()],
-    });
-    for (const loser of grouped.skipped) skipped.set(loser.record.fullId, loser);
-
-    const probabilityPassed = [];
-    for (const item of grouped.activated) {
-      const result = applyProbability(item, options.seed);
-      if (result.active) {
-        probabilityPassed.push(result);
-      } else {
-        skipped.set(result.record.fullId, result);
+      const newlyActivated = probabilityPassed.filter(item => !activated.has(item.record.fullId));
+      for (const item of newlyActivated) {
+        activated.set(item.record.fullId, item);
+        skipped.delete(item.record.fullId);
       }
+
+      if (!settings.recursive || !newlyActivated.length) break;
+
+      const recursiveContent = newlyActivated
+        .filter(item => !item.record.entry.preventRecursion)
+        .map(item => expandMacros(item.record.entry.content, options.characterCard, options.scenario || options))
+        .filter(Boolean);
+      if (!recursiveContent.length) break;
+      recursionBuffer.push(...recursiveContent);
+      recursionLevel = recursionDelayLevels[Math.min(pass, recursionDelayLevels.length - 1)] || recursionLevel;
     }
 
-    const newlyActivated = probabilityPassed.filter(item => !activated.has(item.record.fullId));
-    for (const item of newlyActivated) {
-      activated.set(item.record.fullId, item);
-      skipped.delete(item.record.fullId);
-    }
-
-    if (!settings.recursive || !newlyActivated.length) break;
-
-    const recursiveContent = newlyActivated
-      .filter(item => !item.record.entry.preventRecursion)
-      .map(item => expandMacros(item.record.entry.content, options.characterCard, options))
-      .filter(Boolean);
-    if (!recursiveContent.length) break;
-    recursionBuffer.push(...recursiveContent);
-    recursionLevel = recursionDelayLevels[Math.min(pass, recursionDelayLevels.length - 1)] || recursionLevel;
+    if (!minActivations || activated.size >= minActivations || scanDepth >= maxScanDepth) break;
+    scanDepth += 1;
   }
 
   return {
     activated: [...activated.values()].sort((left, right) => promptOrderSort(left.record, right.record)),
     skipped: [...skipped.values()].filter(item => !activated.has(item.record.fullId)),
+    scanDepth,
   };
+}
+
+function sortRecordsForInsertionStrategy(records, strategy) {
+  const normalized = normalizeWorldInfoInsertionStrategy(strategy);
+  if (normalized === WORLD_INFO_INSERTION_STRATEGY.EVENLY) {
+    return [...records].sort(promptOrderSort);
+  }
+  const characterLore = records.filter(record => record.sourceType === 'character-book').sort(promptOrderSort);
+  const globalLore = records.filter(record => record.sourceType !== 'character-book').sort(promptOrderSort);
+  return normalized === WORLD_INFO_INSERTION_STRATEGY.GLOBAL_FIRST
+    ? [...globalLore, ...characterLore]
+    : [...characterLore, ...globalLore];
 }
 
 function evaluateEntry(record, messages, globalScanData, settings, options) {
@@ -777,6 +834,48 @@ function annotateTokenUsage(activeItems, settings, scenario, characterCard) {
       tokenAccuracy: tokenResult.accuracy,
     };
   });
+}
+
+function applyBudget(activeItems, settings) {
+  const maxContext = Math.max(0, numberOr(settings.maxContextTokens, 0));
+  const percent = Math.min(100, Math.max(0, numberOr(settings.budgetPercent, 100)));
+  const percentLimit = maxContext > 0 && percent > 0 ? Math.round(maxContext * percent / 100) : 0;
+  const cap = Math.max(0, numberOr(settings.budgetCap, 0));
+  const limit = cap > 0 ? Math.min(percentLimit || cap, cap) : percentLimit;
+  const activated = [];
+  const skipped = [];
+  let used = 0;
+  let overflowed = false;
+
+  for (const item of activeItems) {
+    const tokens = Math.max(0, numberOr(item.tokens, 0));
+    if (overflowed && !item.record.entry.ignoreBudget) {
+      skipped.push({
+        ...item,
+        active: false,
+        reason: 'budget',
+        message: `The scenario world-info budget was already exhausted (${used}/${limit} tokens).`,
+      });
+      continue;
+    }
+    if (limit > 0 && !item.record.entry.ignoreBudget && used + tokens >= limit) {
+      overflowed = true;
+      skipped.push({
+        ...item,
+        active: false,
+        reason: 'budget',
+        message: `This entry would exceed the scenario world-info budget (${used + tokens}/${limit} tokens).`,
+      });
+      continue;
+    }
+    used += tokens;
+    activated.push(item);
+  }
+
+  const warnings = overflowed && settings.alertOnOverflow
+    ? [{ code: 'budget_overflow', message: `World info budget reached after ${activated.length} entries (${used}/${limit} tokens).` }]
+    : [];
+  return { activated, skipped, used, limit, overflowed, warnings };
 }
 
 function bucketActivatedEntries(activeItems, scenario, characterCard) {
@@ -1027,17 +1126,33 @@ function characterFilterMatches(entry, characterCard) {
 }
 
 function normalizeSettings(input = {}) {
-  const settings = { ...input };
-  delete settings.maxContextTokens;
-  delete settings.budgetPercent;
-  delete settings.budgetCap;
   return {
     ...DEFAULT_SETTINGS,
-    ...settings,
-    worldInfoDepth: numberOr(input.worldInfoDepth, DEFAULT_SETTINGS.worldInfoDepth),
-    maxRecursionSteps: numberOr(input.maxRecursionSteps, DEFAULT_SETTINGS.maxRecursionSteps),
+    ...input,
+    worldInfoDepth: Math.max(0, numberOr(input.worldInfoDepth, DEFAULT_SETTINGS.worldInfoDepth)),
+    minActivations: Math.max(0, numberOr(input.minActivations, DEFAULT_SETTINGS.minActivations)),
+    minActivationsDepthMax: Math.max(0, numberOr(input.minActivationsDepthMax, DEFAULT_SETTINGS.minActivationsDepthMax)),
+    maxContextTokens: Math.max(0, numberOr(input.maxContextTokens, DEFAULT_SETTINGS.maxContextTokens)),
+    budgetPercent: Math.min(100, Math.max(0, numberOr(input.budgetPercent, DEFAULT_SETTINGS.budgetPercent))),
+    budgetCap: Math.max(0, numberOr(input.budgetCap, DEFAULT_SETTINGS.budgetCap)),
+    recursive: input.recursive === undefined ? DEFAULT_SETTINGS.recursive : booleanValue(input.recursive),
+    maxRecursionSteps: Math.max(0, numberOr(input.maxRecursionSteps, DEFAULT_SETTINGS.maxRecursionSteps)),
+    includeNames: input.includeNames === undefined ? DEFAULT_SETTINGS.includeNames : booleanValue(input.includeNames),
+    caseSensitive: input.caseSensitive === undefined ? DEFAULT_SETTINGS.caseSensitive : booleanValue(input.caseSensitive),
+    matchWholeWords: input.matchWholeWords === undefined ? DEFAULT_SETTINGS.matchWholeWords : booleanValue(input.matchWholeWords),
+    useGroupScoring: input.useGroupScoring === undefined ? DEFAULT_SETTINGS.useGroupScoring : booleanValue(input.useGroupScoring),
+    alertOnOverflow: input.alertOnOverflow === undefined ? DEFAULT_SETTINGS.alertOnOverflow : booleanValue(input.alertOnOverflow),
+    worldInfoInsertionStrategy: normalizeWorldInfoInsertionStrategy(input.worldInfoInsertionStrategy),
     tokenizerProfile: cleanText(input.tokenizerProfile) || DEFAULT_SETTINGS.tokenizerProfile,
   };
+}
+
+function normalizeWorldInfoInsertionStrategy(value) {
+  const normalized = cleanText(value).toLowerCase().replaceAll('_', '-');
+  if (normalized === '0' || normalized === 'evenly' || normalized === 'sorted-evenly') return WORLD_INFO_INSERTION_STRATEGY.EVENLY;
+  if (normalized === '2' || normalized === 'global-first') return WORLD_INFO_INSERTION_STRATEGY.GLOBAL_FIRST;
+  if (normalized === '1' || normalized === 'character-first') return WORLD_INFO_INSERTION_STRATEGY.CHARACTER_FIRST;
+  return DEFAULT_SETTINGS.worldInfoInsertionStrategy;
 }
 
 function normalizeMessages(messages) {
@@ -1484,6 +1599,7 @@ module.exports = {
   ROLE,
   SELECTIVE_LOGIC,
   GENERATION_TRIGGERS,
+  WORLD_INFO_INSERTION_STRATEGY,
   ENTRY_DEFAULTS,
   DEFAULT_SETTINGS,
   createDefaultScenario,

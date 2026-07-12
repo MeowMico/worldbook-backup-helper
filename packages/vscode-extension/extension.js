@@ -411,7 +411,6 @@ class WorkbenchPanel {
     this.characterCard = parseCharacterCard(buffer, { filePath: uri.fsPath });
     this.characterCardPath = uri.fsPath;
     this.scenario.characterCardPath = uri.fsPath;
-    if (!this.scenario.charName && this.characterCard.name) this.scenario.charName = this.characterCard.name;
     this.postState();
     await this.compilePreview(this.worldbookText, this.scenario);
   }
@@ -592,7 +591,6 @@ class WorkbenchPanel {
             <fieldset id="scenarioStructuredFields" class="scenario-structured-fields">
               <div class="form-grid">
                 <label title="Keeps probability and group choices stable between previews.">Preview Seed<input id="seedInput" type="text"></label>
-                <label>Character<input id="charInput" type="text"></label>
                 <label>Generation<select id="triggerInput">
                   <option value="normal">Normal</option>
                   <option value="continue">Continue</option>
@@ -608,12 +606,35 @@ class WorkbenchPanel {
                   <option value="llama-estimate">Llama estimate</option>
                   <option value="claude-estimate">Claude estimate</option>
                 </select></label>
-                <label>Depth<input id="depthInput" type="number" min="0"></label>
               </div>
-              <div class="scenario-toggles">
-                <label class="check-row"><input id="recursiveInput" type="checkbox"> Recursive</label>
+              <div class="scenario-toggles scenario-source-toggles">
                 <label class="check-row"><input id="characterBookInput" type="checkbox"> Character book</label>
               </div>
+              <details class="scenario-global-settings" open>
+                <summary>Global Activation Settings</summary>
+                <div class="form-grid scenario-global-grid">
+                  <label title="How many recent chat messages world-info keyword matching scans.">Scan Depth<input id="depthInput" type="number" min="0"></label>
+                  <label title="Standalone context size used to calculate the world-info budget. Zero disables the percentage budget.">Context Size<input id="contextSizeInput" type="number" min="0"></label>
+                  <label title="Percentage of Context Size available to activated world info.">Context %<input id="budgetPercentInput" type="number" min="0" max="100"></label>
+                  <label title="Maximum world-info tokens. Zero means no separate cap.">Budget Cap<input id="budgetCapInput" type="number" min="0"></label>
+                  <label title="Continue scanning older messages until this many entries activate. Setting this above zero resets Max Recursion Steps.">Min Activations<input id="minActivationsInput" type="number" min="0"></label>
+                  <label title="Oldest message depth Min Activations may reach. Zero allows the whole chat.">Max Depth<input id="minActivationsDepthMaxInput" type="number" min="0"></label>
+                  <label title="Maximum scan passes. Zero continues until no new recursive entries activate. Setting this above zero resets Min Activations.">Max Recursion Steps<input id="maxRecursionStepsInput" type="number" min="0"></label>
+                  <label>Insertion Strategy<select id="insertionStrategyInput">
+                    <option value="evenly">Sorted Evenly</option>
+                    <option value="character-first">Character Lore First</option>
+                    <option value="global-first">Global Lore First</option>
+                  </select></label>
+                </div>
+                <div class="scenario-toggles scenario-global-toggles">
+                  <label class="check-row"><input id="includeNamesInput" type="checkbox"> Include Names</label>
+                  <label class="check-row"><input id="recursiveInput" type="checkbox"> Recursive Scan</label>
+                  <label class="check-row"><input id="caseSensitiveInput" type="checkbox"> Case-sensitive</label>
+                  <label class="check-row"><input id="matchWholeWordsInput" type="checkbox"> Match Whole Words</label>
+                  <label class="check-row"><input id="useGroupScoringInput" type="checkbox"> Use Group Scoring</label>
+                  <label class="check-row"><input id="alertOnOverflowInput" type="checkbox"> Alert On Overflow</label>
+                </div>
+              </details>
               <section class="scenario-editor-section">
                 <div class="scenario-section-head">
                   <div><h3>Chat Messages</h3><span id="messageCount">0 messages</span></div>

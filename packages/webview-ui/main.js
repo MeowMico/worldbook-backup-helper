@@ -65,11 +65,22 @@
     applyJsonButton: document.querySelector('#applyJsonButton'),
     scenarioStructuredFields: document.querySelector('#scenarioStructuredFields'),
     seedInput: document.querySelector('#seedInput'),
-    charInput: document.querySelector('#charInput'),
     triggerInput: document.querySelector('#triggerInput'),
     tokenizerInput: document.querySelector('#tokenizerInput'),
     depthInput: document.querySelector('#depthInput'),
+    contextSizeInput: document.querySelector('#contextSizeInput'),
+    budgetPercentInput: document.querySelector('#budgetPercentInput'),
+    budgetCapInput: document.querySelector('#budgetCapInput'),
+    minActivationsInput: document.querySelector('#minActivationsInput'),
+    minActivationsDepthMaxInput: document.querySelector('#minActivationsDepthMaxInput'),
+    maxRecursionStepsInput: document.querySelector('#maxRecursionStepsInput'),
+    insertionStrategyInput: document.querySelector('#insertionStrategyInput'),
+    includeNamesInput: document.querySelector('#includeNamesInput'),
     recursiveInput: document.querySelector('#recursiveInput'),
+    caseSensitiveInput: document.querySelector('#caseSensitiveInput'),
+    matchWholeWordsInput: document.querySelector('#matchWholeWordsInput'),
+    useGroupScoringInput: document.querySelector('#useGroupScoringInput'),
+    alertOnOverflowInput: document.querySelector('#alertOnOverflowInput'),
     characterBookInput: document.querySelector('#characterBookInput'),
     messageCount: document.querySelector('#messageCount'),
     messageList: document.querySelector('#messageList'),
@@ -167,15 +178,35 @@
   el.addMessageButton.addEventListener('click', addScenarioMessage);
   const scenarioInputs = [
     el.seedInput,
-    el.charInput,
     el.triggerInput,
     el.tokenizerInput,
     el.depthInput,
+    el.contextSizeInput,
+    el.budgetPercentInput,
+    el.budgetCapInput,
+    el.minActivationsDepthMaxInput,
+    el.insertionStrategyInput,
     el.recursiveInput,
+    el.caseSensitiveInput,
+    el.matchWholeWordsInput,
+    el.useGroupScoringInput,
+    el.alertOnOverflowInput,
     el.characterBookInput,
     el.forceText,
   ];
   scenarioInputs.forEach(input => input.addEventListener('input', handleScenarioControlsChanged));
+  el.includeNamesInput.addEventListener('input', () => {
+    renderScenarioMessages();
+    handleScenarioControlsChanged();
+  });
+  el.minActivationsInput.addEventListener('input', () => {
+    if (numberValue(el.minActivationsInput.value, 0) > 0) el.maxRecursionStepsInput.value = '0';
+    handleScenarioControlsChanged();
+  });
+  el.maxRecursionStepsInput.addEventListener('input', () => {
+    if (numberValue(el.maxRecursionStepsInput.value, 0) > 0) el.minActivationsInput.value = '0';
+    handleScenarioControlsChanged();
+  });
   el.tabs.forEach(tab => tab.addEventListener('click', () => setActiveTab(tab.dataset.tab)));
   renderEntryToolsVisibility();
 
@@ -703,15 +734,27 @@
     state.scenario = source;
 
     el.seedInput.value = source.seed || '';
-    el.charInput.value = source.charName || '';
     el.triggerInput.value = source.trigger || 'normal';
     el.tokenizerInput.value = settings.tokenizerProfile || 'estimate';
     el.depthInput.value = settings.worldInfoDepth ?? 4;
+    el.contextSizeInput.value = settings.maxContextTokens ?? 0;
+    el.budgetPercentInput.value = settings.budgetPercent ?? 100;
+    el.budgetCapInput.value = settings.budgetCap ?? 0;
+    el.minActivationsInput.value = settings.minActivations ?? 0;
+    el.minActivationsDepthMaxInput.value = settings.minActivationsDepthMax ?? 0;
+    el.maxRecursionStepsInput.value = settings.maxRecursionSteps ?? 2;
+    el.insertionStrategyInput.value = settings.worldInfoInsertionStrategy || 'character-first';
+    el.includeNamesInput.checked = settings.includeNames === true;
     el.recursiveInput.checked = settings.recursive !== false;
+    el.caseSensitiveInput.checked = settings.caseSensitive === true;
+    el.matchWholeWordsInput.checked = settings.matchWholeWords === true;
+    el.useGroupScoringInput.checked = settings.useGroupScoring === true;
+    el.alertOnOverflowInput.checked = settings.alertOnOverflow === true;
     el.characterBookInput.checked = source.includeCharacterBook !== false;
     el.forceText.value = source.forceActivate.join('\n');
     el.forceText.removeAttribute('aria-invalid');
     el.scenarioStructuredFields.disabled = false;
+    updateActivationControlState();
     renderScenarioMessages();
     syncScenarioJsonText();
   }
@@ -764,6 +807,19 @@
       );
       head.append(number, roleLabel, actions);
 
+      const nameLabel = document.createElement('label');
+      nameLabel.textContent = 'Name';
+      const name = document.createElement('input');
+      name.type = 'text';
+      name.value = String(message.name || '');
+      name.placeholder = 'Optional message name';
+      name.setAttribute('aria-label', `Message ${index + 1} name`);
+      name.addEventListener('input', () => {
+        message.name = name.value;
+        handleScenarioControlsChanged();
+      });
+      nameLabel.append(name);
+
       const contentLabel = document.createElement('label');
       contentLabel.textContent = 'Content';
       const content = document.createElement('textarea');
@@ -776,7 +832,9 @@
         handleScenarioControlsChanged();
       });
       contentLabel.append(content);
-      row.append(head, contentLabel);
+      row.append(head);
+      if (el.includeNamesInput.checked) row.append(nameLabel);
+      row.append(contentLabel);
       el.messageList.append(row);
     });
   }
@@ -825,6 +883,11 @@
     state.scenario.messages.splice(index, 1);
     renderScenarioMessages();
     handleScenarioControlsChanged();
+  }
+
+  function updateActivationControlState() {
+    const minActivationsEnabled = numberValue(el.minActivationsInput.value, 0) > 0;
+    el.minActivationsDepthMaxInput.disabled = !minActivationsEnabled;
   }
 
   function handleScenarioControlsChanged() {
@@ -959,7 +1022,15 @@
       el.preview.append(empty);
       return;
     }
-    el.tokenMeta.textContent = `${result.tokenUsage.allEntriesTokens} all entries | ${result.tokenUsage.worldInfoTokens} active WI | ${result.tokenUsage.timelineTokens} timeline | ${result.tokenizer.accuracy}`;
+    const tokenParts = [
+      `${result.tokenUsage.allEntriesTokens} all entries`,
+      `${result.tokenUsage.worldInfoTokens} active WI`,
+      `${result.tokenUsage.timelineTokens} timeline`,
+    ];
+    if (result.tokenBudget?.limit > 0) tokenParts.push(`${result.tokenBudget.used}/${result.tokenBudget.limit} WI budget`);
+    if (Number(result.activationScanDepth) > Number(result.settings?.worldInfoDepth)) tokenParts.push(`scan depth ${result.activationScanDepth}`);
+    tokenParts.push(result.tokenizer.accuracy);
+    el.tokenMeta.textContent = tokenParts.join(' | ');
 
     const summary = document.createElement('div');
     summary.className = 'summary-strip';
@@ -1089,19 +1160,31 @@
         seed: el.seedInput.value,
         trigger: el.triggerInput.value || 'normal',
         userName: '{{user}}',
-        charName: el.charInput.value,
         includeCharacterBook: el.characterBookInput.checked,
         settings: {
           ...previousSettings,
           tokenizerProfile: el.tokenizerInput.value,
           worldInfoDepth: Math.max(0, numberValue(el.depthInput.value, 4)),
+          maxContextTokens: Math.max(0, numberValue(el.contextSizeInput.value, 0)),
+          budgetPercent: clamp(numberValue(el.budgetPercentInput.value, 100), 0, 100),
+          budgetCap: Math.max(0, numberValue(el.budgetCapInput.value, 0)),
+          minActivations: Math.max(0, numberValue(el.minActivationsInput.value, 0)),
+          minActivationsDepthMax: Math.max(0, numberValue(el.minActivationsDepthMaxInput.value, 0)),
+          maxRecursionSteps: Math.max(0, numberValue(el.maxRecursionStepsInput.value, 2)),
+          worldInfoInsertionStrategy: el.insertionStrategyInput.value || 'character-first',
+          includeNames: el.includeNamesInput.checked,
           recursive: el.recursiveInput.checked,
+          caseSensitive: el.caseSensitiveInput.checked,
+          matchWholeWords: el.matchWholeWordsInput.checked,
+          useGroupScoring: el.useGroupScoringInput.checked,
+          alertOnOverflow: el.alertOnOverflowInput.checked,
         },
         messages: Array.isArray(previous.messages) ? previous.messages : [],
         forceActivate: parseStringListText(el.forceText.value, 'Force Activate IDs'),
       };
       el.forceText.removeAttribute('aria-invalid');
       state.scenario = scenario;
+      updateActivationControlState();
       return scenario;
     } catch (error) {
       el.forceText.setAttribute('aria-invalid', 'true');

@@ -2,6 +2,12 @@
 
 All notable changes to the VS Code and Cursor extension are documented here.
 
+## 0.2.4 - 2026-07-12
+
+- Removed the redundant manual character-name field from the structured scenario editor while preserving legacy `charName` values in scenario JSON.
+- Renamed Depth to Scan Depth and clarified that it controls world-info keyword scanning across recent chat messages.
+- Added Scenario-only global activation controls for context budget, minimum activations, name and keyword matching, recursion limits, group scoring, overflow alerts, and character/global lore insertion strategy.
+
 ## 0.2.3 - 2026-07-11
 
 - Aligned strategy indicator colors with SillyTavern conventions: blue for constant entries and green for keyword-triggered selective entries.

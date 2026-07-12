@@ -75,6 +75,9 @@ test('scenario JSON round trip normalizes defaults', () => {
   assert.equal(parsed.worldbookPath, '/tmp/book.json');
   assert.equal(parsed.includeCharacterBook, true);
   assert.equal(parsed.trigger, 'normal');
+  assert.equal(parsed.settings.maxContextTokens, 0);
+  assert.equal(parsed.settings.budgetPercent, 100);
+  assert.equal(parsed.settings.worldInfoInsertionStrategy, 'character-first');
 });
 
 test('scenario JSON preserves unknown scenario and message fields', () => {
@@ -164,7 +167,7 @@ test('compilePromptPreview activates constants and depth entries in timeline ord
   assert.ok(result.timeline.some(item => item.title === 'Before' && item.bucket === 'world_info_before_character'));
 });
 
-test('compilePromptPreview reports total and per-entry tokens without truncating entries', () => {
+test('compilePromptPreview reports tokens and applies an optional scenario budget', () => {
   const worldbook = {
     entries: {
       keep: { comment: 'Keep', content: 'short', key: ['alpha'], keysecondary: ['beta'], selective: true, selectiveLogic: 0, order: 100 },
@@ -176,25 +179,115 @@ test('compilePromptPreview reports total and per-entry tokens without truncating
     worldbooks: [{ name: 'book', data: worldbook }],
     scenario: {
       ...createDefaultScenario(),
-      settings: { maxContextTokens: 100, budgetPercent: 10, budgetCap: 5, recursive: false },
+      settings: { maxContextTokens: 100, budgetPercent: 100, budgetCap: 5, alertOnOverflow: true, recursive: false },
       messages: [{ role: 'user', content: 'alpha beta' }],
     },
   });
   assert.ok(result.activatedEntries.some(entry => entry.title === 'Keep'));
   assert.ok(result.skippedEntries.some(entry => entry.title === 'Miss' && entry.reason === 'secondary_logic_failed'));
-  assert.ok(result.activatedEntries.some(entry => entry.title === 'Long'));
-  assert.equal(result.skippedEntries.some(entry => entry.reason === 'budget'), false);
+  assert.ok(result.skippedEntries.some(entry => entry.title === 'Long' && entry.reason === 'budget'));
   assert.equal(result.tokenUsage.worldInfoTokens, result.activatedEntries.reduce((sum, entry) => sum + entry.tokens, 0));
   assert.equal(
     result.tokenUsage.allEntriesTokens,
     [...result.activatedEntries, ...result.skippedEntries].reduce((sum, entry) => sum + entry.tokens, 0),
   );
   assert.ok(result.tokenUsage.timelineTokens >= result.tokenUsage.worldInfoTokens);
-  assert.ok(result.activatedEntries.find(entry => entry.title === 'Long').tokens > result.activatedEntries.find(entry => entry.title === 'Keep').tokens);
+  assert.ok(result.skippedEntries.find(entry => entry.title === 'Long').tokens > result.activatedEntries.find(entry => entry.title === 'Keep').tokens);
   assert.ok(result.skippedEntries.find(entry => entry.title === 'Miss').tokens > 0);
-  assert.equal(result.settings.maxContextTokens, undefined);
-  assert.equal(result.settings.budgetPercent, undefined);
-  assert.equal(result.settings.budgetCap, undefined);
+  assert.deepEqual(result.tokenBudget, { limit: 5, used: result.tokenUsage.worldInfoTokens, overflowed: true });
+  assert.ok(result.warnings.some(warning => warning.code === 'budget_overflow'));
+});
+
+test('minimum activations can extend the global chat scan depth', () => {
+  const result = compilePromptPreview({
+    worldbooks: [{
+      name: 'book',
+      data: { entries: { old: { comment: 'Older match', content: 'found', key: ['alpha'] } } },
+    }],
+    scenario: {
+      ...createDefaultScenario(),
+      settings: {
+        ...createDefaultScenario().settings,
+        worldInfoDepth: 1,
+        minActivations: 1,
+        minActivationsDepthMax: 2,
+        maxRecursionSteps: 0,
+        recursive: false,
+      },
+      messages: [
+        { role: 'user', content: 'alpha appeared earlier' },
+        { role: 'assistant', content: 'the latest message does not match' },
+      ],
+    },
+  });
+  assert.equal(result.activationScanDepth, 2);
+  assert.deepEqual(result.activatedEntries.map(entry => entry.title), ['Older match']);
+});
+
+test('global keyword matching settings control names, case, and whole words', () => {
+  const worldbook = {
+    entries: {
+      named: { comment: 'Named', content: 'named', key: ['Narrator'] },
+      cased: { comment: 'Cased', content: 'cased', key: ['Alpha'] },
+      whole: { comment: 'Whole', content: 'whole', key: ['cat'] },
+    },
+  };
+  const result = compilePromptPreview({
+    worldbooks: [{ name: 'book', data: worldbook }],
+    scenario: {
+      ...createDefaultScenario(),
+      settings: {
+        ...createDefaultScenario().settings,
+        includeNames: true,
+        caseSensitive: true,
+        matchWholeWords: true,
+        recursive: false,
+      },
+      messages: [{ role: 'user', name: 'Narrator', content: 'alpha concatenate' }],
+    },
+  });
+  assert.deepEqual(result.activatedEntries.map(entry => entry.title), ['Named']);
+  assert.ok(result.skippedEntries.some(entry => entry.title === 'Cased' && entry.reason === 'primary_keys_not_found'));
+  assert.ok(result.skippedEntries.some(entry => entry.title === 'Whole' && entry.reason === 'primary_keys_not_found'));
+});
+
+test('character and global lore insertion strategies control budget priority', () => {
+  const worldbook = {
+    entries: {
+      global: { comment: 'Global lore', content: 'G', constant: true, order: 100 },
+    },
+  };
+  const characterCard = {
+    data: {
+      name: 'Card',
+      character_book: {
+        entries: {
+          character: { comment: 'Character lore', content: 'C', constant: true, order: 100 },
+        },
+      },
+    },
+  };
+  const run = worldInfoInsertionStrategy => compilePromptPreview({
+    worldbooks: [{ name: 'global', data: worldbook }],
+    characterCard,
+    scenario: {
+      ...createDefaultScenario(),
+      settings: {
+        ...createDefaultScenario().settings,
+        budgetCap: 2,
+        recursive: false,
+        worldInfoInsertionStrategy,
+      },
+      messages: [{ role: 'user', content: 'hello' }],
+    },
+  });
+
+  const characterFirst = run('character-first');
+  const globalFirst = run('global-first');
+  const evenly = run('evenly');
+  assert.deepEqual(characterFirst.activatedEntries.map(entry => entry.sourceType), ['character-book']);
+  assert.deepEqual(globalFirst.activatedEntries.map(entry => entry.sourceType), ['worldbook']);
+  assert.deepEqual(evenly.activatedEntries.map(entry => entry.sourceType), ['worldbook']);
 });
 
 test('compilePromptPreview handles groups, probability seed, recursion, and timed state', () => {
