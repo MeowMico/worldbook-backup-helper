@@ -45,10 +45,16 @@ https://github.com/MeowMico/worldbook-backup-helper
 
 本仓库同时提供不依赖 SillyTavern 运行环境的 VS Code / Cursor 独立版。它可以直接打开世界书 JSON、批量编辑和跨文件复制条目，并预览世界书条目最终进入 system/user/assistant 消息的顺序。快照、实验、Diff 和 Restore 会保存在同目录的 `<世界书名>.wbh-history.json` 旁路文件中，不会向原世界书 JSON 添加工作台字段。
 
+独立版支持 80 步会话内撤销和重做；连续输入会合并为一步，新增、复制、启停、删除、批量替换和 Apply JSON 会各自作为完整的一步。保存或 Restore 后由持久快照继续负责回溯。
+
+独立版提供“跟随 VS Code/Cursor”“English”“简体中文”三种语言选项，默认跟随编辑器显示语言。中文编辑器区域设置会使用简体中文界面，其他语言默认回退英文；也可以在工作台顶部或编辑器设置中强制指定语言，切换时不会丢失未保存的编辑。
+
 请根据编辑器使用对应的商店安装：
 
 - Microsoft 官方 VS Code：[Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=MeowMico.worldbook-workbench-vscode)
 - Cursor、VSCodium 及其他 Open VSX 客户端：[Open VSX](https://open-vsx.org/extension/meowmico/worldbook-workbench-vscode)
+
+完整的独立版编辑、预览和历史流程请参阅[简体中文使用手册](packages/vscode-extension/USER_GUIDE.zh-CN.md)，也可以在工作台顶部点击 `?` 随时打开。
 
 建议从商店安装，这样后续版本可以正常自动更新。手动安装 `.vsix` 更适合本地测试；在 Microsoft 官方 VS Code 中，这类安装默认不会自动跟随商店版本更新。
 

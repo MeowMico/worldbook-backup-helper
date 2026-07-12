@@ -4,6 +4,8 @@ Edit SillyTavern worldbooks in VS Code or Cursor, then inspect where every activ
 
 Worldbook Workbench is a standalone companion to the SillyTavern extension. It works directly with exported worldbook JSON files and does not require a running SillyTavern instance.
 
+New to the Workbench? Open the [`?` help button](USER_GUIDE.md) or read the [简体中文使用手册](USER_GUIDE.zh-CN.md).
+
 ## Install
 
 - [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=MeowMico.worldbook-workbench-vscode) for Microsoft Visual Studio Code.
@@ -19,6 +21,8 @@ Install from your editor's marketplace to receive normal extension updates. Manu
 - Collapse the entry filter and multi-select tools when more room is needed for the entry list.
 - Select multiple entries to enable, disable, delete, or copy them into any other worldbook JSON file.
 - Find, replace, or delete matching text across titles, keywords, and content in one batch.
+- Undo or redo up to 80 in-session worldbook edits, including entry actions, batch changes, and applied Raw JSON.
+- Use English, Simplified Chinese, or the default language mode that follows VS Code or Cursor.
 - Edit title, native entry status, position, order, probability, depth, role, keywords, optional-filter logic, and content.
 - Open the collapsed advanced editor for per-entry overrides, recursion, groups, timed effects, character and generation filters, and additional matching sources.
 - See constant, normal keyword-triggered, vectorized, disabled, triggered, and not-triggered states at a glance.
@@ -26,8 +30,8 @@ Install from your editor's marketplace to receive normal extension updates. Manu
 - See why each entry activated or did not activate.
 - Display token estimates for every entry, all entries, active world info, and the complete timeline.
 - Import character cards from JSON or PNG metadata, including embedded character books.
-- Edit chat messages as ordered system/user/assistant rows and inspect the synchronized full scenario JSON.
-- Save reusable chat and activation scenarios beside the worldbook while keeping `{{user}}` portable.
+- Edit chat messages as ordered system/user/assistant rows and inspect the synchronized full preview-setup JSON.
+- Save reusable preview setups beside the worldbook while keeping `{{user}}` portable.
 - Create snapshots and named experiments, compare them in VS Code's native Diff editor, and restore earlier versions.
 - Preserve unknown worldbook fields and the original object/array shape of `entries`.
 
@@ -40,9 +44,13 @@ Install from your editor's marketplace to receive normal extension updates. Manu
 
 The same commands are available from the Command Palette. This is useful when an editor or file explorer context menu is not visible.
 
+## Language
+
+The language menu in the Workbench toolbar offers **Follow VS Code/Cursor**, **English**, and **Simplified Chinese**. Follow mode is the default: Chinese editor locales use the Simplified Chinese interface, while other locales fall back to English. The same preference is available as `Worldbook Workbench: Language` in editor settings, and changing it updates an open Workbench without discarding edits.
+
 ## Prompt Preview
 
-The preview combines the selected worldbook, optional character card, and a local chat scenario. It shows the resulting message skeleton without pretending to reproduce a provider-specific API request wrapper.
+The preview combines the selected worldbook, optional character card, and local Preview Setup. It shows the resulting message skeleton without pretending to reproduce a provider-specific API request wrapper.
 
 ![Prompt timeline with triggered and not-triggered entries](https://raw.githubusercontent.com/MeowMico/worldbook-backup-helper/main/packages/vscode-extension/media/screenshots/prompt-preview.png)
 
@@ -56,9 +64,9 @@ Optional Filter is independent from entry status, matching SillyTavern's `Select
 
 Token profiles identify whether their result is exact for the selected tokenizer or an estimate. Unknown and unavailable tokenizers fall back to a clearly labeled estimate.
 
-## Scenario Files
+## Preview Setup Files
 
-Preview settings are stored next to the worldbook as `<worldbook>.wbh.json`. A scenario can include:
+The **Preview Setup** tab is a local test environment, not the character card's Scenario field. Its settings are stored next to the worldbook as `<worldbook>.wbh.json` and can include:
 
 - ordered system, user, and assistant chat messages
 - the portable `{{user}}` macro
@@ -72,13 +80,15 @@ Preview settings are stored next to the worldbook as `<worldbook>.wbh.json`. A s
 - manually forced entry IDs
 - an optional character-card path
 
-The sidecar file does not modify or add workbench metadata to the worldbook itself. Imported character cards are read-only. Unknown scenario and message fields are retained when the structured editor updates the file.
+The sidecar file does not modify or add workbench metadata to the worldbook itself. Imported character cards are read-only. Unknown preview-setup and message fields are retained when the structured editor updates the file.
 
 ## History Files
 
 Snapshots and experiments are stored beside the worldbook as `<worldbook>.wbh-history.json`. Open them from **Experiments** in the top toolbar or the **History** tab. **New experiment** captures the baseline, and **Save result** captures the edited result for Diff or Restore. The history file also contains automatic before/after records for saves and cross-worldbook copies.
 
 History never adds workbench fields to the worldbook JSON. Restoring a snapshot saves the current draft to history before writing the selected version, so the restore itself remains reversible.
+
+The toolbar Undo and Redo controls cover unsaved worldbook edits during the current Workbench session. Continuous typing in one field is grouped into one step, while create, duplicate, enable/disable, delete, batch replace, and Apply JSON actions each form a single step. Saving or restoring clears the in-session stack because durable snapshots take over at that point.
 
 ## Compatibility Notes
 
@@ -91,12 +101,13 @@ Vector search, automation hooks, and external outlet runtimes require SillyTaver
 - `Worldbook Workbench: Open Worldbook Workbench`
 - `Worldbook Workbench: Import Character Card`
 - `Worldbook Workbench: Open Prompt Preview`
-- `Worldbook Workbench: Save Scenario`
+- `Worldbook Workbench: Save Preview Setup`
 - `Worldbook Workbench: Export Worldbook JSON`
+- `Worldbook Workbench: Open User Guide`
 
 ## Privacy
 
-Worldbooks, character cards, scenarios, and previews are processed locally. The extension does not upload their contents.
+Worldbooks, character cards, preview setups, and previews are processed locally. The extension does not upload their contents.
 
 ## Support
 

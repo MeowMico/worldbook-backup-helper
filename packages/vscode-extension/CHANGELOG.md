@@ -2,6 +2,27 @@
 
 All notable changes to the VS Code and Cursor extension are documented here.
 
+## 0.2.9 - 2026-07-12
+
+- Renamed the user-facing Scenario workspace to Preview Setup so it is not confused with the character-card Scenario field.
+- Added a concise explanation that preview setup is stored separately and never exported into worldbook JSON.
+- Added built-in English and Simplified Chinese user guides, available from the toolbar and Command Palette.
+
+## 0.2.8 - 2026-07-12
+
+- Added English and Simplified Chinese interfaces with an Auto mode that follows the VS Code or Cursor display language by default.
+- Added a persistent language selector in the Workbench toolbar and the `worldbookWorkbench.language` editor setting.
+- Localized Workbench controls, generated labels, history views, preview metadata, dialogs, notifications, and extension commands without changing worldbook or sidecar data formats.
+
+## 0.2.7 - 2026-07-12
+
+- Added an 80-step worldbook Undo/Redo history for entry edits, entry actions, batch replacements, and applied Raw JSON changes.
+
+## 0.2.6 - 2026-07-12
+
+- Fixed Advanced Entry Settings and scenario disclosure rows so they reliably expand in VS Code and Cursor webviews.
+- Added visible disclosure indicators and scroll the first settings group into view after expanding.
+
 ## 0.2.5 - 2026-07-12
 
 - Aligned entry status with SillyTavern 1.18: Normal, Constant, and Vectorized are the three statuses, while Optional Filter is controlled independently.

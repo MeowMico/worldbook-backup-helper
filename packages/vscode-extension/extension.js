@@ -21,6 +21,7 @@ const {
   parseCharacterCard,
   compilePromptPreview,
 } = loadCore();
+const i18n = loadI18n();
 
 let activePanel = null;
 const DIFF_SCHEME = 'worldbook-workbench-diff';
@@ -39,6 +40,10 @@ function activate(context) {
     vscode.commands.registerCommand('worldbookWorkbench.importCharacterCard', () => withPanel(context, panel => panel.importCharacterCard())),
     vscode.commands.registerCommand('worldbookWorkbench.saveScenario', () => withPanel(context, panel => panel.saveScenario())),
     vscode.commands.registerCommand('worldbookWorkbench.exportWorldbookJson', () => withPanel(context, panel => panel.exportWorldbookJson())),
+    vscode.commands.registerCommand('worldbookWorkbench.openUserGuide', () => openUserGuide(context)),
+    vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('worldbookWorkbench.language')) activePanel?.refreshLanguage();
+    }),
   );
 }
 
@@ -50,11 +55,23 @@ async function withPanel(context, callback) {
   return callback(panel);
 }
 
+async function openUserGuide(context, language = getLanguageState().language) {
+  const fileName = language === 'zh' ? 'USER_GUIDE.zh-CN.md' : 'USER_GUIDE.md';
+  const uri = vscode.Uri.file(path.join(context.extensionPath, fileName));
+  try {
+    await vscode.workspace.openTextDocument(uri);
+    await vscode.commands.executeCommand('markdown.showPreview', uri);
+  } catch (error) {
+    const message = hostText('Could not open the user guide: {message}', { message: error.message }, language);
+    vscode.window.showErrorMessage(message);
+  }
+}
+
 class WorkbenchPanel {
   static async createOrShow(context, uri, mode) {
     const worldbookUri = await resolveWorldbookUri(uri);
     if (!worldbookUri) {
-      vscode.window.showWarningMessage('Open or select a worldbook JSON file first.');
+      vscode.window.showWarningMessage(hostText('Open or select a worldbook JSON file first.'));
       return null;
     }
 
@@ -66,7 +83,7 @@ class WorkbenchPanel {
 
     const panel = vscode.window.createWebviewPanel(
       'worldbookWorkbench',
-      'Worldbook Workbench',
+      hostText('Worldbook Workbench'),
       vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -92,6 +109,7 @@ class WorkbenchPanel {
     this.characterCardPath = '';
     this.history = createDefaultHistory('');
     this.mode = 'edit';
+    this.languageState = getLanguageState();
     this.panel.webview.html = this.html();
     this.panel.webview.onDidReceiveMessage(message => this.onMessage(message), null, context.subscriptions);
   }
@@ -109,6 +127,10 @@ class WorkbenchPanel {
     this.characterCard = this.characterCardPath ? await readCharacterCardSafely(this.characterCardPath) : null;
     this.postState();
     if (mode === 'preview') await this.compilePreview(this.worldbookText, this.scenario);
+  }
+
+  text(key, values) {
+    return hostText(key, values, this.languageState.language);
   }
 
   async loadScenarioForWorldbook(uri) {
@@ -152,6 +174,12 @@ class WorkbenchPanel {
           break;
         case 'finishExperiment':
           await this.finishExperiment(message.worldbookText, message.experimentId);
+          break;
+        case 'setLanguage':
+          await this.setLanguage(message.preference);
+          break;
+        case 'openUserGuide':
+          await openUserGuide(this.context, this.languageState.language);
           break;
         case 'diffSnapshot':
           await this.diffSnapshot(message.snapshotId, message.worldbookText);
@@ -212,7 +240,7 @@ class WorkbenchPanel {
     this.worldbookText = text;
     this.post({
       type: 'saved',
-      message: 'Worldbook saved.',
+      message: this.text('Worldbook saved.'),
       worldbookText: text,
       history: summarizeHistory(this.history),
     });
@@ -225,7 +253,7 @@ class WorkbenchPanel {
     try {
       history = parseHistoryJson(await fs.readFile(target, 'utf8'), { worldbookPath });
     } catch (error) {
-      if (error?.code !== 'ENOENT') throw new Error(`Could not read ${path.basename(target)}: ${error.message}`);
+      if (error?.code !== 'ENOENT') throw new Error(this.text('Could not read {file}: {message}', { file: path.basename(target), message: error.message }));
       history = createDefaultHistory(worldbookPath);
       needsWrite = true;
     }
@@ -245,9 +273,9 @@ class WorkbenchPanel {
 
   async createSnapshot(worldbookText = this.worldbookText) {
     const label = await vscode.window.showInputBox({
-      title: 'Create Worldbook Snapshot',
-      prompt: 'Name this snapshot',
-      value: `Snapshot ${new Date().toLocaleString()}`,
+      title: this.text('Create Worldbook Snapshot'),
+      prompt: this.text('Name this snapshot'),
+      value: this.text('Snapshot {date}', { date: new Date().toLocaleString(this.languageState.language === 'zh' ? 'zh-CN' : undefined) }),
       ignoreFocusOut: true,
     });
     if (label === undefined) return;
@@ -260,14 +288,14 @@ class WorkbenchPanel {
     });
     this.history = result.history;
     await this.writeHistory(this.worldbookUri.fsPath, this.history);
-    this.postHistory(`Snapshot created: ${result.snapshot.label}`);
+    this.postHistory(this.text('Snapshot created: {label}', { label: result.snapshot.label }));
   }
 
   async startExperiment(worldbookText = this.worldbookText) {
     const title = await vscode.window.showInputBox({
-      title: 'New Worldbook Experiment',
-      prompt: 'What are you testing?',
-      value: 'New experiment',
+      title: this.text('New Worldbook Experiment'),
+      prompt: this.text('What are you testing?'),
+      value: this.text('New experiment'),
       ignoreFocusOut: true,
     });
     if (title === undefined) return;
@@ -277,60 +305,61 @@ class WorkbenchPanel {
     });
     this.history = result.history;
     await this.writeHistory(this.worldbookUri.fsPath, this.history);
-    this.postHistory(`Experiment started: ${result.experiment.title}`);
+    this.postHistory(this.text('Experiment started: {title}', { title: result.experiment.title }));
   }
 
   async finishExperiment(worldbookText = this.worldbookText, experimentId = '') {
     const active = this.history.experiments.find(experiment => experiment.id === String(experimentId || '') && experiment.status === 'active')
       || this.history.experiments.find(experiment => experiment.status === 'active');
-    if (!active) throw new Error('There is no active experiment to save.');
+    if (!active) throw new Error(this.text('There is no active experiment to save.'));
     const parsed = parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath });
     const result = finishHistoryExperiment(this.history, active.id, parsed.data, {
       worldbookPath: this.worldbookUri.fsPath,
     });
     this.history = result.history;
     await this.writeHistory(this.worldbookUri.fsPath, this.history);
-    this.postHistory(`Experiment result saved: ${result.experiment.title}`);
+    this.postHistory(this.text('Experiment result saved: {title}', { title: result.experiment.title }));
   }
 
   async diffSnapshot(snapshotId, worldbookText = this.worldbookText) {
     const snapshot = getHistorySnapshot(this.history, snapshotId);
-    if (!snapshot?.data) throw new Error('Snapshot not found.');
+    if (!snapshot?.data) throw new Error(this.text('Snapshot not found.'));
     const current = parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath });
     await openWorldbookDiff(
       serializeWorldbookJson(snapshot.data),
       serializeWorldbookJson(current.data),
-      `${snapshot.label} <-> Current`,
+      `${snapshot.label} <-> ${this.text('Current')}`,
       snapshot.label,
-      'Current draft',
+      this.text('Current draft'),
     );
   }
 
   async diffExperiment(experimentId, worldbookText = this.worldbookText) {
     const experiment = this.history.experiments.find(item => item.id === String(experimentId || ''));
-    if (!experiment) throw new Error('Experiment not found.');
+    if (!experiment) throw new Error(this.text('Experiment not found.'));
     const baseline = getHistorySnapshot(this.history, experiment.baselineSnapshotId);
-    if (!baseline?.data) throw new Error('Experiment baseline not found.');
+    if (!baseline?.data) throw new Error(this.text('Experiment baseline not found.'));
     const after = experiment.afterSnapshotId ? getHistorySnapshot(this.history, experiment.afterSnapshotId) : null;
     const right = after?.data || parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath }).data;
     await openWorldbookDiff(
       serializeWorldbookJson(baseline.data),
       serializeWorldbookJson(right),
-      `Experiment: ${experiment.title}`,
-      'Baseline',
-      after ? 'After' : 'Current draft',
+      this.text('Experiment: {title}', { title: experiment.title }),
+      this.text('Baseline'),
+      after ? this.text('After') : this.text('Current draft'),
     );
   }
 
   async restoreSnapshot(snapshotId, worldbookText = this.worldbookText) {
     const snapshot = getHistorySnapshot(this.history, snapshotId);
-    if (!snapshot?.data) throw new Error('Snapshot not found.');
+    if (!snapshot?.data) throw new Error(this.text('Snapshot not found.'));
+    const restoreLabel = this.text('Restore');
     const choice = await vscode.window.showWarningMessage(
-      `Restore "${snapshot.label}"? The current draft will be saved to history first.`,
+      this.text('Restore "{label}"? The current draft will be saved to history first.', { label: snapshot.label }),
       { modal: true },
-      'Restore',
+      restoreLabel,
     );
-    if (choice !== 'Restore') return;
+    if (choice !== restoreLabel) return;
 
     const current = parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath });
     const before = createHistorySnapshot(this.history, current.data, {
@@ -346,7 +375,7 @@ class WorkbenchPanel {
     this.worldbookText = text;
     this.post({
       type: 'restored',
-      message: `Restored: ${snapshot.label}`,
+      message: this.text('Restored: {label}', { label: snapshot.label }),
       worldbookText: text,
       history: summarizeHistory(this.history),
     });
@@ -355,14 +384,14 @@ class WorkbenchPanel {
   async copyEntriesToWorldbook(worldbookText = this.worldbookText, entryIds = []) {
     const source = parseWorldbookJson(worldbookText, { filePath: this.worldbookUri.fsPath });
     const [targetUri] = await vscode.window.showOpenDialog({
-      title: 'Copy Entries to Worldbook',
+      title: this.text('Copy Entries to Worldbook'),
       defaultUri: vscode.Uri.file(path.dirname(this.worldbookUri.fsPath)),
       canSelectMany: false,
       filters: { 'Worldbook JSON': ['json'] },
     }) || [];
     if (!targetUri) return;
     if (path.resolve(targetUri.fsPath) === path.resolve(this.worldbookUri.fsPath)) {
-      throw new Error('Choose a different worldbook as the copy target.');
+      throw new Error(this.text('Choose a different worldbook as the copy target.'));
     }
 
     const targetText = Buffer.from(await vscode.workspace.fs.readFile(targetUri)).toString('utf8');
@@ -378,7 +407,7 @@ class WorkbenchPanel {
     await this.writeHistory(targetUri.fsPath, targetHistory);
 
     const result = copyWorldbookEntries(source.data, target.data, entryIds);
-    if (!result.copied.length) throw new Error('No selected entries were found to copy.');
+    if (!result.copied.length) throw new Error(this.text('No selected entries were found to copy.'));
     const copiedText = serializeWorldbookJson(result.data);
     await vscode.workspace.fs.writeFile(targetUri, Buffer.from(copiedText, 'utf8'));
     snapshotResult = createHistorySnapshot(targetHistory, result.data, {
@@ -388,7 +417,10 @@ class WorkbenchPanel {
       worldbookPath: targetUri.fsPath,
     });
     await this.writeHistory(targetUri.fsPath, snapshotResult.history);
-    const message = `Copied ${result.copied.length} ${result.copied.length === 1 ? 'entry' : 'entries'} to ${path.basename(targetUri.fsPath)}.`;
+    const message = this.text('Copied {count} entries to {file}.', {
+      count: result.copied.length,
+      file: path.basename(targetUri.fsPath),
+    });
     this.post({ type: 'copiedEntries', message });
     vscode.window.showInformationMessage(message);
   }
@@ -400,7 +432,7 @@ class WorkbenchPanel {
   async importCharacterCard(scenario = this.scenario) {
     this.scenario = normalizeScenarioForPanel(scenario, this.worldbookUri.fsPath, this.characterCardPath);
     const [uri] = await vscode.window.showOpenDialog({
-      title: 'Import Character Card',
+      title: this.text('Import Character Card'),
       canSelectMany: false,
       filters: {
         'Character cards': ['json', 'png'],
@@ -419,7 +451,7 @@ class WorkbenchPanel {
     this.scenario = normalizeScenarioForPanel(scenario, this.worldbookUri.fsPath, this.characterCardPath);
     const target = scenarioFilePath(this.worldbookUri.fsPath);
     await fs.writeFile(target, `${JSON.stringify(this.scenario, null, 2)}\n`, 'utf8');
-    this.post({ type: 'saved', message: `Scenario saved: ${path.basename(target)}` });
+    this.post({ type: 'saved', message: this.text('Preview setup saved: {file}', { file: path.basename(target) }) });
   }
 
   async exportWorldbookJson(worldbookText = this.worldbookText) {
@@ -428,13 +460,13 @@ class WorkbenchPanel {
       filePath: this.worldbookUri.fsPath,
     });
     const target = await vscode.window.showSaveDialog({
-      title: 'Export Worldbook JSON',
+      title: this.text('Export Worldbook JSON'),
       defaultUri: vscode.Uri.file(this.worldbookUri.fsPath),
       filters: { JSON: ['json'] },
     });
     if (!target) return;
     await vscode.workspace.fs.writeFile(target, Buffer.from(serializeWorldbookJson(parsed), 'utf8'));
-    this.post({ type: 'saved', message: `Exported: ${path.basename(target.fsPath)}` });
+    this.post({ type: 'saved', message: this.text('Exported: {file}', { file: path.basename(target.fsPath) }) });
   }
 
   postState() {
@@ -446,6 +478,7 @@ class WorkbenchPanel {
       scenario: this.scenario,
       characterCard: summarizeCharacterCard(this.characterCard),
       history: summarizeHistory(this.history),
+      ...this.languageState,
     });
   }
 
@@ -453,14 +486,28 @@ class WorkbenchPanel {
     void this.panel.webview.postMessage(message);
   }
 
+  async setLanguage(preference) {
+    const value = i18n.normalizePreference(preference);
+    await vscode.workspace.getConfiguration('worldbookWorkbench').update('language', value, vscode.ConfigurationTarget.Global);
+    this.refreshLanguage();
+  }
+
+  refreshLanguage() {
+    this.languageState = getLanguageState();
+    this.panel.title = hostText('Worldbook Workbench', {}, this.languageState.language);
+    this.post({ type: 'language', ...this.languageState });
+  }
+
   html() {
     const webview = this.panel.webview;
     const uiRoot = vscode.Uri.file(resolveWebviewRoot(this.context.extensionPath));
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, 'style.css'));
+    const i18nUri = webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, 'i18n.js'));
     const scenarioFieldsUri = webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, 'scenario-fields.js'));
     const worldbookEditorUri = webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, 'worldbook-editor.js'));
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(uiRoot, 'main.js'));
     const nonce = String(Date.now());
+    const languageState = JSON.stringify(this.languageState).replace(/</g, '\\u003c');
     return `<!doctype html>
 <html lang="en">
   <head>
@@ -478,12 +525,20 @@ class WorkbenchPanel {
           <p id="status">Ready</p>
         </div>
         <div class="actions">
+          <button id="undoButton" class="icon-button toolbar-icon" type="button" title="Undo worldbook edit" aria-label="Undo worldbook edit" disabled>&#x21B6;</button>
+          <button id="redoButton" class="icon-button toolbar-icon" type="button" title="Redo worldbook edit" aria-label="Redo worldbook edit" disabled>&#x21B7;</button>
           <button id="compileButton" class="primary" type="button">Preview</button>
           <button id="saveButton" type="button">Save</button>
           <button id="historyButton" type="button" title="Open snapshots and experiments" aria-pressed="false">Experiments</button>
-          <button id="scenarioButton" type="button">Save Scenario</button>
+          <button id="scenarioButton" type="button">Save Preview Setup</button>
           <button id="cardButton" type="button">Import Card</button>
           <button id="exportButton" type="button">Export JSON</button>
+          <button id="helpButton" class="icon-button toolbar-icon" type="button" title="Open user guide" aria-label="Open user guide">?</button>
+          <select id="languageInput" class="language-input" aria-label="Language">
+            <option value="auto">Follow VS Code/Cursor</option>
+            <option value="en">English</option>
+            <option value="zh-cn">Simplified Chinese</option>
+          </select>
         </div>
       </header>
       <main class="workspace">
@@ -522,7 +577,7 @@ class WorkbenchPanel {
         <section class="pane workbench-pane">
           <div class="tabbar" role="tablist" aria-label="Workbench views">
             <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="entry">Entry</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" data-tab="scenario">Scenario</button>
+            <button class="tab tab-wide" type="button" role="tab" aria-selected="false" data-tab="scenario">Preview Setup</button>
             <button class="tab tab-wide" type="button" role="tab" aria-selected="false" data-tab="batch">Find &amp; Replace</button>
             <button class="tab" type="button" role="tab" aria-selected="false" data-tab="history">History</button>
             <button class="tab" type="button" role="tab" aria-selected="false" data-tab="json">JSON</button>
@@ -667,7 +722,8 @@ class WorkbenchPanel {
             </div>
           </section>
           <section id="scenarioTab" class="tab-panel settings-pane" role="tabpanel">
-            <div class="section-head"><h2>Preview Scenario</h2><span id="cardMeta">No card</span></div>
+            <div class="section-head"><h2>Prompt Preview Setup</h2><span id="cardMeta">No card</span></div>
+            <p class="section-description">Use chat messages and ST-style activation settings to test which entries trigger and where they appear. This setup only affects preview, is stored separately, and is never exported into the worldbook JSON.</p>
             <fieldset id="scenarioStructuredFields" class="scenario-structured-fields">
               <div class="form-grid">
                 <label title="Keeps probability and group choices stable between previews.">Preview Seed<input id="seedInput" type="text"></label>
@@ -739,10 +795,10 @@ class WorkbenchPanel {
             </fieldset>
             <section class="scenario-json-section">
               <div class="scenario-section-head">
-                <div><h3>Full Scenario JSON</h3><span>Advanced</span></div>
+                <div><h3>Full Preview Setup JSON</h3><span>Advanced</span></div>
                 <button id="applyScenarioJsonButton" type="button">Apply JSON</button>
               </div>
-              <textarea id="scenarioJsonText" spellcheck="false" aria-label="Full Scenario JSON"></textarea>
+              <textarea id="scenarioJsonText" spellcheck="false" aria-label="Full Preview Setup JSON"></textarea>
             </section>
           </section>
           <section id="batchTab" class="tab-panel batch-pane" role="tabpanel">
@@ -801,6 +857,8 @@ class WorkbenchPanel {
         </section>
       </main>
     </div>
+    <script nonce="${nonce}">window.WORLDBOOK_WORKBENCH_LANGUAGE = ${languageState};</script>
+    <script nonce="${nonce}" src="${i18nUri}"></script>
     <script nonce="${nonce}" src="${scenarioFieldsUri}"></script>
     <script nonce="${nonce}" src="${worldbookEditorUri}"></script>
     <script nonce="${nonce}" src="${scriptUri}"></script>
@@ -814,7 +872,7 @@ async function resolveWorldbookUri(uri) {
   const active = vscode.window.activeTextEditor?.document?.uri;
   if (active?.scheme === 'file' && active.fsPath.toLowerCase().endsWith('.json')) return active;
   const [selected] = await vscode.window.showOpenDialog({
-    title: 'Open Worldbook JSON',
+    title: hostText('Open Worldbook JSON'),
     canSelectMany: false,
     filters: { JSON: ['json'] },
   }) || [];
@@ -844,6 +902,31 @@ function loadCore() {
   } catch {
     return require('../core');
   }
+}
+
+function loadI18n() {
+  const bundled = path.join(__dirname, 'dist', 'webview', 'i18n.js');
+  if (require('fs').existsSync(bundled)) return require(bundled);
+  try {
+    return require('@worldbook-workbench/webview-ui/i18n');
+  } catch {
+    return require('../webview-ui/i18n');
+  }
+}
+
+function getLanguageState() {
+  const preference = i18n.normalizePreference(
+    vscode.workspace.getConfiguration('worldbookWorkbench').get('language', 'auto'),
+  );
+  return {
+    preference,
+    language: i18n.resolveLanguage(preference, vscode.env.language),
+    editorLanguage: vscode.env.language,
+  };
+}
+
+function hostText(key, values = {}, language = getLanguageState().language) {
+  return i18n.translate(language, key, values);
 }
 
 function resolveWebviewRoot(extensionPath) {

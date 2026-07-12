@@ -9,6 +9,7 @@ const distRoot = path.join(extensionRoot, 'dist');
 const files = [
   ['core/index.js', 'core/index.js'],
   ['webview-ui/main.js', 'webview/main.js'],
+  ['webview-ui/i18n.js', 'webview/i18n.js'],
   ['webview-ui/scenario-fields.js', 'webview/scenario-fields.js'],
   ['webview-ui/worldbook-editor.js', 'webview/worldbook-editor.js'],
   ['webview-ui/style.css', 'webview/style.css'],

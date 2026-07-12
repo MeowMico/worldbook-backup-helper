@@ -9,7 +9,7 @@
   ],
   "license": "MIT",
   "scripts": {
-    "check": "node --check index.js && node --check extension/index.js && node --check extension/entry-fields.mjs && node --check packages/core/index.js && node --check packages/vscode-extension/extension.js && node --check packages/webview-ui/scenario-fields.js && node --check packages/webview-ui/worldbook-editor.js && node --check packages/webview-ui/main.js",
+    "check": "node --check index.js && node --check extension/index.js && node --check extension/entry-fields.mjs && node --check packages/core/index.js && node --check packages/vscode-extension/extension.js && node --check packages/webview-ui/i18n.js && node --check packages/webview-ui/scenario-fields.js && node --check packages/webview-ui/worldbook-editor.js && node --check packages/webview-ui/main.js",
     "test": "node --test packages/core/test/*.test.js",
     "vscode:check": "npm --prefix packages/vscode-extension run check"
   },

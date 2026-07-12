@@ -1,6 +1,6 @@
 {
   "name": "@worldbook-workbench/core",
-  "version": "0.2.5",
+  "version": "0.2.9",
   "private": true,
   "main": "index.js",
   "license": "MIT"

@@ -51,19 +51,23 @@ Install it from the marketplace used by your editor:
 - [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=MeowMico.worldbook-workbench-vscode) for Microsoft Visual Studio Code.
 - [Open VSX](https://open-vsx.org/extension/meowmico/worldbook-workbench-vscode) for Cursor, VSCodium, and other Open VSX clients.
 
+See the [English user guide](packages/vscode-extension/USER_GUIDE.md) or [Simplified Chinese user guide](packages/vscode-extension/USER_GUIDE.zh-CN.md) for the complete editing, preview, and history workflow.
+
 Marketplace installation is recommended because it enables normal extension updates. A manually installed `.vsix` is mainly intended for local testing.
 
 It can:
 
 - open a SillyTavern worldbook JSON file in a webview workbench
 - import a character card from JSON or PNG metadata
-- save preview scenarios as `<worldbook>.wbh.json`
+- save preview setups as `<worldbook>.wbh.json` without exporting them into the worldbook
 - browse entries in a compact list and edit strategy, position, order, keys, and content directly
 - show an ST-style system/user/assistant timeline for activated worldbook entries
 - explain activated and skipped entries, including keyword misses and group losers
 - show total timeline/worldbook token estimates and token counts for every entry
 - multi-select entries to enable, disable, delete, or copy them into another worldbook JSON file
 - find, replace, or delete matching text across titles, keywords, and content
+- undo or redo up to 80 in-session worldbook edits before saving
+- display the standalone Workbench in English, Simplified Chinese, or the editor-following default mode
 - save snapshots and experiments in `<worldbook>.wbh-history.json`, with native VS Code Diff and Restore
 
 The preview engine lives in `packages/core`. It is a clean-room compatibility implementation and does not copy SillyTavern source. Token counts are profile based: OpenAI profiles use `tiktoken` when it is installed, otherwise the preview clearly falls back to an estimate.

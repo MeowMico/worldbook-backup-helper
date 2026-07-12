@@ -358,7 +358,63 @@
     return separator >= 0 ? value.slice(separator + 1) : value;
   }
 
+  function createUndoManager(limit = 80) {
+    const maxSteps = Math.max(1, Math.floor(numberValue(limit, 80)));
+    const undoStack = [];
+    const redoStack = [];
+
+    function push(stack, entry) {
+      stack.push(entry);
+      if (stack.length > maxSteps) stack.shift();
+    }
+
+    function entry(state, label) {
+      return {
+        label: String(label || 'Edit'),
+        state: deepClone(state),
+      };
+    }
+
+    function status() {
+      return {
+        canUndo: undoStack.length > 0,
+        canRedo: redoStack.length > 0,
+        undoCount: undoStack.length,
+        redoCount: redoStack.length,
+        undoLabel: undoStack.at(-1)?.label || '',
+        redoLabel: redoStack.at(-1)?.label || '',
+      };
+    }
+
+    return {
+      capture(state, label) {
+        push(undoStack, entry(state, label));
+        redoStack.length = 0;
+        return status();
+      },
+      undo(currentState) {
+        if (!undoStack.length) return null;
+        const previous = undoStack.pop();
+        push(redoStack, entry(currentState, previous.label));
+        return { label: previous.label, state: deepClone(previous.state), status: status() };
+      },
+      redo(currentState) {
+        if (!redoStack.length) return null;
+        const next = redoStack.pop();
+        push(undoStack, entry(currentState, next.label));
+        return { label: next.label, state: deepClone(next.state), status: status() };
+      },
+      reset() {
+        undoStack.length = 0;
+        redoStack.length = 0;
+        return status();
+      },
+      status,
+    };
+  }
+
   function deepClone(value) {
+    if (value === undefined) return undefined;
     return JSON.parse(JSON.stringify(value));
   }
 
@@ -388,5 +444,6 @@
     estimateTokens,
     entryTitle,
     previewLocalId,
+    createUndoManager,
   };
 }));

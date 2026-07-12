@@ -122,3 +122,40 @@ test('worldbook editor batch find and replace reports literal field matches', ()
   assert.deepEqual(deleted, { entriesChanged: 1, replacements: 2 });
   assert.deepEqual(data.entries.a.key, ['keep']);
 });
+
+test('worldbook undo manager supports bounded undo, redo, and branching edits', () => {
+  const history = editor.createUndoManager(2);
+  const state = { data: { entries: { a: { content: 'zero' } } }, selectedEntryId: 'a' };
+
+  history.capture(state, 'First edit');
+  state.data.entries.a.content = 'one';
+  history.capture(state, 'Second edit');
+  state.data.entries.a.content = 'two';
+  history.capture(state, 'Third edit');
+  state.data.entries.a.content = 'three';
+
+  assert.deepEqual(history.status(), {
+    canUndo: true,
+    canRedo: false,
+    undoCount: 2,
+    redoCount: 0,
+    undoLabel: 'Third edit',
+    redoLabel: '',
+  });
+
+  const undoThird = history.undo(state);
+  assert.equal(undoThird.label, 'Third edit');
+  assert.equal(undoThird.state.data.entries.a.content, 'two');
+  undoThird.state.data.entries.a.content = 'changed clone';
+
+  const undoSecond = history.undo({ ...state, data: { entries: { a: { content: 'two' } } } });
+  assert.equal(undoSecond.state.data.entries.a.content, 'one');
+  assert.equal(history.undo(state), null);
+
+  const redoSecond = history.redo(undoSecond.state);
+  assert.equal(redoSecond.label, 'Second edit');
+  assert.equal(redoSecond.state.data.entries.a.content, 'two');
+
+  history.capture(redoSecond.state, 'New branch');
+  assert.equal(history.status().canRedo, false);
+});

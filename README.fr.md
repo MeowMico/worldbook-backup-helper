@@ -45,10 +45,16 @@ Après l'installation, ouvrez l'extension depuis le menu des extensions de Silly
 
 Ce dépôt fournit également une version autonome pour VS Code, Cursor et les éditeurs compatibles. Elle ouvre directement les fichiers JSON de worldbook, permet les modifications par lot et la copie entre fichiers, puis affiche l'ordre final des entrées dans les messages system/user/assistant. Les instantanés, expériences, Diff et restaurations sont conservés dans un fichier latéral `<worldbook>.wbh-history.json`, sans ajouter de métadonnées au JSON du worldbook.
 
+La version autonome propose 80 étapes d'annulation et de rétablissement pendant la session. La saisie continue dans un champ est regroupée en une étape, tandis que la création, la duplication, l'activation, la suppression, les remplacements groupés et Apply JSON constituent chacun une étape complète. Après Save ou Restore, les instantanés persistants prennent le relais.
+
+L'interface autonome peut suivre automatiquement la langue de VS Code ou Cursor, ou être forcée en anglais ou en chinois simplifié. Le changement s'applique à l'espace de travail ouvert sans supprimer les modifications non enregistrées.
+
 Installez-la depuis la place de marché utilisée par votre éditeur :
 
 - Microsoft Visual Studio Code : [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=MeowMico.worldbook-workbench-vscode)
 - Cursor, VSCodium et les autres clients Open VSX : [Open VSX](https://open-vsx.org/extension/meowmico/worldbook-workbench-vscode)
+
+Consultez le [guide d'utilisation en anglais](packages/vscode-extension/USER_GUIDE.md) ou le [guide en chinois simplifié](packages/vscode-extension/USER_GUIDE.zh-CN.md) pour le flux complet de modification, d'aperçu et d'historique.
 
 L'installation depuis une place de marché est recommandée afin de recevoir les mises à jour normales. L'installation manuelle d'un fichier `.vsix` est principalement destinée aux tests locaux.
 

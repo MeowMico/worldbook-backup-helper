@@ -2,8 +2,12 @@
   'use strict';
 
   const vscode = acquireVsCodeApi();
+  const i18n = window.WorldbookI18n;
+  const initialLanguageState = window.WORLDBOOK_WORKBENCH_LANGUAGE || { preference: 'auto', language: 'en' };
+  const domLocalizer = i18n.createDomLocalizer(document);
   const { parseJsonObjectText, parseStringListText } = window.WorldbookScenarioFields;
   const worldbook = window.WorldbookEditor;
+  const undoManager = worldbook.createUndoManager(80);
   const state = {
     worldbookPath: '',
     worldbookData: null,
@@ -19,6 +23,12 @@
     rawJsonDirty: false,
     scenarioJsonDirty: false,
     entryToolsCollapsed: false,
+    pendingInputHistoryKey: '',
+    languagePreference: i18n.normalizePreference(initialLanguageState.preference),
+    language: initialLanguageState.language === 'zh' ? 'zh' : 'en',
+    editorLanguage: String(initialLanguageState.editorLanguage || 'en'),
+    statusMessage: 'Ready',
+    statusIsError: false,
   };
 
   const el = {
@@ -145,12 +155,16 @@
     snapshotList: document.querySelector('#snapshotList'),
     tokenMeta: document.querySelector('#tokenMeta'),
     preview: document.querySelector('#preview'),
+    languageInput: document.querySelector('#languageInput'),
+    undoButton: document.querySelector('#undoButton'),
+    redoButton: document.querySelector('#redoButton'),
     compileButton: document.querySelector('#compileButton'),
     saveButton: document.querySelector('#saveButton'),
     historyButton: document.querySelector('#historyButton'),
     scenarioButton: document.querySelector('#scenarioButton'),
     cardButton: document.querySelector('#cardButton'),
     exportButton: document.querySelector('#exportButton'),
+    helpButton: document.querySelector('#helpButton'),
     tabs: [...document.querySelectorAll('[data-tab]')],
     tabPanels: {
       entry: document.querySelector('#entryTab'),
@@ -161,6 +175,17 @@
     },
   };
 
+  applyLanguageState(initialLanguageState, false);
+  setupDisclosureControls();
+
+  el.languageInput.addEventListener('change', () => {
+    const preference = i18n.normalizePreference(el.languageInput.value);
+    const language = i18n.resolveLanguage(preference, state.editorLanguage);
+    applyLanguageState({ preference, language, editorLanguage: state.editorLanguage }, true);
+    post('setLanguage', { preference });
+  });
+  el.undoButton.addEventListener('click', undoWorldbookChange);
+  el.redoButton.addEventListener('click', redoWorldbookChange);
   el.compileButton.addEventListener('click', () => withWorldbookText(worldbookText => {
     const scenario = gatherScenario();
     if (scenario) post('compilePreview', { worldbookText, scenario });
@@ -172,6 +197,7 @@
   el.exportButton.addEventListener('click', () => withWorldbookText(worldbookText => {
     post('exportWorldbookJson', { worldbookText });
   }));
+  el.helpButton.addEventListener('click', () => post('openUserGuide'));
   el.scenarioButton.addEventListener('click', () => {
     const scenario = gatherScenario();
     if (scenario) post('saveScenario', { scenario });
@@ -204,6 +230,7 @@
   el.rawJsonText.addEventListener('input', () => {
     state.rawJsonDirty = true;
     el.rawJsonText.removeAttribute('aria-invalid');
+    renderUndoControls();
     setStatus('Raw JSON changes are not applied yet.');
   });
   el.applyScenarioJsonButton.addEventListener('click', () => applyScenarioJson(true));
@@ -211,8 +238,154 @@
     state.scenarioJsonDirty = true;
     el.scenarioJsonText.removeAttribute('aria-invalid');
     el.scenarioStructuredFields.disabled = true;
-    setStatus('Scenario JSON changes are not applied yet.');
+    setStatus('Preview setup JSON changes are not applied yet.');
   });
+
+  function setupDisclosureControls() {
+    document.querySelectorAll('.entry-advanced-settings, .scenario-global-settings').forEach(details => {
+      const summary = details.firstElementChild;
+      if (!(summary instanceof HTMLElement) || summary.tagName !== 'SUMMARY') return;
+
+      const syncExpandedState = () => {
+        summary.setAttribute('aria-expanded', String(details.open));
+      };
+
+      syncExpandedState();
+      details.addEventListener('toggle', syncExpandedState);
+      summary.addEventListener('click', event => {
+        event.preventDefault();
+        details.open = !details.open;
+        syncExpandedState();
+
+        if (details.open) {
+          requestAnimationFrame(() => {
+            summary.nextElementSibling?.firstElementChild?.scrollIntoView({ block: 'nearest' });
+          });
+        }
+      });
+    });
+  }
+
+  function currentWorldbookHistoryState() {
+    return {
+      data: cloneValue(state.worldbookData),
+      selectedEntryId: selectedRecord()?.id || null,
+      selectedEntryIds: [...state.selectedEntryIds],
+    };
+  }
+
+  function captureWorldbookUndo(label) {
+    if (!state.worldbookData) return;
+    undoManager.capture(currentWorldbookHistoryState(), label);
+    renderUndoControls();
+  }
+
+  function resetWorldbookUndoHistory() {
+    undoManager.reset();
+    state.pendingInputHistoryKey = '';
+    renderUndoControls();
+  }
+
+  function restoreWorldbookHistoryState(historyState) {
+    if (!historyState?.data) return;
+    state.worldbookData = cloneValue(historyState.data);
+    state.records = worldbook.getEntryRecords(state.worldbookData);
+    state.selectedStorageKey = selectStorageKey(historyState.selectedEntryId);
+    state.selectedEntryIds.clear();
+    for (const id of historyState.selectedEntryIds || []) state.selectedEntryIds.add(String(id));
+    pruneCheckedEntries();
+    state.rawJsonDirty = false;
+    el.rawJsonText.value = worldbook.serializeWorldbook(state.worldbookData);
+    el.rawJsonText.removeAttribute('aria-invalid');
+    state.previewStale = true;
+    el.preview.classList.add('stale');
+    el.tokenMeta.textContent = t('Preview out of date');
+    renderEntryBrowser();
+    renderEntryEditor();
+    renderBatchResults();
+    renderUndoControls();
+  }
+
+  function undoWorldbookChange() {
+    finishInputHistory();
+    if (state.rawJsonDirty) {
+      state.rawJsonDirty = false;
+      el.rawJsonText.value = state.worldbookData ? worldbook.serializeWorldbook(state.worldbookData) : '';
+      el.rawJsonText.removeAttribute('aria-invalid');
+      renderUndoControls();
+      setStatus('Undid unapplied Raw JSON changes.');
+      return;
+    }
+    if (!state.worldbookData) return;
+    const result = undoManager.undo(currentWorldbookHistoryState());
+    if (!result) return;
+    restoreWorldbookHistoryState(result.state);
+    setStatus(t('Undo: {label}', { label: t(result.label) }));
+  }
+
+  function redoWorldbookChange() {
+    finishInputHistory();
+    if (state.rawJsonDirty || !state.worldbookData) return;
+    const result = undoManager.redo(currentWorldbookHistoryState());
+    if (!result) return;
+    restoreWorldbookHistoryState(result.state);
+    setStatus(t('Redo: {label}', { label: t(result.label) }));
+  }
+
+  function renderUndoControls() {
+    const history = undoManager.status();
+    const undoLabel = state.rawJsonDirty ? 'Raw JSON draft' : history.undoLabel;
+    el.undoButton.disabled = !state.rawJsonDirty && !history.canUndo;
+    el.redoButton.disabled = state.rawJsonDirty || !history.canRedo;
+    el.undoButton.title = undoLabel ? t('Undo: {label}', { label: t(undoLabel) }) : t('Nothing to undo');
+    el.redoButton.title = history.redoLabel ? t('Redo: {label}', { label: t(history.redoLabel) }) : t('Nothing to redo');
+    el.undoButton.setAttribute('aria-label', el.undoButton.title);
+    el.redoButton.setAttribute('aria-label', el.redoButton.title);
+  }
+
+  function beginEntryInputHistory(input) {
+    const record = selectedRecord();
+    if (!record || !state.worldbookData) return;
+    const inputKey = input.id || input.dataset.entryTrigger || 'field';
+    const key = `${record.id}:${inputKey}`;
+    if (state.pendingInputHistoryKey === key) return;
+    captureWorldbookUndo(entryInputHistoryLabel(input));
+    state.pendingInputHistoryKey = key;
+  }
+
+  function finishInputHistory() {
+    state.pendingInputHistoryKey = '';
+  }
+
+  function entryInputHistoryLabel(input) {
+    if (input === el.entryTitleInput) return 'Edit entry title';
+    if (input === el.entryContentInput) return 'Edit entry content';
+    if ([el.entryKeysInput, el.entrySecondaryInput].includes(input)) return 'Edit entry keywords';
+    return 'Edit entry settings';
+  }
+
+  function handleUndoShortcut(event) {
+    if ((!event.metaKey && !event.ctrlKey) || event.altKey || isTextEditingTarget(event.target)) return;
+    const key = String(event.key || '').toLowerCase();
+    const redo = (key === 'z' && event.shiftKey) || (key === 'y' && event.ctrlKey && !event.metaKey);
+    if (redo) {
+      if (el.redoButton.disabled) return;
+      event.preventDefault();
+      redoWorldbookChange();
+      return;
+    }
+    if (key !== 'z' || event.shiftKey || el.undoButton.disabled) return;
+    event.preventDefault();
+    undoWorldbookChange();
+  }
+
+  function isTextEditingTarget(target) {
+    if (!(target instanceof HTMLElement)) return false;
+    if (target.isContentEditable || target instanceof HTMLTextAreaElement) return true;
+    if (!(target instanceof HTMLInputElement)) return false;
+    return !['button', 'checkbox', 'radio', 'reset', 'submit'].includes(target.type);
+  }
+
   el.addMessageButton.addEventListener('click', addScenarioMessage);
   el.workbenchDefaultsButton.addEventListener('click', () => applyActivationPreset('workbench'));
   el.sillyTavernDefaultsButton.addEventListener('click', () => applyActivationPreset('sillytavern-1.18'));
@@ -253,6 +426,7 @@
   });
   el.tabs.forEach(tab => tab.addEventListener('click', () => setActiveTab(tab.dataset.tab)));
   renderEntryToolsVisibility();
+  renderUndoControls();
 
   const entryInputs = [
     el.entryEnabledInput,
@@ -298,14 +472,22 @@
     el.entryMatchCharacterDepthPromptInput,
     el.entryMatchCreatorNotesInput,
   ];
-  entryInputs.forEach(input => input.addEventListener('input', () => updateSelectedEntry(input)));
+  entryInputs.forEach(input => {
+    input.addEventListener('input', () => updateSelectedEntry(input));
+    input.addEventListener('change', finishInputHistory);
+    input.addEventListener('blur', finishInputHistory);
+  });
+
+  window.addEventListener('keydown', handleUndoShortcut);
 
   window.addEventListener('message', event => {
     const message = event.data || {};
     if (message.type === 'state') applyState(message);
+    if (message.type === 'language') applyLanguageState(message, true);
     if (message.type === 'preview') applyPreview(message);
     if (message.type === 'saved') {
       if (message.worldbookText) loadWorldbookText(message.worldbookText, true);
+      resetWorldbookUndoHistory();
       if (message.history) applyHistory(message.history);
       setStatus(message.message || 'Saved');
     }
@@ -315,10 +497,11 @@
     }
     if (message.type === 'restored') {
       if (message.worldbookText) loadWorldbookText(message.worldbookText, false);
+      resetWorldbookUndoHistory();
       if (message.history) applyHistory(message.history);
       state.previewStale = true;
       el.preview.classList.add('stale');
-      el.tokenMeta.textContent = 'Preview out of date';
+      el.tokenMeta.textContent = t('Preview out of date');
       setStatus(message.message || 'Snapshot restored.');
     }
     if (message.type === 'copiedEntries') setStatus(message.message || 'Entries copied.');
@@ -328,6 +511,7 @@
   post('ready');
 
   function applyState(message) {
+    if (message.language) applyLanguageState(message, false);
     state.worldbookPath = message.worldbookPath || '';
     state.scenario = message.scenario || {};
     state.characterCard = message.characterCard || null;
@@ -337,7 +521,8 @@
     state.previewEntries = new Map();
     state.previewStale = false;
     loadWorldbookText(message.worldbookText || '', false);
-    el.worldbookTitle.textContent = basename(state.worldbookPath) || 'Worldbook';
+    resetWorldbookUndoHistory();
+    el.worldbookTitle.textContent = basename(state.worldbookPath) || t('Worldbook');
     el.worldbookMeta.textContent = state.worldbookPath;
     el.worldbookMeta.title = state.worldbookPath;
     renderScenario(state.scenario);
@@ -346,6 +531,32 @@
     renderBatchResults();
     renderPreview(null);
     setStatus('Ready');
+  }
+
+  function applyLanguageState(nextState, refresh) {
+    state.languagePreference = i18n.normalizePreference(nextState?.preference);
+    state.language = nextState?.language === 'zh' ? 'zh' : 'en';
+    state.editorLanguage = String(nextState?.editorLanguage || state.editorLanguage || 'en');
+    domLocalizer.apply(state.language);
+    el.languageInput.value = state.languagePreference;
+    if (refresh) refreshLocalizedUi();
+  }
+
+  function refreshLocalizedUi() {
+    renderEntryToolsVisibility();
+    renderEntryBrowser();
+    renderEntryEditor();
+    renderBatchResults();
+    renderScenarioMessages();
+    renderCharacterCard();
+    renderHistory();
+    renderPreview(state.lastPreview);
+    renderUndoControls();
+    setStatus('Ready');
+  }
+
+  function t(key, values) {
+    return i18n.translate(state.language, key, values);
   }
 
   function applyPreview(message) {
@@ -412,13 +623,13 @@
     const query = el.entrySearch.value.trim().toLowerCase();
     const filtered = visibleEntryRecords();
     el.entryCount.textContent = query
-      ? `${filtered.length} of ${state.records.length} entries`
-      : `${state.records.length} ${state.records.length === 1 ? 'entry' : 'entries'}`;
+      ? t('{visible} of {total} entries', { visible: filtered.length, total: state.records.length })
+      : t(state.records.length === 1 ? '{count} entry' : '{count} entries', { count: state.records.length });
 
     if (!filtered.length) {
       const empty = document.createElement('p');
       empty.className = 'empty-list';
-      empty.textContent = state.records.length ? 'No matching entries.' : 'This worldbook has no entries.';
+      empty.textContent = t(state.records.length ? 'No matching entries.' : 'This worldbook has no entries.');
       el.entryList.append(empty);
       renderSelectionToolbar(filtered);
       return;
@@ -439,11 +650,11 @@
 
       const checkWrap = document.createElement('label');
       checkWrap.className = 'entry-select-check';
-      checkWrap.title = 'Select for batch actions';
+      checkWrap.title = t('Select for batch actions');
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.checked = state.selectedEntryIds.has(String(record.id));
-      checkbox.setAttribute('aria-label', `Select ${worldbook.entryTitle(entry)}`);
+      checkbox.setAttribute('aria-label', t('Select {title}', { title: worldbook.entryTitle(entry) }));
       checkbox.addEventListener('change', () => {
         if (checkbox.checked) state.selectedEntryIds.add(String(record.id));
         else state.selectedEntryIds.delete(String(record.id));
@@ -464,18 +675,18 @@
       title.textContent = worldbook.entryTitle(entry);
       const tokens = document.createElement('span');
       tokens.className = 'entry-token-count';
-      tokens.textContent = `${worldbook.estimateTokens(entry.content, profile)} tokens`;
+      tokens.textContent = t('{count} tokens', { count: worldbook.estimateTokens(entry.content, profile) });
       top.append(dot, title, tokens);
 
       const meta = document.createElement('span');
       meta.className = 'entry-browser-meta';
       const parts = [
-        worldbook.positionLabel(entry.position ?? 0, entry.role, entry.depth),
-        `order ${numberValue(entry.order, 100)}`,
+        localizedPositionLabel(entry),
+        `${t('order')} ${numberValue(entry.order, 100)}`,
       ];
-      if (entry.disable) parts.push('disabled');
-      else if (previewState?.active) parts.push('triggered');
-      else if (previewState) parts.push('not triggered');
+      if (entry.disable) parts.push(t('disabled'));
+      else if (previewState?.active) parts.push(t('triggered'));
+      else if (previewState) parts.push(t('not triggered'));
       meta.textContent = parts.join(' | ');
       openButton.append(top, meta);
       openButton.addEventListener('click', () => selectRecord(record));
@@ -499,8 +710,8 @@
     const expanded = !state.entryToolsCollapsed;
     el.entryToolbox.classList.toggle('hidden', !expanded);
     el.toggleEntryToolsButton.setAttribute('aria-expanded', String(expanded));
-    el.toggleEntryToolsButton.setAttribute('aria-label', expanded ? 'Hide entry tools' : 'Show entry tools');
-    el.toggleEntryToolsButton.title = expanded ? 'Hide entry tools' : 'Show entry tools';
+    el.toggleEntryToolsButton.setAttribute('aria-label', t(expanded ? 'Hide entry tools' : 'Show entry tools'));
+    el.toggleEntryToolsButton.title = t(expanded ? 'Hide entry tools' : 'Show entry tools');
     el.entryToolsToggleIcon.textContent = expanded ? '\u25B2' : '\u25BC';
   }
 
@@ -508,7 +719,7 @@
     pruneCheckedEntries();
     const selectedCount = state.selectedEntryIds.size;
     const selectedVisible = filtered.filter(record => state.selectedEntryIds.has(String(record.id))).length;
-    el.selectedEntryCount.textContent = `${selectedCount} selected`;
+    el.selectedEntryCount.textContent = t('{count} selected', { count: selectedCount });
     el.selectAllEntries.checked = Boolean(filtered.length) && selectedVisible === filtered.length;
     el.selectAllEntries.indeterminate = selectedVisible > 0 && selectedVisible < filtered.length;
     el.selectAllEntries.disabled = !filtered.length;
@@ -535,24 +746,33 @@
 
   function setSelectedEntriesEnabled(enabled) {
     if (!ensureWorldbookData()) return;
-    const changed = worldbook.setEntriesDisabled(state.worldbookData, [...state.selectedEntryIds], !enabled);
-    if (!changed) {
-      setStatus(`Selected entries are already ${enabled ? 'enabled' : 'disabled'}.`);
+    const selectedIds = new Set([...state.selectedEntryIds].map(String));
+    const disabled = !enabled;
+    const willChange = state.records.some(record => (
+      selectedIds.has(String(record.id)) && Boolean(record.entry.disable) !== disabled
+    ));
+    if (!willChange) {
+      setStatus(enabled ? 'Selected entries are already enabled.' : 'Selected entries are already disabled.');
       return;
     }
+    finishInputHistory();
+    captureWorldbookUndo(enabled ? 'Enable entries' : 'Disable entries');
+    const changed = worldbook.setEntriesDisabled(state.worldbookData, [...state.selectedEntryIds], !enabled);
     refreshRecords(selectedRecord()?.id);
-    markWorldbookChanged(`${changed} ${changed === 1 ? 'entry' : 'entries'} ${enabled ? 'enabled' : 'disabled'}.`);
+    markWorldbookChanged(t(enabled ? '{count} entries enabled.' : '{count} entries disabled.', { count: changed }));
   }
 
   function deleteCheckedEntries() {
     if (!ensureWorldbookData() || !state.selectedEntryIds.size) return;
     const count = state.selectedEntryIds.size;
-    if (!window.confirm(`Delete ${count} selected ${count === 1 ? 'entry' : 'entries'}?`)) return;
+    if (!window.confirm(t('Delete {count} selected entries?', { count }))) return;
+    finishInputHistory();
+    captureWorldbookUndo('Delete entries');
     const activeId = selectedRecord()?.id;
     const deleted = worldbook.deleteEntries(state.worldbookData, [...state.selectedEntryIds]);
     state.selectedEntryIds.clear();
     refreshRecords(activeId);
-    markWorldbookChanged(`${deleted} ${deleted === 1 ? 'entry' : 'entries'} deleted.`);
+    markWorldbookChanged(t('{count} entries deleted.', { count: deleted }));
   }
 
   function copyCheckedEntries() {
@@ -627,7 +847,7 @@
     const profile = state.scenario?.settings?.tokenizerProfile || 'estimate';
     const tokens = worldbook.estimateTokens(entry.content, profile);
     el.entryEditorTitle.textContent = worldbook.entryTitle(entry);
-    el.entryEditorMeta.textContent = `ID ${record.id} | ${worldbook.positionLabel(entry.position ?? 0, entry.role, entry.depth)} | order ${numberValue(entry.order, 100)} | ${tokens} tokens`;
+    el.entryEditorMeta.textContent = `ID ${record.id} | ${localizedPositionLabel(entry)} | ${t('order')} ${numberValue(entry.order, 100)} | ${t('{count} tokens', { count: tokens })}`;
     const strategy = worldbook.entryStrategy(entry);
     el.entryStrategyIndicator.className = `strategy-dot strategy-${strategy}`;
     el.entryStrategyIndicator.title = strategyLabel(strategy);
@@ -654,6 +874,7 @@
   function updateSelectedEntry(input) {
     const record = selectedRecord();
     if (!record) return;
+    beginEntryInputHistory(input);
     const entry = record.entry;
 
     if (input === el.entryEnabledInput) entry.disable = !input.checked;
@@ -716,6 +937,8 @@
 
   function createEntry() {
     if (!ensureWorldbookData()) return;
+    finishInputHistory();
+    captureWorldbookUndo('New entry');
     const record = worldbook.createEntry(state.worldbookData);
     refreshRecords(record?.id);
     markWorldbookChanged('New entry created.');
@@ -728,6 +951,8 @@
     if (!ensureWorldbookData()) return;
     const selected = selectedRecord();
     if (!selected) return;
+    finishInputHistory();
+    captureWorldbookUndo('Duplicate entry');
     const record = worldbook.createEntry(state.worldbookData, selected.entry);
     refreshRecords(record?.id);
     markWorldbookChanged('Entry duplicated.');
@@ -738,7 +963,9 @@
     if (!ensureWorldbookData()) return;
     const selected = selectedRecord();
     if (!selected) return;
-    if (!window.confirm(`Delete "${worldbook.entryTitle(selected.entry)}"?`)) return;
+    if (!window.confirm(t('Delete "{title}"?', { title: worldbook.entryTitle(selected.entry) }))) return;
+    finishInputHistory();
+    captureWorldbookUndo('Delete entry');
     worldbook.deleteEntry(state.worldbookData, selected.storageKey);
     state.selectedStorageKey = null;
     refreshRecords(null);
@@ -764,14 +991,17 @@
     el.batchReplaceButton.disabled = !total;
     el.batchDeleteButton.disabled = !total;
 
-    if (!query) el.batchSummary.textContent = 'Enter text to find.';
-    else if (!options.fields.length) el.batchSummary.textContent = 'Choose at least one field.';
-    else el.batchSummary.textContent = `${total} ${total === 1 ? 'match' : 'matches'} in ${matches.length} ${matches.length === 1 ? 'entry' : 'entries'}.`;
+    if (!query) el.batchSummary.textContent = t('Enter text to find.');
+    else if (!options.fields.length) el.batchSummary.textContent = t('Choose at least one field.');
+    else el.batchSummary.textContent = t('{matches} in {entries}', {
+      matches: t(total === 1 ? '{count} match' : '{count} matches', { count: total }),
+      entries: t(matches.length === 1 ? '{count} entry' : '{count} entries', { count: matches.length }),
+    });
 
     if (!matches.length) {
       const empty = document.createElement('p');
       empty.className = 'empty-list';
-      empty.textContent = query && options.fields.length ? 'No matches.' : 'Matches will appear here.';
+      empty.textContent = t(query && options.fields.length ? 'No matches.' : 'Matches will appear here.');
       el.batchResults.append(empty);
       return;
     }
@@ -783,8 +1013,8 @@
       const title = document.createElement('strong');
       title.textContent = match.title;
       const detail = document.createElement('span');
-      const fields = [...new Set(match.details.map(item => item.field))].join(', ');
-      detail.textContent = `${match.count} ${match.count === 1 ? 'match' : 'matches'} | ${fields}`;
+      const fields = [...new Set(match.details.map(item => codeLabel(item.field)))].join(', ');
+      detail.textContent = `${t(match.count === 1 ? '{count} match' : '{count} matches', { count: match.count })} | ${fields}`;
       row.append(title, detail);
       row.addEventListener('click', () => {
         const record = state.records.find(item => item.id === match.id);
@@ -803,7 +1033,11 @@
     const total = matches.reduce((sum, match) => sum + match.count, 0);
     if (!total) return;
     const action = deleteMatches ? 'delete' : 'replace';
-    if (!window.confirm(`${action === 'delete' ? 'Delete' : 'Replace'} ${total} ${total === 1 ? 'match' : 'matches'} across ${matches.length} ${matches.length === 1 ? 'entry' : 'entries'}?`)) return;
+    if (!window.confirm(t(action === 'delete'
+      ? 'Delete {count} matches across {entries} entries?'
+      : 'Replace {count} matches across {entries} entries?', { count: total, entries: matches.length }))) return;
+    finishInputHistory();
+    captureWorldbookUndo(deleteMatches ? 'Delete matches' : 'Replace all');
     const result = worldbook.replaceEntryMatches(
       state.worldbookData,
       query,
@@ -811,7 +1045,7 @@
       options,
     );
     refreshRecords(selectedRecord()?.id);
-    markWorldbookChanged(`${result.replacements} ${result.replacements === 1 ? 'match' : 'matches'} ${action === 'delete' ? 'deleted' : 'replaced'}.`);
+    markWorldbookChanged(t(action === 'delete' ? '{count} matches deleted.' : '{count} matches replaced.', { count: result.replacements }));
     renderBatchResults();
   }
 
@@ -828,14 +1062,15 @@
     el.rawJsonText.value = worldbook.serializeWorldbook(state.worldbookData);
     state.previewStale = true;
     el.preview.classList.add('stale');
-    el.tokenMeta.textContent = 'Preview out of date';
+    el.tokenMeta.textContent = t('Preview out of date');
+    renderUndoControls();
     setStatus(message);
   }
 
-  function markScenarioChanged(message = 'Scenario changes have not been previewed.') {
+  function markScenarioChanged(message = 'Preview setup changes have not been previewed.') {
     state.previewStale = true;
     el.preview.classList.add('stale');
-    el.tokenMeta.textContent = 'Preview out of date';
+    el.tokenMeta.textContent = t('Preview out of date');
     setStatus(message);
   }
 
@@ -843,7 +1078,14 @@
     if (!state.rawJsonDirty) return true;
     const selectedId = selectedRecord()?.id;
     try {
-      state.worldbookData = worldbook.parseWorldbookText(el.rawJsonText.value);
+      const nextData = worldbook.parseWorldbookText(el.rawJsonText.value);
+      const changed = !state.worldbookData
+        || worldbook.serializeWorldbook(nextData) !== worldbook.serializeWorldbook(state.worldbookData);
+      if (changed && state.worldbookData) {
+        finishInputHistory();
+        captureWorldbookUndo('Apply Raw JSON');
+      }
+      state.worldbookData = nextData;
       state.records = worldbook.getEntryRecords(state.worldbookData);
       state.selectedStorageKey = selectStorageKey(selectedId);
       state.rawJsonDirty = false;
@@ -851,9 +1093,11 @@
       el.rawJsonText.removeAttribute('aria-invalid');
       state.previewStale = true;
       el.preview.classList.add('stale');
-      el.tokenMeta.textContent = 'Preview out of date';
+      el.tokenMeta.textContent = t('Preview out of date');
       renderEntryBrowser();
       renderEntryEditor();
+      renderBatchResults();
+      renderUndoControls();
       if (showStatus) setStatus('Raw JSON applied.');
       return true;
     } catch (error) {
@@ -928,11 +1172,11 @@
   function renderScenarioMessages() {
     const messages = state.scenario?.messages || [];
     el.messageList.replaceChildren();
-    el.messageCount.textContent = `${messages.length} ${messages.length === 1 ? 'message' : 'messages'}`;
+    el.messageCount.textContent = t(messages.length === 1 ? '{count} message' : '{count} messages', { count: messages.length });
     if (!messages.length) {
       const empty = document.createElement('p');
       empty.className = 'empty-list scenario-message-empty';
-      empty.textContent = 'No chat messages.';
+      empty.textContent = t('No chat messages.');
       el.messageList.append(empty);
       return;
     }
@@ -944,16 +1188,16 @@
       const head = document.createElement('div');
       head.className = 'scenario-message-head';
       const number = document.createElement('strong');
-      number.textContent = `Message ${index + 1}`;
+      number.textContent = t('Message {number}', { number: index + 1 });
 
       const roleLabel = document.createElement('label');
-      roleLabel.textContent = 'Role';
+      roleLabel.textContent = t('Role');
       const role = document.createElement('select');
-      role.setAttribute('aria-label', `Message ${index + 1} role`);
+      role.setAttribute('aria-label', t('Message {number} role', { number: index + 1 }));
       for (const value of ['system', 'user', 'assistant']) {
         const option = document.createElement('option');
         option.value = value;
-        option.textContent = value[0].toUpperCase() + value.slice(1);
+        option.textContent = t(value);
         role.append(option);
       }
       role.value = message.role;
@@ -974,12 +1218,12 @@
       head.append(number, roleLabel, actions);
 
       const nameLabel = document.createElement('label');
-      nameLabel.textContent = 'Name';
+      nameLabel.textContent = t('Name');
       const name = document.createElement('input');
       name.type = 'text';
       name.value = String(message.name || '');
-      name.placeholder = 'Optional message name';
-      name.setAttribute('aria-label', `Message ${index + 1} name`);
+      name.placeholder = t('Optional message name');
+      name.setAttribute('aria-label', t('Message {number} name', { number: index + 1 }));
       name.addEventListener('input', () => {
         message.name = name.value;
         handleScenarioControlsChanged();
@@ -987,12 +1231,12 @@
       nameLabel.append(name);
 
       const contentLabel = document.createElement('label');
-      contentLabel.textContent = 'Content';
+      contentLabel.textContent = t('Content');
       const content = document.createElement('textarea');
       content.rows = 4;
       content.spellcheck = false;
       content.value = message.content;
-      content.setAttribute('aria-label', `Message ${index + 1} content`);
+      content.setAttribute('aria-label', t('Message {number} content', { number: index + 1 }));
       content.addEventListener('input', () => {
         message.content = content.value;
         handleScenarioControlsChanged();
@@ -1018,8 +1262,8 @@
   function scenarioMessageAction(label, title, disabled, handler, danger = false) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = label;
-    button.title = title;
+    button.textContent = t(label);
+    button.title = t(title);
     button.disabled = disabled;
     if (danger) button.className = 'danger-command';
     button.addEventListener('click', handler);
@@ -1111,12 +1355,12 @@
   function renderCharacterCard() {
     const card = state.characterCard;
     if (!card) {
-      el.cardMeta.textContent = 'No card';
+      el.cardMeta.textContent = t('No card');
       return;
     }
-    const parts = [card.name || 'Character'];
-    if (card.hasCharacterBook) parts.push('book');
-    if (card.alternateGreetingCount) parts.push(`${card.alternateGreetingCount} greetings`);
+    const parts = [card.name || t('Character')];
+    if (card.hasCharacterBook) parts.push(t('book'));
+    if (card.alternateGreetingCount) parts.push(t(card.alternateGreetingCount === 1 ? '{count} greeting' : '{count} greetings', { count: card.alternateGreetingCount }));
     el.cardMeta.textContent = parts.join(' | ');
   }
 
@@ -1133,10 +1377,10 @@
     el.startExperimentButton.disabled = Boolean(active);
     el.finishExperimentButton.disabled = !active;
     el.historyButton.classList.toggle('has-active-experiment', Boolean(active));
-    el.historyButton.title = active ? `Active experiment: ${active.title}` : 'Open snapshots and experiments';
+    el.historyButton.title = active ? t('Active experiment: {title}', { title: active.title }) : t('Open snapshots and experiments');
     el.historyMeta.textContent = active
-      ? `Active experiment: ${active.title}`
-      : `${snapshots.length} ${snapshots.length === 1 ? 'snapshot' : 'snapshots'} | ${basename(historyFileName())}`;
+      ? t('Active experiment: {title}', { title: active.title })
+      : `${t(snapshots.length === 1 ? '{count} snapshot' : '{count} snapshots', { count: snapshots.length })} | ${basename(historyFileName())}`;
 
     el.experimentList.replaceChildren();
     if (!experiments.length) el.experimentList.append(historyEmpty('No experiments yet.'));
@@ -1147,7 +1391,7 @@
       const title = document.createElement('strong');
       title.textContent = experiment.title;
       const meta = document.createElement('span');
-      meta.textContent = `${experiment.status === 'active' ? 'Active' : 'Finished'} | ${formatDate(experiment.createdAt)}`;
+      meta.textContent = `${t(experiment.status === 'active' ? 'Active' : 'Finished')} | ${formatDate(experiment.createdAt)}`;
       copy.append(title, meta);
       const actions = document.createElement('div');
       actions.className = 'history-row-actions';
@@ -1171,7 +1415,7 @@
       const title = document.createElement('strong');
       title.textContent = snapshot.label;
       const meta = document.createElement('span');
-      meta.textContent = `${snapshot.entryCount || 0} entries | ${formatDate(snapshot.createdAt)} | ${String(snapshot.reason || 'snapshot').replaceAll('-', ' ')}`;
+      meta.textContent = `${t('{count} entries', { count: snapshot.entryCount || 0 })} | ${formatDate(snapshot.createdAt)} | ${reasonLabel(snapshot.reason || 'snapshot')}`;
       copy.append(title, meta);
       const actions = document.createElement('div');
       actions.className = 'history-row-actions';
@@ -1187,7 +1431,7 @@
   function historyAction(label, handler, danger = false) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = label;
+    button.textContent = t(label);
     if (danger) button.className = 'danger-command';
     button.addEventListener('click', handler);
     return button;
@@ -1196,7 +1440,7 @@
   function historyEmpty(message) {
     const empty = document.createElement('p');
     empty.className = 'empty-list';
-    empty.textContent = message;
+    empty.textContent = t(message);
     return empty;
   }
 
@@ -1211,7 +1455,7 @@
 
   function formatDate(value) {
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleString();
+    return Number.isNaN(date.getTime()) ? t('Unknown date') : date.toLocaleString(state.language === 'zh' ? 'zh-CN' : undefined);
   }
 
   function renderPreview(result) {
@@ -1220,18 +1464,18 @@
       el.tokenMeta.textContent = '';
       const empty = document.createElement('p');
       empty.className = 'empty-state preview-empty';
-      empty.textContent = 'Run Preview to inspect activation and prompt order.';
+      empty.textContent = t('Run Preview to inspect activation and prompt order.');
       el.preview.append(empty);
       return;
     }
     const tokenParts = [
-      `${result.tokenUsage.allEntriesTokens} all entries`,
-      `${result.tokenUsage.worldInfoTokens} active WI`,
-      `${result.tokenUsage.timelineTokens} timeline`,
+      `${result.tokenUsage.allEntriesTokens} ${t('all entries')}`,
+      `${result.tokenUsage.worldInfoTokens} ${t('active WI')}`,
+      `${result.tokenUsage.timelineTokens} ${t('timeline')}`,
     ];
-    if (result.tokenBudget?.limit > 0) tokenParts.push(`${result.tokenBudget.used}/${result.tokenBudget.limit} WI budget`);
-    if (Number(result.activationScanDepth) > Number(result.settings?.worldInfoDepth)) tokenParts.push(`scan depth ${result.activationScanDepth}`);
-    tokenParts.push(result.tokenizer.accuracy);
+    if (result.tokenBudget?.limit > 0) tokenParts.push(`${result.tokenBudget.used}/${result.tokenBudget.limit} ${t('WI budget')}`);
+    if (Number(result.activationScanDepth) > Number(result.settings?.worldInfoDepth)) tokenParts.push(`${t('scan depth')} ${result.activationScanDepth}`);
+    tokenParts.push(t(result.tokenizer.accuracy));
     el.tokenMeta.textContent = tokenParts.join(' | ');
 
     const summary = document.createElement('div');
@@ -1249,7 +1493,7 @@
       warnings.append(heading('Warnings'));
       for (const warning of result.warnings) {
         const row = document.createElement('p');
-        row.textContent = warning.message || warning.code;
+        row.textContent = t(warning.message || codeLabel(warning.code));
         warnings.append(row);
       }
       el.preview.append(warnings);
@@ -1274,9 +1518,9 @@
     const head = document.createElement('summary');
     head.className = 'timeline-head';
     const title = document.createElement('strong');
-    title.textContent = item.title || item.bucket;
+    title.textContent = item.title || codeLabel(item.bucket);
     const meta = document.createElement('span');
-    meta.textContent = `${item.role} | ${item.bucket} | ${item.tokens || 0} tokens`;
+    meta.textContent = `${codeLabel(item.role)} | ${codeLabel(item.bucket)} | ${t('{count} tokens', { count: item.tokens || 0 })}`;
     head.append(title, meta);
     const body = document.createElement('pre');
     body.textContent = item.content || '';
@@ -1291,7 +1535,7 @@
     if (!entries.length) {
       const empty = document.createElement('p');
       empty.className = 'muted';
-      empty.textContent = 'None';
+      empty.textContent = t('None');
       section.append(empty);
       return section;
     }
@@ -1303,17 +1547,17 @@
       name.textContent = entry.title;
       const meta = document.createElement('span');
       meta.textContent = active
-        ? `${entry.sourceName} | ${entry.trigger} | order ${entry.order} | ${entry.tokens || 0} tokens`
-        : `${entry.sourceName} | ${reasonLabel(entry.reason)} | ${entry.tokens || 0} tokens`;
+        ? `${entry.sourceName} | ${codeLabel(entry.trigger)} | ${t('order')} ${entry.order} | ${t('{count} tokens', { count: entry.tokens || 0 })}`
+        : `${entry.sourceName} | ${reasonLabel(entry.reason)} | ${t('{count} tokens', { count: entry.tokens || 0 })}`;
       row.append(name, meta);
       if (entry.message) {
         const message = document.createElement('span');
         message.className = 'entry-result-reason';
-        message.textContent = entry.message;
+        message.textContent = t(entry.message);
         row.append(message);
       }
       if (entry.sourceType === 'worldbook') {
-        row.title = 'Edit this entry';
+        row.title = t('Edit this entry');
         row.addEventListener('click', () => selectPreviewEntry(entry));
       } else {
         row.disabled = true;
@@ -1405,11 +1649,11 @@
 
   function applyScenarioJson(showStatus) {
     try {
-      const scenario = parseJsonObjectText(el.scenarioJsonText.value, 'Scenario JSON');
+      const scenario = parseJsonObjectText(el.scenarioJsonText.value, 'Preview setup JSON');
       scenario.userName = '{{user}}';
       state.scenarioJsonDirty = false;
       renderScenario(scenario);
-      markScenarioChanged(showStatus ? 'Scenario JSON applied.' : 'Scenario JSON applied for preview.');
+      markScenarioChanged(showStatus ? 'Preview setup JSON applied.' : 'Preview setup JSON applied for preview.');
       return true;
     } catch (error) {
       el.scenarioJsonText.setAttribute('aria-invalid', 'true');
@@ -1438,14 +1682,14 @@
     const strong = document.createElement('strong');
     strong.textContent = String(value);
     const span = document.createElement('span');
-    span.textContent = label;
+    span.textContent = t(label);
     box.append(strong, span);
     return box;
   }
 
   function heading(text) {
     const h = document.createElement('h3');
-    h.textContent = text;
+    h.textContent = t(text);
     return h;
   }
 
@@ -1466,13 +1710,25 @@
   }
 
   function strategyLabel(strategy) {
-    if (strategy === 'constant') return 'Constant';
-    if (strategy === 'vectorized') return 'Vectorized';
-    return 'Normal';
+    if (strategy === 'constant') return t('Constant');
+    if (strategy === 'vectorized') return t('Vectorized');
+    return t('Normal');
   }
 
   function reasonLabel(reason) {
-    return String(reason || 'not triggered').replaceAll('_', ' ');
+    return codeLabel(reason || 'not triggered');
+  }
+
+  function codeLabel(value) {
+    return t(String(value || '').replaceAll('_', ' '));
+  }
+
+  function localizedPositionLabel(entry) {
+    if (Number(entry?.position) === 4) {
+      const role = ['System', 'User', 'Assistant'][numberValue(entry.role, 0)] || 'System';
+      return `${t(role)} @ ${t('Depth')} ${numberValue(entry.depth, 4)}`;
+    }
+    return t(worldbook.positionLabel(entry?.position ?? 0, entry?.role, entry?.depth));
   }
 
   function isObject(value) {
@@ -1557,7 +1813,9 @@
   }
 
   function setStatus(message, isError) {
-    el.status.textContent = message;
+    state.statusMessage = String(message || '');
+    state.statusIsError = Boolean(isError);
+    el.status.textContent = t(state.statusMessage);
     el.status.classList.toggle('error', Boolean(isError));
   }
 

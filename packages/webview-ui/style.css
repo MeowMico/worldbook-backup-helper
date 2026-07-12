@@ -154,6 +154,17 @@ textarea[aria-invalid="true"] {
   color: var(--selection-text);
 }
 
+.actions .toolbar-icon {
+  flex: 0 0 auto;
+  font-size: 18px;
+}
+
+.language-input {
+  width: auto;
+  min-width: 150px;
+  max-width: 190px;
+}
+
 #historyButton.has-active-experiment {
   border-color: var(--triggered);
 }
@@ -230,6 +241,15 @@ textarea[aria-invalid="true"] {
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.section-description {
+  margin: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .entry-tools {
@@ -663,9 +683,32 @@ label,
   min-height: 42px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
   padding: 10px 12px;
   cursor: pointer;
   font-weight: 600;
+}
+
+.entry-advanced-settings > summary::-webkit-details-marker,
+.scenario-global-settings > summary::-webkit-details-marker {
+  display: none;
+}
+
+.entry-advanced-settings > summary::after,
+.scenario-global-settings > summary::after {
+  content: "\25B8";
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 14px;
+  transform-origin: center;
+  transition: transform 120ms ease;
+}
+
+.entry-advanced-settings[open] > summary::after,
+.scenario-global-settings[open] > summary::after {
+  transform: rotate(90deg);
 }
 
 .entry-advanced-settings[open] > summary,

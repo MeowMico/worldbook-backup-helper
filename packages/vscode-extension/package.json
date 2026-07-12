@@ -2,7 +2,7 @@
   "name": "worldbook-workbench-vscode",
   "displayName": "Worldbook Workbench",
   "description": "Edit, batch-manage, version, and preview SillyTavern worldbooks in VS Code or Cursor.",
-  "version": "0.2.5",
+  "version": "0.2.9",
   "publisher": "meowmico",
   "private": true,
   "license": "MIT",
@@ -50,30 +50,35 @@
     "onCommand:worldbookWorkbench.importCharacterCard",
     "onCommand:worldbookWorkbench.openPromptPreview",
     "onCommand:worldbookWorkbench.saveScenario",
-    "onCommand:worldbookWorkbench.exportWorldbookJson"
+    "onCommand:worldbookWorkbench.exportWorldbookJson",
+    "onCommand:worldbookWorkbench.openUserGuide"
   ],
   "main": "./extension.js",
   "contributes": {
     "commands": [
       {
         "command": "worldbookWorkbench.openWorkbench",
-        "title": "Worldbook Workbench: Open Worldbook Workbench"
+        "title": "%command.openWorkbench%"
       },
       {
         "command": "worldbookWorkbench.importCharacterCard",
-        "title": "Worldbook Workbench: Import Character Card"
+        "title": "%command.importCharacterCard%"
       },
       {
         "command": "worldbookWorkbench.openPromptPreview",
-        "title": "Worldbook Workbench: Open Prompt Preview"
+        "title": "%command.openPromptPreview%"
       },
       {
         "command": "worldbookWorkbench.saveScenario",
-        "title": "Worldbook Workbench: Save Scenario"
+        "title": "%command.saveScenario%"
       },
       {
         "command": "worldbookWorkbench.exportWorldbookJson",
-        "title": "Worldbook Workbench: Export Worldbook JSON"
+        "title": "%command.exportWorldbookJson%"
+      },
+      {
+        "command": "worldbookWorkbench.openUserGuide",
+        "title": "%command.openUserGuide%"
       }
     ],
     "menus": {
@@ -91,12 +96,33 @@
           "group": "navigation@80"
         }
       ]
+    },
+    "configuration": {
+      "title": "%configuration.title%",
+      "properties": {
+        "worldbookWorkbench.language": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "en",
+            "zh-cn"
+          ],
+          "enumDescriptions": [
+            "%configuration.language.auto%",
+            "%configuration.language.en%",
+            "%configuration.language.zh%"
+          ],
+          "default": "auto",
+          "description": "%configuration.language.description%",
+          "scope": "window"
+        }
+      }
     }
   },
   "scripts": {
     "build": "node scripts/build-package.mjs",
     "vscode:prepublish": "npm run build",
-    "check": "npm run build && node --check scripts/build-package.mjs && node --check scripts/package-marketplace.mjs && node --check extension.js && node --check dist/core/index.js && node --check dist/webview/main.js && node --check dist/webview/scenario-fields.js && node --check dist/webview/worldbook-editor.js",
+    "check": "npm run build && node --check scripts/build-package.mjs && node --check scripts/package-marketplace.mjs && node --check extension.js && node --check dist/core/index.js && node --check dist/webview/i18n.js && node --check dist/webview/main.js && node --check dist/webview/scenario-fields.js && node --check dist/webview/worldbook-editor.js",
     "package:openvsx": "node scripts/package-marketplace.mjs openvsx",
     "package:microsoft": "node scripts/package-marketplace.mjs microsoft"
   },
