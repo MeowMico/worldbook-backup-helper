@@ -59,14 +59,48 @@
     entryOutletInput: document.querySelector('#entryOutletInput'),
     entryKeysInput: document.querySelector('#entryKeysInput'),
     entrySecondaryInput: document.querySelector('#entrySecondaryInput'),
+    entrySecondaryField: document.querySelector('#entrySecondaryField'),
     entryLogicInput: document.querySelector('#entryLogicInput'),
+    entryLogicField: document.querySelector('#entryLogicField'),
+    entrySelectiveInput: document.querySelector('#entrySelectiveInput'),
+    entryUseProbabilityInput: document.querySelector('#entryUseProbabilityInput'),
     entryContentInput: document.querySelector('#entryContentInput'),
+    entryScanDepthInput: document.querySelector('#entryScanDepthInput'),
+    entryCaseSensitiveInput: document.querySelector('#entryCaseSensitiveInput'),
+    entryMatchWholeWordsInput: document.querySelector('#entryMatchWholeWordsInput'),
+    entryUseGroupScoringInput: document.querySelector('#entryUseGroupScoringInput'),
+    entryAutomationIdInput: document.querySelector('#entryAutomationIdInput'),
+    entryAddMemoInput: document.querySelector('#entryAddMemoInput'),
+    entryExcludeRecursionInput: document.querySelector('#entryExcludeRecursionInput'),
+    entryPreventRecursionInput: document.querySelector('#entryPreventRecursionInput'),
+    entryDelayUntilRecursionInput: document.querySelector('#entryDelayUntilRecursionInput'),
+    entryIgnoreBudgetInput: document.querySelector('#entryIgnoreBudgetInput'),
+    entryRecursionLevelField: document.querySelector('#entryRecursionLevelField'),
+    entryRecursionLevelInput: document.querySelector('#entryRecursionLevelInput'),
+    entryGroupInput: document.querySelector('#entryGroupInput'),
+    entryGroupWeightInput: document.querySelector('#entryGroupWeightInput'),
+    entryStickyInput: document.querySelector('#entryStickyInput'),
+    entryCooldownInput: document.querySelector('#entryCooldownInput'),
+    entryDelayInput: document.querySelector('#entryDelayInput'),
+    entryGroupOverrideInput: document.querySelector('#entryGroupOverrideInput'),
+    entryCharacterNamesInput: document.querySelector('#entryCharacterNamesInput'),
+    entryCharacterTagsInput: document.querySelector('#entryCharacterTagsInput'),
+    entryCharacterExcludeInput: document.querySelector('#entryCharacterExcludeInput'),
+    entryTriggerInputs: [...document.querySelectorAll('[data-entry-trigger]')],
+    entryMatchCharacterDescriptionInput: document.querySelector('#entryMatchCharacterDescriptionInput'),
+    entryMatchCharacterPersonalityInput: document.querySelector('#entryMatchCharacterPersonalityInput'),
+    entryMatchScenarioInput: document.querySelector('#entryMatchScenarioInput'),
+    entryMatchPersonaDescriptionInput: document.querySelector('#entryMatchPersonaDescriptionInput'),
+    entryMatchCharacterDepthPromptInput: document.querySelector('#entryMatchCharacterDepthPromptInput'),
+    entryMatchCreatorNotesInput: document.querySelector('#entryMatchCreatorNotesInput'),
     rawJsonText: document.querySelector('#rawJsonText'),
     applyJsonButton: document.querySelector('#applyJsonButton'),
     scenarioStructuredFields: document.querySelector('#scenarioStructuredFields'),
     seedInput: document.querySelector('#seedInput'),
     triggerInput: document.querySelector('#triggerInput'),
     tokenizerInput: document.querySelector('#tokenizerInput'),
+    workbenchDefaultsButton: document.querySelector('#workbenchDefaultsButton'),
+    sillyTavernDefaultsButton: document.querySelector('#sillyTavernDefaultsButton'),
     depthInput: document.querySelector('#depthInput'),
     contextSizeInput: document.querySelector('#contextSizeInput'),
     budgetPercentInput: document.querySelector('#budgetPercentInput'),
@@ -86,6 +120,10 @@
     messageList: document.querySelector('#messageList'),
     addMessageButton: document.querySelector('#addMessageButton'),
     forceText: document.querySelector('#forceText'),
+    stickyText: document.querySelector('#stickyText'),
+    cooldownText: document.querySelector('#cooldownText'),
+    personaDescriptionInput: document.querySelector('#personaDescriptionInput'),
+    characterDepthPromptInput: document.querySelector('#characterDepthPromptInput'),
     scenarioJsonText: document.querySelector('#scenarioJsonText'),
     applyScenarioJsonButton: document.querySelector('#applyScenarioJsonButton'),
     cardMeta: document.querySelector('#cardMeta'),
@@ -176,10 +214,14 @@
     setStatus('Scenario JSON changes are not applied yet.');
   });
   el.addMessageButton.addEventListener('click', addScenarioMessage);
+  el.workbenchDefaultsButton.addEventListener('click', () => applyActivationPreset('workbench'));
+  el.sillyTavernDefaultsButton.addEventListener('click', () => applyActivationPreset('sillytavern-1.18'));
   const scenarioInputs = [
     el.seedInput,
     el.triggerInput,
     el.tokenizerInput,
+    el.personaDescriptionInput,
+    el.characterDepthPromptInput,
     el.depthInput,
     el.contextSizeInput,
     el.budgetPercentInput,
@@ -193,6 +235,8 @@
     el.alertOnOverflowInput,
     el.characterBookInput,
     el.forceText,
+    el.stickyText,
+    el.cooldownText,
   ];
   scenarioInputs.forEach(input => input.addEventListener('input', handleScenarioControlsChanged));
   el.includeNamesInput.addEventListener('input', () => {
@@ -223,7 +267,36 @@
     el.entryKeysInput,
     el.entrySecondaryInput,
     el.entryLogicInput,
+    el.entrySelectiveInput,
+    el.entryUseProbabilityInput,
     el.entryContentInput,
+    el.entryScanDepthInput,
+    el.entryCaseSensitiveInput,
+    el.entryMatchWholeWordsInput,
+    el.entryUseGroupScoringInput,
+    el.entryAutomationIdInput,
+    el.entryAddMemoInput,
+    el.entryExcludeRecursionInput,
+    el.entryPreventRecursionInput,
+    el.entryDelayUntilRecursionInput,
+    el.entryIgnoreBudgetInput,
+    el.entryRecursionLevelInput,
+    el.entryGroupInput,
+    el.entryGroupWeightInput,
+    el.entryStickyInput,
+    el.entryCooldownInput,
+    el.entryDelayInput,
+    el.entryGroupOverrideInput,
+    el.entryCharacterNamesInput,
+    el.entryCharacterTagsInput,
+    el.entryCharacterExcludeInput,
+    ...el.entryTriggerInputs,
+    el.entryMatchCharacterDescriptionInput,
+    el.entryMatchCharacterPersonalityInput,
+    el.entryMatchScenarioInput,
+    el.entryMatchPersonaDescriptionInput,
+    el.entryMatchCharacterDepthPromptInput,
+    el.entryMatchCreatorNotesInput,
   ];
   entryInputs.forEach(input => input.addEventListener('input', () => updateSelectedEntry(input)));
 
@@ -512,7 +585,39 @@
     el.entryKeysInput.value = worldbook.formatList(entry.key);
     el.entrySecondaryInput.value = worldbook.formatList(entry.keysecondary);
     el.entryLogicInput.value = String(numberValue(entry.selectiveLogic, 0));
+    el.entrySelectiveInput.checked = entry.selective !== false;
+    el.entryUseProbabilityInput.checked = entry.useProbability !== false;
     el.entryContentInput.value = entry.content || '';
+    el.entryScanDepthInput.value = nullableNumberText(entry.scanDepth);
+    el.entryCaseSensitiveInput.value = triStateText(entry.caseSensitive);
+    el.entryMatchWholeWordsInput.value = triStateText(entry.matchWholeWords);
+    el.entryUseGroupScoringInput.value = triStateText(entry.useGroupScoring);
+    el.entryAutomationIdInput.value = entry.automationId || '';
+    el.entryAddMemoInput.checked = entry.addMemo === true;
+    el.entryExcludeRecursionInput.checked = entry.excludeRecursion === true;
+    el.entryPreventRecursionInput.checked = entry.preventRecursion === true;
+    const recursionLevel = recursionLevelValue(entry.delayUntilRecursion);
+    el.entryDelayUntilRecursionInput.checked = recursionLevel > 0;
+    el.entryRecursionLevelInput.value = recursionLevel > 0 ? String(recursionLevel) : '';
+    el.entryIgnoreBudgetInput.checked = entry.ignoreBudget === true;
+    el.entryGroupInput.value = entry.group || '';
+    el.entryGroupWeightInput.value = String(Math.max(1, numberValue(entry.groupWeight, 100)));
+    el.entryStickyInput.value = nullableNumberText(entry.sticky);
+    el.entryCooldownInput.value = nullableNumberText(entry.cooldown);
+    el.entryDelayInput.value = nullableNumberText(entry.delay);
+    el.entryGroupOverrideInput.checked = entry.groupOverride === true;
+    const characterFilter = entryCharacterFilter(entry);
+    el.entryCharacterNamesInput.value = worldbook.formatList(characterFilter.names);
+    el.entryCharacterTagsInput.value = worldbook.formatList(characterFilter.tags);
+    el.entryCharacterExcludeInput.checked = characterFilter.isExclude;
+    const triggers = new Set(Array.isArray(entry.triggers) ? entry.triggers.map(value => String(value).toLowerCase()) : []);
+    for (const input of el.entryTriggerInputs) input.checked = triggers.has(input.dataset.entryTrigger);
+    el.entryMatchCharacterDescriptionInput.checked = entry.matchCharacterDescription === true;
+    el.entryMatchCharacterPersonalityInput.checked = entry.matchCharacterPersonality === true;
+    el.entryMatchScenarioInput.checked = entry.matchScenario === true;
+    el.entryMatchPersonaDescriptionInput.checked = entry.matchPersonaDescription === true;
+    el.entryMatchCharacterDepthPromptInput.checked = entry.matchCharacterDepthPrompt === true;
+    el.entryMatchCreatorNotesInput.checked = entry.matchCreatorNotes === true;
     updateEntryDependentControls(entry);
     updateEntryEditorMeta(record);
   }
@@ -531,9 +636,19 @@
   function updateEntryDependentControls(entry) {
     const atDepth = Number(entry.position) === 4;
     const outlet = Number(entry.position) === 7;
+    const selective = entry.selective !== false;
+    const useProbability = entry.useProbability !== false;
+    const waitsForRecursion = recursionLevelValue(entry.delayUntilRecursion) > 0;
     el.entryDepthField.classList.toggle('hidden', !atDepth);
     el.entryRoleField.classList.toggle('hidden', !atDepth);
     el.entryOutletField.classList.toggle('hidden', !outlet);
+    el.entrySecondaryInput.disabled = !selective;
+    el.entryLogicInput.disabled = !selective;
+    el.entrySecondaryField.classList.toggle('disabled-field', !selective);
+    el.entryLogicField.classList.toggle('disabled-field', !selective);
+    el.entryProbabilityInput.disabled = !useProbability;
+    el.entryRecursionLevelInput.disabled = !waitsForRecursion;
+    el.entryRecursionLevelField.classList.toggle('disabled-field', !waitsForRecursion);
   }
 
   function updateSelectedEntry(input) {
@@ -553,7 +668,45 @@
     if (input === el.entryKeysInput) entry.key = worldbook.parseListText(input.value);
     if (input === el.entrySecondaryInput) entry.keysecondary = worldbook.parseListText(input.value);
     if (input === el.entryLogicInput) entry.selectiveLogic = numberValue(input.value, 0);
+    if (input === el.entrySelectiveInput) entry.selective = input.checked;
+    if (input === el.entryUseProbabilityInput) entry.useProbability = input.checked;
     if (input === el.entryContentInput) entry.content = input.value;
+    if (input === el.entryScanDepthInput) entry.scanDepth = nullableNumberValue(input.value, 0);
+    if (input === el.entryCaseSensitiveInput) entry.caseSensitive = triStateValue(input.value);
+    if (input === el.entryMatchWholeWordsInput) entry.matchWholeWords = triStateValue(input.value);
+    if (input === el.entryUseGroupScoringInput) entry.useGroupScoring = triStateValue(input.value);
+    if (input === el.entryAutomationIdInput) entry.automationId = input.value;
+    if (input === el.entryAddMemoInput) entry.addMemo = input.checked;
+    if (input === el.entryExcludeRecursionInput) entry.excludeRecursion = input.checked;
+    if (input === el.entryPreventRecursionInput) entry.preventRecursion = input.checked;
+    if (input === el.entryDelayUntilRecursionInput) {
+      entry.delayUntilRecursion = input.checked
+        ? Math.max(1, numberValue(el.entryRecursionLevelInput.value, recursionLevelValue(entry.delayUntilRecursion) || 1))
+        : 0;
+      el.entryRecursionLevelInput.value = input.checked ? String(entry.delayUntilRecursion) : '';
+    }
+    if (input === el.entryRecursionLevelInput && el.entryDelayUntilRecursionInput.checked) {
+      entry.delayUntilRecursion = Math.max(1, numberValue(input.value, 1));
+    }
+    if (input === el.entryIgnoreBudgetInput) entry.ignoreBudget = input.checked;
+    if (input === el.entryGroupInput) entry.group = input.value;
+    if (input === el.entryGroupWeightInput) entry.groupWeight = Math.max(1, numberValue(input.value, 100));
+    if (input === el.entryStickyInput) entry.sticky = nullableNumberValue(input.value, 0);
+    if (input === el.entryCooldownInput) entry.cooldown = nullableNumberValue(input.value, 0);
+    if (input === el.entryDelayInput) entry.delay = nullableNumberValue(input.value, 0);
+    if (input === el.entryGroupOverrideInput) entry.groupOverride = input.checked;
+    if ([el.entryCharacterNamesInput, el.entryCharacterTagsInput, el.entryCharacterExcludeInput].includes(input)) {
+      updateEntryCharacterFilterFromControls(entry);
+    }
+    if (el.entryTriggerInputs.includes(input)) {
+      entry.triggers = el.entryTriggerInputs.filter(item => item.checked).map(item => item.dataset.entryTrigger);
+    }
+    if (input === el.entryMatchCharacterDescriptionInput) entry.matchCharacterDescription = input.checked;
+    if (input === el.entryMatchCharacterPersonalityInput) entry.matchCharacterPersonality = input.checked;
+    if (input === el.entryMatchScenarioInput) entry.matchScenario = input.checked;
+    if (input === el.entryMatchPersonaDescriptionInput) entry.matchPersonaDescription = input.checked;
+    if (input === el.entryMatchCharacterDepthPromptInput) entry.matchCharacterDepthPrompt = input.checked;
+    if (input === el.entryMatchCreatorNotesInput) entry.matchCreatorNotes = input.checked;
 
     updateEntryDependentControls(entry);
     updateEntryEditorMeta(record);
@@ -731,6 +884,15 @@
     source.forceActivate = Array.isArray(source.forceActivate)
       ? source.forceActivate.map(value => String(value)).filter(Boolean)
       : [];
+    source.personaDescription = String(source.personaDescription || '');
+    source.characterDepthPrompt = String(source.characterDepthPrompt || '');
+    source.timedState = isObject(source.timedState) ? source.timedState : {};
+    source.timedState.sticky = Array.isArray(source.timedState.sticky)
+      ? source.timedState.sticky.map(value => String(value)).filter(Boolean)
+      : [];
+    source.timedState.cooldown = Array.isArray(source.timedState.cooldown)
+      ? source.timedState.cooldown.map(value => String(value)).filter(Boolean)
+      : [];
     state.scenario = source;
 
     el.seedInput.value = source.seed || '';
@@ -752,7 +914,11 @@
     el.alertOnOverflowInput.checked = settings.alertOnOverflow === true;
     el.characterBookInput.checked = source.includeCharacterBook !== false;
     el.forceText.value = source.forceActivate.join('\n');
-    el.forceText.removeAttribute('aria-invalid');
+    el.stickyText.value = source.timedState.sticky.join('\n');
+    el.cooldownText.value = source.timedState.cooldown.join('\n');
+    el.personaDescriptionInput.value = source.personaDescription;
+    el.characterDepthPromptInput.value = source.characterDepthPrompt;
+    for (const input of [el.forceText, el.stickyText, el.cooldownText]) input.removeAttribute('aria-invalid');
     el.scenarioStructuredFields.disabled = false;
     updateActivationControlState();
     renderScenarioMessages();
@@ -888,6 +1054,42 @@
   function updateActivationControlState() {
     const minActivationsEnabled = numberValue(el.minActivationsInput.value, 0) > 0;
     el.minActivationsDepthMaxInput.disabled = !minActivationsEnabled;
+  }
+
+  function applyActivationPreset(preset) {
+    if (preset === 'sillytavern-1.18') {
+      el.depthInput.value = '2';
+      el.budgetPercentInput.value = '25';
+      el.budgetCapInput.value = '0';
+      el.minActivationsInput.value = '0';
+      el.minActivationsDepthMaxInput.value = '0';
+      el.maxRecursionStepsInput.value = '0';
+      el.insertionStrategyInput.value = 'character-first';
+      el.includeNamesInput.checked = true;
+      el.recursiveInput.checked = false;
+      el.caseSensitiveInput.checked = false;
+      el.matchWholeWordsInput.checked = false;
+      el.useGroupScoringInput.checked = false;
+      el.alertOnOverflowInput.checked = false;
+    } else {
+      el.depthInput.value = '4';
+      el.contextSizeInput.value = '0';
+      el.budgetPercentInput.value = '100';
+      el.budgetCapInput.value = '0';
+      el.minActivationsInput.value = '0';
+      el.minActivationsDepthMaxInput.value = '0';
+      el.maxRecursionStepsInput.value = '2';
+      el.insertionStrategyInput.value = 'character-first';
+      el.includeNamesInput.checked = false;
+      el.recursiveInput.checked = true;
+      el.caseSensitiveInput.checked = false;
+      el.matchWholeWordsInput.checked = false;
+      el.useGroupScoringInput.checked = false;
+      el.alertOnOverflowInput.checked = false;
+    }
+    renderScenarioMessages();
+    handleScenarioControlsChanged();
+    setStatus(preset === 'sillytavern-1.18' ? 'SillyTavern 1.18 defaults applied.' : 'Workbench defaults applied.');
   }
 
   function handleScenarioControlsChanged() {
@@ -1160,6 +1362,8 @@
         seed: el.seedInput.value,
         trigger: el.triggerInput.value || 'normal',
         userName: '{{user}}',
+        personaDescription: el.personaDescriptionInput.value,
+        characterDepthPrompt: el.characterDepthPromptInput.value,
         includeCharacterBook: el.characterBookInput.checked,
         settings: {
           ...previousSettings,
@@ -1181,13 +1385,18 @@
         },
         messages: Array.isArray(previous.messages) ? previous.messages : [],
         forceActivate: parseStringListText(el.forceText.value, 'Force Activate IDs'),
+        timedState: {
+          ...(isObject(previous.timedState) ? previous.timedState : {}),
+          sticky: parseStringListText(el.stickyText.value, 'Sticky Active IDs'),
+          cooldown: parseStringListText(el.cooldownText.value, 'Cooldown Active IDs'),
+        },
       };
-      el.forceText.removeAttribute('aria-invalid');
+      for (const input of [el.forceText, el.stickyText, el.cooldownText]) input.removeAttribute('aria-invalid');
       state.scenario = scenario;
       updateActivationControlState();
       return scenario;
     } catch (error) {
-      el.forceText.setAttribute('aria-invalid', 'true');
+      for (const input of [el.forceText, el.stickyText, el.cooldownText]) input.setAttribute('aria-invalid', 'true');
       setStatus(error.message, true);
       setActiveTab('scenario');
       return null;
@@ -1241,18 +1450,24 @@
   }
 
   function entrySearchText(entry) {
+    const characterFilter = entryCharacterFilter(entry);
     return [
       worldbook.entryTitle(entry),
       entry?.content,
       worldbook.formatList(entry?.key),
       worldbook.formatList(entry?.keysecondary),
+      entry?.group,
+      entry?.automationId,
+      entry?.outletName,
+      worldbook.formatList(entry?.triggers),
+      worldbook.formatList(characterFilter.names),
+      worldbook.formatList(characterFilter.tags),
     ].join('\n').toLowerCase();
   }
 
   function strategyLabel(strategy) {
     if (strategy === 'constant') return 'Constant';
     if (strategy === 'vectorized') return 'Vectorized';
-    if (strategy === 'selective') return 'Selective';
     return 'Normal';
   }
 
@@ -1267,6 +1482,64 @@
   function cloneValue(value) {
     if (value === undefined) return undefined;
     return JSON.parse(JSON.stringify(value));
+  }
+
+  function entryCharacterFilter(entry) {
+    const nested = isObject(entry?.characterFilter) ? entry.characterFilter : {};
+    return {
+      names: Array.isArray(nested.names) ? nested.names : (Array.isArray(entry?.characterFilterNames) ? entry.characterFilterNames : []),
+      tags: Array.isArray(nested.tags) ? nested.tags : (Array.isArray(entry?.characterFilterTags) ? entry.characterFilterTags : []),
+      isExclude: nested.isExclude === true || (!Object.keys(nested).length && entry?.characterFilterExclude === true),
+    };
+  }
+
+  function updateEntryCharacterFilterFromControls(entry) {
+    const current = isObject(entry.characterFilter) ? entry.characterFilter : {};
+    const extras = { ...current };
+    delete extras.names;
+    delete extras.tags;
+    delete extras.isExclude;
+    const names = worldbook.parseListText(el.entryCharacterNamesInput.value);
+    const tags = worldbook.parseListText(el.entryCharacterTagsInput.value);
+    const isExclude = el.entryCharacterExcludeInput.checked;
+    if (!names.length && !tags.length && !isExclude && !Object.keys(extras).length) {
+      delete entry.characterFilter;
+    } else {
+      entry.characterFilter = { ...extras, isExclude, names, tags };
+    }
+    if (Object.prototype.hasOwnProperty.call(entry, 'characterFilterNames')) entry.characterFilterNames = names;
+    if (Object.prototype.hasOwnProperty.call(entry, 'characterFilterTags')) entry.characterFilterTags = tags;
+    if (Object.prototype.hasOwnProperty.call(entry, 'characterFilterExclude')) entry.characterFilterExclude = isExclude;
+  }
+
+  function triStateText(value) {
+    if (value === true) return 'true';
+    if (value === false) return 'false';
+    return 'null';
+  }
+
+  function triStateValue(value) {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return null;
+  }
+
+  function nullableNumberText(value) {
+    if (value === null || value === undefined || String(value).trim() === '') return '';
+    const number = Number(value);
+    return Number.isFinite(number) ? String(number) : '';
+  }
+
+  function nullableNumberValue(value, min) {
+    if (String(value ?? '').trim() === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(min, number) : null;
+  }
+
+  function recursionLevelValue(value) {
+    if (value === true) return 1;
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? Math.max(1, Math.floor(number)) : 0;
   }
 
   function numberValue(value, fallback) {

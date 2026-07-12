@@ -2,6 +2,13 @@
 
 All notable changes to the VS Code and Cursor extension are documented here.
 
+## 0.2.5 - 2026-07-12
+
+- Aligned entry status with SillyTavern 1.18: Normal, Constant, and Vectorized are the three statuses, while Optional Filter is controlled independently.
+- Added a collapsed Advanced Entry Settings editor for per-entry overrides, recursion, budget behavior, inclusion groups, timed effects, character and generation filters, and additional matching sources.
+- Added advanced scenario inputs for persona description, Character's Note, forced activation, sticky state, and cooldown state.
+- Added Workbench and SillyTavern 1.18 activation presets without adding scenario settings to exported worldbook JSON.
+
 ## 0.2.4 - 2026-07-12
 
 - Removed the redundant manual character-name field from the structured scenario editor while preserving legacy `charName` values in scenario JSON.

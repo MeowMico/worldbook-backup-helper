@@ -17,12 +17,37 @@
     vectorized: false,
     selective: true,
     selectiveLogic: 0,
+    addMemo: false,
     order: 100,
     position: 0,
     disable: false,
+    ignoreBudget: false,
+    excludeRecursion: false,
+    preventRecursion: false,
+    matchPersonaDescription: false,
+    matchCharacterDescription: false,
+    matchCharacterPersonality: false,
+    matchCharacterDepthPrompt: false,
+    matchScenario: false,
+    matchCreatorNotes: false,
+    delayUntilRecursion: 0,
     probability: 100,
     useProbability: true,
     depth: 4,
+    outletName: '',
+    group: '',
+    groupOverride: false,
+    groupWeight: 100,
+    scanDepth: null,
+    caseSensitive: null,
+    matchWholeWords: null,
+    useGroupScoring: null,
+    automationId: '',
+    role: 0,
+    sticky: null,
+    cooldown: null,
+    delay: null,
+    triggers: [],
   });
 
   const POSITION_LABELS = Object.freeze({
@@ -267,7 +292,6 @@
   function entryStrategy(entry) {
     if (entry?.vectorized) return 'vectorized';
     if (entry?.constant) return 'constant';
-    if (entry?.selective !== false) return 'selective';
     return 'normal';
   }
 
@@ -275,7 +299,6 @@
     if (!entry || typeof entry !== 'object') return;
     entry.constant = strategy === 'constant';
     entry.vectorized = strategy === 'vectorized';
-    entry.selective = strategy === 'selective';
   }
 
   function applyEntryPosition(entry, position) {

@@ -46,7 +46,7 @@ const ENTRY_DEFAULTS = Object.freeze({
   vectorized: false,
   selective: true,
   selectiveLogic: SELECTIVE_LOGIC.AND_ANY,
-  addMemo: true,
+  addMemo: false,
   order: 100,
   position: POSITION.BEFORE_CHAR,
   disable: false,
@@ -144,6 +144,8 @@ function createDefaultScenario(worldbookPath = '') {
     trigger: 'normal',
     userName: '{{user}}',
     charName: '',
+    personaDescription: '',
+    characterDepthPrompt: '',
     settings: { ...DEFAULT_SETTINGS },
     messages: [
       { role: 'user', content: '' },
@@ -164,6 +166,8 @@ function normalizeScenario(input) {
     trigger: normalizeGenerationTrigger(source.trigger),
     userName: cleanText(source.userName) || '{{user}}',
     charName: cleanText(source.charName),
+    personaDescription: cleanText(source.personaDescription),
+    characterDepthPrompt: cleanText(source.characterDepthPrompt),
     settings: normalizeSettings(source.settings),
     messages: normalizeMessages(source.messages),
     forceActivate: normalizeStringArray(source.forceActivate),
@@ -1233,6 +1237,8 @@ function normalizeCharacterFilter(entry) {
 function normalizeCharacterCardObject(card, sourceName, pngMetadata) {
   const data = card?.data && typeof card.data === 'object' ? card.data : card || {};
   const characterBook = data.character_book || data.characterBook || card.character_book || card.characterBook || null;
+  const extensions = data.extensions && typeof data.extensions === 'object' ? data.extensions : {};
+  const depthPrompt = extensions.depth_prompt || extensions.depthPrompt || {};
   return {
     sourceName,
     format: pngMetadata ? 'png' : 'json',
@@ -1245,6 +1251,9 @@ function normalizeCharacterCardObject(card, sourceName, pngMetadata) {
     alternateGreetings: normalizeStringArray(data.alternate_greetings || data.alternateGreetings || card.alternate_greetings || card.alternateGreetings),
     mesExample: cleanText(data.mes_example || data.mesExample || card.mes_example || card.mesExample),
     creatorNotes: cleanText(data.creator_notes || data.creatorNotes || card.creator_notes || card.creatorNotes),
+    characterDepthPrompt: cleanText(
+      data.character_depth_prompt || data.characterDepthPrompt || depthPrompt.prompt || card.character_depth_prompt || card.characterDepthPrompt,
+    ),
     tags: normalizeStringArray(data.tags || card.tags),
     characterBook,
   };
@@ -1496,10 +1505,10 @@ function parseJsonLike(input, label) {
 
 function buildGlobalScanData(characterCard, scenario) {
   return {
-    personaDescription: '',
+    personaDescription: cleanText(scenario?.personaDescription),
     characterDescription: characterCard?.description || '',
     characterPersonality: characterCard?.personality || '',
-    characterDepthPrompt: '',
+    characterDepthPrompt: cleanText(scenario?.characterDepthPrompt || characterCard?.characterDepthPrompt),
     scenario: characterCard?.scenario || '',
     creatorNotes: characterCard?.creatorNotes || '',
     trigger: normalizeGenerationTrigger(scenario?.trigger),

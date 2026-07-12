@@ -19,8 +19,9 @@ Install from your editor's marketplace to receive normal extension updates. Manu
 - Collapse the entry filter and multi-select tools when more room is needed for the entry list.
 - Select multiple entries to enable, disable, delete, or copy them into any other worldbook JSON file.
 - Find, replace, or delete matching text across titles, keywords, and content in one batch.
-- Edit title, strategy, position, order, probability, depth, role, keywords, selective logic, and content.
-- See constant, selective, vectorized, disabled, triggered, and not-triggered states at a glance.
+- Edit title, native entry status, position, order, probability, depth, role, keywords, optional-filter logic, and content.
+- Open the collapsed advanced editor for per-entry overrides, recursion, groups, timed effects, character and generation filters, and additional matching sources.
+- See constant, normal keyword-triggered, vectorized, disabled, triggered, and not-triggered states at a glance.
 - Preview ST-style world-info placement as a system/user/assistant timeline.
 - See why each entry activated or did not activate.
 - Display token estimates for every entry, all entries, active world info, and the complete timeline.
@@ -45,12 +46,13 @@ The preview combines the selected worldbook, optional character card, and a loca
 
 ![Prompt timeline with triggered and not-triggered entries](https://raw.githubusercontent.com/MeowMico/worldbook-backup-helper/main/packages/vscode-extension/media/screenshots/prompt-preview.png)
 
-Strategy indicators use familiar worldbook states:
+Status indicators use familiar worldbook states:
 
 - Blue: constant entry
-- Green: selective keyword-triggered entry
-- Purple: vectorized entry
-- Gray: normal or disabled entry
+- Green: normal keyword-triggered entry
+- Chain: vectorized entry
+
+Optional Filter is independent from entry status, matching SillyTavern's `Selective` field. Disabled entries are shown with reduced opacity.
 
 Token profiles identify whether their result is exact for the selected tokenizer or an estimate. Unknown and unavailable tokenizers fall back to a clearly labeled estimate.
 
@@ -60,11 +62,12 @@ Preview settings are stored next to the worldbook as `<worldbook>.wbh.json`. A s
 
 - ordered system, user, and assistant chat messages
 - the portable `{{user}}` macro
-- generation mode
+- preview generation type
 - deterministic probability seed
 - world-info scan depth, recursion limits, and minimum activations
 - optional context-budget experiments and matching behavior
 - character/global lore insertion strategy
+- optional persona description, Character's Note, sticky state, and cooldown state
 - tokenizer profile
 - manually forced entry IDs
 - an optional character-card path

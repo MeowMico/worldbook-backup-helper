@@ -541,11 +541,10 @@ class WorkbenchPanel {
                 <section class="editor-section">
                   <label>Title<input id="entryTitleInput" type="text"></label>
                   <div class="editor-grid">
-                    <label>Strategy<span class="strategy-control"><span id="entryStrategyIndicator" class="strategy-dot" aria-hidden="true"></span><select id="entryStrategyInput">
-                      <option value="selective">Selective</option>
+                    <label title="Vectorized matching requires a compatible SillyTavern runtime.">Status<span class="strategy-control"><span id="entryStrategyIndicator" class="strategy-dot" aria-hidden="true"></span><select id="entryStrategyInput">
+                      <option value="normal">Normal</option>
                       <option value="constant">Constant</option>
                       <option value="vectorized">Vectorized</option>
-                      <option value="normal">Normal</option>
                     </select></span></label>
                     <label>Position<select id="entryPositionInput">
                       <option value="0">Before Character</option>
@@ -571,18 +570,99 @@ class WorkbenchPanel {
                 <section class="editor-section">
                   <div class="editor-grid">
                     <label>Primary Keywords<textarea id="entryKeysInput" rows="3" spellcheck="false"></textarea></label>
-                    <label>Secondary Keywords<textarea id="entrySecondaryInput" rows="3" spellcheck="false"></textarea></label>
+                    <label id="entrySecondaryField">Secondary Keywords<textarea id="entrySecondaryInput" rows="3" spellcheck="false"></textarea></label>
                   </div>
-                  <label>Selective Logic<select id="entryLogicInput">
+                  <label id="entryLogicField">Selective Logic<select id="entryLogicInput">
                     <option value="0">AND Any</option>
                     <option value="3">AND All</option>
                     <option value="2">NOT Any</option>
                     <option value="1">NOT All</option>
                   </select></label>
+                  <div class="entry-inline-options">
+                    <label class="check-row"><input id="entrySelectiveInput" type="checkbox"> Use Optional Filter</label>
+                    <label class="check-row"><input id="entryUseProbabilityInput" type="checkbox"> Use Probability</label>
+                  </div>
                 </section>
                 <section class="editor-section content-section">
                   <label>Content<textarea id="entryContentInput" rows="16" spellcheck="false"></textarea></label>
                 </section>
+                <details class="entry-advanced-settings">
+                  <summary>Advanced Entry Settings</summary>
+                  <div class="entry-advanced-content">
+                    <section class="advanced-section">
+                      <h3>Per-entry Overrides</h3>
+                      <div class="editor-grid">
+                        <label>Scan Depth<input id="entryScanDepthInput" type="number" min="0" placeholder="Use global"></label>
+                        <label>Case-sensitive<select id="entryCaseSensitiveInput">
+                          <option value="null">Use global</option>
+                          <option value="true">Yes</option>
+                          <option value="false">No</option>
+                        </select></label>
+                        <label>Whole Words<select id="entryMatchWholeWordsInput">
+                          <option value="null">Use global</option>
+                          <option value="true">Yes</option>
+                          <option value="false">No</option>
+                        </select></label>
+                        <label>Group Scoring<select id="entryUseGroupScoringInput">
+                          <option value="null">Use global</option>
+                          <option value="true">Yes</option>
+                          <option value="false">No</option>
+                        </select></label>
+                        <label title="Requires the SillyTavern Quick Replies runtime.">Automation ID<input id="entryAutomationIdInput" type="text"></label>
+                        <label class="check-field"><span>Add Memo</span><input id="entryAddMemoInput" type="checkbox"></label>
+                      </div>
+                    </section>
+                    <section class="advanced-section">
+                      <h3>Recursion and Budget</h3>
+                      <div class="advanced-check-grid">
+                        <label class="check-row"><input id="entryExcludeRecursionInput" type="checkbox"> Non-recursable</label>
+                        <label class="check-row"><input id="entryPreventRecursionInput" type="checkbox"> Prevent further recursion</label>
+                        <label class="check-row"><input id="entryDelayUntilRecursionInput" type="checkbox"> Delay until recursion</label>
+                        <label class="check-row"><input id="entryIgnoreBudgetInput" type="checkbox"> Ignore budget</label>
+                      </div>
+                      <label id="entryRecursionLevelField" class="compact-field">Recursion Level<input id="entryRecursionLevelInput" type="number" min="1" placeholder="1"></label>
+                    </section>
+                    <section class="advanced-section">
+                      <h3>Groups and Timing</h3>
+                      <div class="editor-grid">
+                        <label>Inclusion Group<input id="entryGroupInput" type="text"></label>
+                        <label>Group Weight<input id="entryGroupWeightInput" type="number" min="1"></label>
+                        <label>Sticky<input id="entryStickyInput" type="number" min="0" placeholder="Not sticky"></label>
+                        <label>Cooldown<input id="entryCooldownInput" type="number" min="0" placeholder="No cooldown"></label>
+                        <label>Delay<input id="entryDelayInput" type="number" min="0" placeholder="No delay"></label>
+                        <label class="check-field"><span>Prioritize Inclusion</span><input id="entryGroupOverrideInput" type="checkbox"></label>
+                      </div>
+                    </section>
+                    <section class="advanced-section">
+                      <h3>Filters</h3>
+                      <div class="editor-grid">
+                        <label>Character Names<textarea id="entryCharacterNamesInput" rows="2" spellcheck="false"></textarea></label>
+                        <label title="SillyTavern stores tag identifiers in this field.">Character Tag IDs<textarea id="entryCharacterTagsInput" rows="2" spellcheck="false"></textarea></label>
+                      </div>
+                      <label class="check-row"><input id="entryCharacterExcludeInput" type="checkbox"> Exclude listed characters or tags</label>
+                      <fieldset class="advanced-fieldset">
+                        <legend>Generation Triggers</legend>
+                        <label class="check-row"><input type="checkbox" data-entry-trigger="normal"> Normal</label>
+                        <label class="check-row"><input type="checkbox" data-entry-trigger="continue"> Continue</label>
+                        <label class="check-row"><input type="checkbox" data-entry-trigger="impersonate"> Impersonate</label>
+                        <label class="check-row"><input type="checkbox" data-entry-trigger="swipe"> Swipe</label>
+                        <label class="check-row"><input type="checkbox" data-entry-trigger="regenerate"> Regenerate</label>
+                        <label class="check-row"><input type="checkbox" data-entry-trigger="quiet"> Quiet</label>
+                      </fieldset>
+                    </section>
+                    <section class="advanced-section">
+                      <h3>Additional Matching Sources</h3>
+                      <div class="advanced-check-grid">
+                        <label class="check-row"><input id="entryMatchCharacterDescriptionInput" type="checkbox"> Character Description</label>
+                        <label class="check-row"><input id="entryMatchCharacterPersonalityInput" type="checkbox"> Character Personality</label>
+                        <label class="check-row"><input id="entryMatchScenarioInput" type="checkbox"> Scenario</label>
+                        <label class="check-row"><input id="entryMatchPersonaDescriptionInput" type="checkbox"> Persona Description</label>
+                        <label class="check-row"><input id="entryMatchCharacterDepthPromptInput" type="checkbox"> Character's Note</label>
+                        <label class="check-row"><input id="entryMatchCreatorNotesInput" type="checkbox"> Creator's Notes</label>
+                      </div>
+                    </section>
+                  </div>
+                </details>
               </div>
             </div>
           </section>
@@ -591,14 +671,6 @@ class WorkbenchPanel {
             <fieldset id="scenarioStructuredFields" class="scenario-structured-fields">
               <div class="form-grid">
                 <label title="Keeps probability and group choices stable between previews.">Preview Seed<input id="seedInput" type="text"></label>
-                <label>Generation<select id="triggerInput">
-                  <option value="normal">Normal</option>
-                  <option value="continue">Continue</option>
-                  <option value="impersonate">Impersonate</option>
-                  <option value="swipe">Swipe</option>
-                  <option value="regenerate">Regenerate</option>
-                  <option value="quiet">Quiet</option>
-                </select></label>
                 <label>Tokenizer<select id="tokenizerInput">
                   <option value="estimate">Estimate</option>
                   <option value="openai-cl100k">OpenAI cl100k</option>
@@ -612,6 +684,10 @@ class WorkbenchPanel {
               </div>
               <details class="scenario-global-settings" open>
                 <summary>Global Activation Settings</summary>
+                <div class="settings-actions">
+                  <button id="workbenchDefaultsButton" type="button">Workbench defaults</button>
+                  <button id="sillyTavernDefaultsButton" type="button" title="Set Context Size separately to preview the native percentage budget.">ST 1.18 defaults</button>
+                </div>
                 <div class="form-grid scenario-global-grid">
                   <label title="How many recent chat messages world-info keyword matching scans.">Scan Depth<input id="depthInput" type="number" min="0"></label>
                   <label title="Standalone context size used to calculate the world-info budget. Zero disables the percentage budget.">Context Size<input id="contextSizeInput" type="number" min="0"></label>
@@ -635,6 +711,24 @@ class WorkbenchPanel {
                   <label class="check-row"><input id="alertOnOverflowInput" type="checkbox"> Alert On Overflow</label>
                 </div>
               </details>
+              <details class="scenario-global-settings scenario-preview-settings">
+                <summary>Preview Advanced Settings</summary>
+                <div class="form-grid scenario-preview-grid">
+                  <label>Preview Generation Type<select id="triggerInput">
+                    <option value="normal">Normal</option>
+                    <option value="continue">Continue</option>
+                    <option value="impersonate">Impersonate</option>
+                    <option value="swipe">Swipe</option>
+                    <option value="regenerate">Regenerate</option>
+                    <option value="quiet">Quiet</option>
+                  </select></label>
+                  <label>Persona Description<textarea id="personaDescriptionInput" rows="3" spellcheck="false"></textarea></label>
+                  <label title="Leave empty to use the imported character card value.">Character's Note<textarea id="characterDepthPromptInput" rows="3" spellcheck="false"></textarea></label>
+                  <label>Force Activate IDs<textarea id="forceText" rows="3" spellcheck="false" placeholder="One entry ID per line"></textarea></label>
+                  <label>Sticky Active IDs<textarea id="stickyText" rows="3" spellcheck="false" placeholder="One entry ID per line"></textarea></label>
+                  <label>Cooldown Active IDs<textarea id="cooldownText" rows="3" spellcheck="false" placeholder="One entry ID per line"></textarea></label>
+                </div>
+              </details>
               <section class="scenario-editor-section">
                 <div class="scenario-section-head">
                   <div><h3>Chat Messages</h3><span id="messageCount">0 messages</span></div>
@@ -642,7 +736,6 @@ class WorkbenchPanel {
                 </div>
                 <div id="messageList" class="scenario-message-list"></div>
               </section>
-              <label class="block-label">Force Activate IDs<textarea id="forceText" spellcheck="false" placeholder="One entry ID per line"></textarea></label>
             </fieldset>
             <section class="scenario-json-section">
               <div class="scenario-section-head">

@@ -13,10 +13,9 @@
   --selection: var(--vscode-list-activeSelectionBackground, #094771);
   --selection-text: var(--vscode-list-activeSelectionForeground, #ffffff);
   --hover: var(--vscode-list-hoverBackground, #2a2d2e);
-  --strategy-selective: #2fa66f;
   --strategy-constant: #4f8df7;
   --strategy-vectorized: #a06ed1;
-  --strategy-normal: #8a929e;
+  --strategy-normal: #2fa66f;
   --triggered: #2fa66f;
 }
 
@@ -373,18 +372,26 @@ textarea[aria-invalid="true"] {
   background: var(--strategy-normal);
 }
 
-.strategy-selective {
-  background: var(--strategy-selective);
-}
-
 .strategy-constant {
   background: var(--strategy-constant);
 }
 
 .strategy-vectorized {
-  background: var(--strategy-vectorized);
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
+.strategy-vectorized::before {
+  content: "\1F517";
+  display: block;
+  font-size: 13px;
+  line-height: 14px;
+}
+
+.strategy-selective,
 .strategy-normal {
   background: var(--strategy-normal);
 }
@@ -634,6 +641,93 @@ label,
   min-height: 300px;
 }
 
+.entry-inline-options,
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.entry-inline-options .check-row,
+.advanced-check-grid .check-row,
+.advanced-fieldset .check-row {
+  padding: 0;
+}
+
+.entry-advanced-settings {
+  border-bottom: 1px solid var(--border);
+}
+
+.entry-advanced-settings > summary,
+.scenario-global-settings > summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.entry-advanced-settings[open] > summary,
+.scenario-global-settings[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.advanced-section {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border-top: 1px solid var(--border);
+}
+
+.advanced-section:first-child {
+  border-top: 0;
+}
+
+.advanced-section h3 {
+  margin: 0;
+}
+
+.advanced-check-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px 16px;
+}
+
+.advanced-fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 9px 10px 10px;
+}
+
+.advanced-fieldset legend {
+  padding: 0 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.check-field {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.check-field input {
+  width: auto;
+  margin-bottom: 7px;
+}
+
+.compact-field {
+  max-width: 260px;
+}
+
+.disabled-field {
+  opacity: 0.55;
+}
+
 .check-row {
   display: flex;
   align-items: center;
@@ -667,17 +761,8 @@ label,
   border-bottom: 1px solid var(--border);
 }
 
-.scenario-global-settings > summary {
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  padding: 10px 12px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.scenario-global-settings[open] > summary {
-  border-bottom: 1px solid var(--border);
+.settings-actions {
+  padding: 10px 12px 0;
 }
 
 .scenario-global-grid {
@@ -774,8 +859,8 @@ label,
   padding: 0 12px 12px;
 }
 
-#forceText {
-  height: 74px;
+.scenario-preview-grid textarea {
+  min-height: 74px;
 }
 
 .scenario-json-section {
@@ -1034,6 +1119,7 @@ h3 {
 
   .editor-grid,
   .form-grid,
+  .advanced-check-grid,
   .scenario-global-toggles,
   .details-grid,
   .summary-strip {

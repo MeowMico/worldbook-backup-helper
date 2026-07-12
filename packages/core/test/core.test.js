@@ -54,10 +54,12 @@ test('parseCharacterCard reads JSON character books', () => {
     data: {
       name: 'Eldoria',
       description: 'Forest',
+      extensions: { depth_prompt: { prompt: 'Remember the ancient oath.', depth: 4, role: 0 } },
       character_book: { entries: { a: { comment: 'Lore', content: 'Wood', constant: true } } },
     },
   }));
   assert.equal(card.name, 'Eldoria');
+  assert.equal(card.characterDepthPrompt, 'Remember the ancient oath.');
   assert.equal(card.characterBook.entries.a.comment, 'Lore');
 });
 
@@ -89,6 +91,38 @@ test('scenario JSON preserves unknown scenario and message fields', () => {
   }));
   assert.deepEqual(parsed.customScenarioField, { enabled: true });
   assert.equal(parsed.messages[0].customMessageField, 'kept');
+});
+
+test('scenario matching sources support persona description and character note', () => {
+  const result = compilePromptPreview({
+    worldbooks: [{
+      name: 'book',
+      data: {
+        entries: {
+          persona: {
+            comment: 'Persona match',
+            content: 'persona',
+            key: ['cartographer'],
+            matchPersonaDescription: true,
+          },
+          note: {
+            comment: 'Note match',
+            content: 'note',
+            key: ['ancient oath'],
+            matchCharacterDepthPrompt: true,
+          },
+        },
+      },
+    }],
+    scenario: {
+      ...createDefaultScenario(),
+      personaDescription: 'A patient cartographer.',
+      characterDepthPrompt: 'Remember the ancient oath.',
+      settings: { ...createDefaultScenario().settings, recursive: false },
+      messages: [{ role: 'user', content: 'No direct keyword here.' }],
+    },
+  });
+  assert.deepEqual(result.activatedEntries.map(entry => entry.title), ['Persona match', 'Note match']);
 });
 
 test('history sidecar snapshots and experiments preserve worldbook data', () => {

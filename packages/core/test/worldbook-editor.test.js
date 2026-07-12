@@ -31,11 +31,21 @@ test('worldbook editor supports array entries and stable add/delete operations',
 });
 
 test('worldbook editor maps strategies, positions, lists, and token estimates', () => {
-  const entry = { custom: 'kept' };
+  const entry = { custom: 'kept', selective: true };
   editor.applyEntryStrategy(entry, 'constant');
   assert.equal(editor.entryStrategy(entry), 'constant');
   assert.equal(entry.constant, true);
-  assert.equal(entry.selective, false);
+  assert.equal(entry.selective, true);
+
+  editor.applyEntryStrategy(entry, 'normal');
+  assert.equal(editor.entryStrategy(entry), 'normal');
+  assert.equal(entry.constant, false);
+  assert.equal(entry.vectorized, false);
+  assert.equal(entry.selective, true);
+
+  editor.applyEntryStrategy(entry, 'vectorized');
+  assert.equal(editor.entryStrategy(entry), 'vectorized');
+  assert.equal(entry.selective, true);
 
   editor.applyEntryPosition(entry, 4);
   entry.role = 2;
@@ -46,6 +56,18 @@ test('worldbook editor maps strategies, positions, lists, and token estimates', 
   assert.deepEqual(editor.parseListText('one, two\nthree'), ['one', 'two', 'three']);
   assert.ok(editor.estimateTokens('中文 English') > 0);
   assert.equal(entry.custom, 'kept');
+});
+
+test('new entries include SillyTavern-compatible advanced defaults', () => {
+  const data = { entries: {} };
+  const record = editor.createEntry(data);
+  assert.equal(record.entry.selective, true);
+  assert.equal(record.entry.useProbability, true);
+  assert.equal(record.entry.addMemo, false);
+  assert.equal(record.entry.scanDepth, null);
+  assert.equal(record.entry.caseSensitive, null);
+  assert.equal(record.entry.groupWeight, 100);
+  assert.deepEqual(record.entry.triggers, []);
 });
 
 test('worldbook editor batch selection actions support object and array entries', () => {
