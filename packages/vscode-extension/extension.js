@@ -18,7 +18,6 @@ const {
   copyWorldbookEntries,
   parseWorldbookJson,
   serializeWorldbookJson,
-  parseCharacterCard,
   compilePromptPreview,
 } = loadCore();
 const i18n = loadI18n();
@@ -37,7 +36,6 @@ function activate(context) {
     }),
     vscode.commands.registerCommand('worldbookWorkbench.openWorkbench', uri => WorkbenchPanel.createOrShow(context, uri, 'edit')),
     vscode.commands.registerCommand('worldbookWorkbench.openPromptPreview', uri => WorkbenchPanel.createOrShow(context, uri, 'preview')),
-    vscode.commands.registerCommand('worldbookWorkbench.importCharacterCard', () => withPanel(context, panel => panel.importCharacterCard())),
     vscode.commands.registerCommand('worldbookWorkbench.saveScenario', () => withPanel(context, panel => panel.saveScenario())),
     vscode.commands.registerCommand('worldbookWorkbench.exportWorldbookJson', () => withPanel(context, panel => panel.exportWorldbookJson())),
     vscode.commands.registerCommand('worldbookWorkbench.openUserGuide', () => openUserGuide(context)),
@@ -105,8 +103,6 @@ class WorkbenchPanel {
     this.worldbookUri = null;
     this.worldbookText = '';
     this.scenario = createDefaultScenario('');
-    this.characterCard = null;
-    this.characterCardPath = '';
     this.history = createDefaultHistory('');
     this.mode = 'edit';
     this.languageState = getLanguageState();
@@ -123,8 +119,6 @@ class WorkbenchPanel {
     this.history = await this.loadHistoryForWorldbook(uri.fsPath, parsed.data);
     this.scenario = await this.loadScenarioForWorldbook(uri);
     this.scenario.worldbookPath = uri.fsPath;
-    this.characterCardPath = this.scenario.characterCardPath || '';
-    this.characterCard = this.characterCardPath ? await readCharacterCardSafely(this.characterCardPath) : null;
     this.postState();
     if (mode === 'preview') await this.compilePreview(this.worldbookText, this.scenario);
   }
@@ -153,9 +147,6 @@ class WorkbenchPanel {
           break;
         case 'saveWorldbook':
           await this.saveWorldbook(message.worldbookText);
-          break;
-        case 'importCharacterCard':
-          await this.importCharacterCard(message.scenario);
           break;
         case 'saveScenario':
           await this.saveScenario(message.scenario);
@@ -205,10 +196,9 @@ class WorkbenchPanel {
       filePath: this.worldbookUri.fsPath,
     });
     this.worldbookText = serializeWorldbookJson(parsed);
-    this.scenario = normalizeScenarioForPanel(scenario, this.worldbookUri.fsPath, this.characterCardPath);
+    this.scenario = normalizeScenarioForPanel(scenario, this.worldbookUri.fsPath);
     const result = compilePromptPreview({
       worldbooks: [{ name: parsed.sourceName, path: this.worldbookUri.fsPath, data: parsed.data }],
-      characterCard: this.characterCard,
       scenario: this.scenario,
     });
     this.post({ type: 'preview', result, worldbookText: this.worldbookText });
@@ -429,26 +419,8 @@ class WorkbenchPanel {
     this.post({ type: 'history', message, history: summarizeHistory(this.history) });
   }
 
-  async importCharacterCard(scenario = this.scenario) {
-    this.scenario = normalizeScenarioForPanel(scenario, this.worldbookUri.fsPath, this.characterCardPath);
-    const [uri] = await vscode.window.showOpenDialog({
-      title: this.text('Import Character Card'),
-      canSelectMany: false,
-      filters: {
-        'Character cards': ['json', 'png'],
-      },
-    }) || [];
-    if (!uri) return;
-    const buffer = Buffer.from(await vscode.workspace.fs.readFile(uri));
-    this.characterCard = parseCharacterCard(buffer, { filePath: uri.fsPath });
-    this.characterCardPath = uri.fsPath;
-    this.scenario.characterCardPath = uri.fsPath;
-    this.postState();
-    await this.compilePreview(this.worldbookText, this.scenario);
-  }
-
   async saveScenario(scenario = this.scenario) {
-    this.scenario = normalizeScenarioForPanel(scenario, this.worldbookUri.fsPath, this.characterCardPath);
+    this.scenario = normalizeScenarioForPanel(scenario, this.worldbookUri.fsPath);
     const target = scenarioFilePath(this.worldbookUri.fsPath);
     await fs.writeFile(target, `${JSON.stringify(this.scenario, null, 2)}\n`, 'utf8');
     this.post({ type: 'saved', message: this.text('Preview setup saved: {file}', { file: path.basename(target) }) });
@@ -476,7 +448,6 @@ class WorkbenchPanel {
       worldbookPath: this.worldbookUri?.fsPath || '',
       worldbookText: this.worldbookText,
       scenario: this.scenario,
-      characterCard: summarizeCharacterCard(this.characterCard),
       history: summarizeHistory(this.history),
       ...this.languageState,
     });
@@ -531,7 +502,6 @@ class WorkbenchPanel {
           <button id="saveButton" type="button">Save</button>
           <button id="historyButton" type="button" title="Open snapshots and experiments" aria-pressed="false">Experiments</button>
           <button id="scenarioButton" type="button">Save Preview Setup</button>
-          <button id="cardButton" type="button">Import Card</button>
           <button id="exportButton" type="button">Export JSON</button>
           <button id="helpButton" class="icon-button toolbar-icon" type="button" title="Open user guide" aria-label="Open user guide">?</button>
           <select id="languageInput" class="language-input" aria-label="Language">
@@ -597,7 +567,7 @@ class WorkbenchPanel {
                   <label>Title<input id="entryTitleInput" type="text"></label>
                   <div class="editor-grid">
                     <label title="Vectorized matching requires a compatible SillyTavern runtime.">Status<span class="strategy-control"><span id="entryStrategyIndicator" class="strategy-dot" aria-hidden="true"></span><select id="entryStrategyInput">
-                      <option value="normal">Normal</option>
+                      <option value="normal">WI_Entry_Status_Normal</option>
                       <option value="constant">Constant</option>
                       <option value="vectorized">Vectorized</option>
                     </select></span></label>
@@ -722,7 +692,7 @@ class WorkbenchPanel {
             </div>
           </section>
           <section id="scenarioTab" class="tab-panel settings-pane" role="tabpanel">
-            <div class="section-head"><h2>Prompt Preview Setup</h2><span id="cardMeta">No card</span></div>
+            <div class="section-head"><h2>Prompt Preview Setup</h2></div>
             <p class="section-description">Use chat messages and ST-style activation settings to test which entries trigger and where they appear. This setup only affects preview, is stored separately, and is never exported into the worldbook JSON.</p>
             <fieldset id="scenarioStructuredFields" class="scenario-structured-fields">
               <div class="form-grid">
@@ -735,14 +705,10 @@ class WorkbenchPanel {
                   <option value="claude-estimate">Claude estimate</option>
                 </select></label>
               </div>
-              <div class="scenario-toggles scenario-source-toggles">
-                <label class="check-row"><input id="characterBookInput" type="checkbox"> Character book</label>
-              </div>
               <details class="scenario-global-settings" open>
                 <summary>Global Activation Settings</summary>
                 <div class="settings-actions">
                   <button id="workbenchDefaultsButton" type="button">Workbench defaults</button>
-                  <button id="sillyTavernDefaultsButton" type="button" title="Set Context Size separately to preview the native percentage budget.">ST 1.18 defaults</button>
                 </div>
                 <div class="form-grid scenario-global-grid">
                   <label title="How many recent chat messages world-info keyword matching scans.">Scan Depth<input id="depthInput" type="number" min="0"></label>
@@ -779,12 +745,18 @@ class WorkbenchPanel {
                     <option value="quiet">Quiet</option>
                   </select></label>
                   <label>Persona Description<textarea id="personaDescriptionInput" rows="3" spellcheck="false"></textarea></label>
-                  <label title="Leave empty to use the imported character card value.">Character's Note<textarea id="characterDepthPromptInput" rows="3" spellcheck="false"></textarea></label>
+                  <label title="Optional character note text used by matching.">Character's Note<textarea id="characterDepthPromptInput" rows="3" spellcheck="false"></textarea></label>
                   <label>Force Activate IDs<textarea id="forceText" rows="3" spellcheck="false" placeholder="One entry ID per line"></textarea></label>
                   <label>Sticky Active IDs<textarea id="stickyText" rows="3" spellcheck="false" placeholder="One entry ID per line"></textarea></label>
                   <label>Cooldown Active IDs<textarea id="cooldownText" rows="3" spellcheck="false" placeholder="One entry ID per line"></textarea></label>
                 </div>
               </details>
+              <section class="scenario-editor-section scenario-last-human-section">
+                <div class="scenario-section-head">
+                  <div><h3>Last Human Message</h3><span>Optional current turn</span></div>
+                </div>
+                <label title="Appended after the chat history and included in activation scanning.">Content<textarea id="lastHumanMessageInput" rows="4" spellcheck="false"></textarea></label>
+              </section>
               <section class="scenario-editor-section">
                 <div class="scenario-section-head">
                   <div><h3>Chat Messages</h3><span id="messageCount">0 messages</span></div>
@@ -941,32 +913,11 @@ function resolveWebviewRoot(extensionPath) {
   return require('fs').existsSync(packaged) ? packaged : local;
 }
 
-async function readCharacterCardSafely(filePath) {
-  try {
-    return parseCharacterCard(await fs.readFile(filePath), { filePath });
-  } catch {
-    return null;
-  }
-}
-
-function normalizeScenarioForPanel(scenario, worldbookPath, characterCardPath) {
+function normalizeScenarioForPanel(scenario, worldbookPath) {
   return parseScenarioJson(JSON.stringify({
     ...scenario,
     worldbookPath,
-    characterCardPath: characterCardPath || scenario?.characterCardPath || '',
   }));
-}
-
-function summarizeCharacterCard(card) {
-  if (!card) return null;
-  return {
-    name: card.name,
-    description: card.description,
-    scenario: card.scenario,
-    format: card.format,
-    hasCharacterBook: Boolean(card.characterBook),
-    alternateGreetingCount: card.alternateGreetings?.length || 0,
-  };
 }
 
 module.exports = { activate, deactivate };

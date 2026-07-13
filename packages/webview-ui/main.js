@@ -15,7 +15,6 @@
     selectedStorageKey: null,
     selectedEntryIds: new Set(),
     scenario: null,
-    characterCard: null,
     history: null,
     lastPreview: null,
     previewEntries: new Map(),
@@ -110,7 +109,6 @@
     triggerInput: document.querySelector('#triggerInput'),
     tokenizerInput: document.querySelector('#tokenizerInput'),
     workbenchDefaultsButton: document.querySelector('#workbenchDefaultsButton'),
-    sillyTavernDefaultsButton: document.querySelector('#sillyTavernDefaultsButton'),
     depthInput: document.querySelector('#depthInput'),
     contextSizeInput: document.querySelector('#contextSizeInput'),
     budgetPercentInput: document.querySelector('#budgetPercentInput'),
@@ -125,7 +123,7 @@
     matchWholeWordsInput: document.querySelector('#matchWholeWordsInput'),
     useGroupScoringInput: document.querySelector('#useGroupScoringInput'),
     alertOnOverflowInput: document.querySelector('#alertOnOverflowInput'),
-    characterBookInput: document.querySelector('#characterBookInput'),
+    lastHumanMessageInput: document.querySelector('#lastHumanMessageInput'),
     messageCount: document.querySelector('#messageCount'),
     messageList: document.querySelector('#messageList'),
     addMessageButton: document.querySelector('#addMessageButton'),
@@ -136,7 +134,6 @@
     characterDepthPromptInput: document.querySelector('#characterDepthPromptInput'),
     scenarioJsonText: document.querySelector('#scenarioJsonText'),
     applyScenarioJsonButton: document.querySelector('#applyScenarioJsonButton'),
-    cardMeta: document.querySelector('#cardMeta'),
     batchFindInput: document.querySelector('#batchFindInput'),
     batchReplaceInput: document.querySelector('#batchReplaceInput'),
     batchTitleField: document.querySelector('#batchTitleField'),
@@ -164,7 +161,6 @@
     saveButton: document.querySelector('#saveButton'),
     historyButton: document.querySelector('#historyButton'),
     scenarioButton: document.querySelector('#scenarioButton'),
-    cardButton: document.querySelector('#cardButton'),
     exportButton: document.querySelector('#exportButton'),
     helpButton: document.querySelector('#helpButton'),
     tabs: [...document.querySelectorAll('[data-tab]')],
@@ -208,10 +204,6 @@
   el.scenarioButton.addEventListener('click', () => {
     const scenario = gatherScenario();
     if (scenario) post('saveScenario', { scenario });
-  });
-  el.cardButton.addEventListener('click', () => {
-    const scenario = gatherScenario();
-    if (scenario) post('importCharacterCard', { scenario });
   });
   el.entrySearch.addEventListener('input', renderEntryBrowser);
   el.toggleEntryToolsButton.addEventListener('click', toggleEntryTools);
@@ -392,8 +384,7 @@
   }
 
   el.addMessageButton.addEventListener('click', addScenarioMessage);
-  el.workbenchDefaultsButton.addEventListener('click', () => applyActivationPreset('workbench'));
-  el.sillyTavernDefaultsButton.addEventListener('click', () => applyActivationPreset('sillytavern-1.18'));
+  el.workbenchDefaultsButton.addEventListener('click', applyActivationDefaults);
   const scenarioInputs = [
     el.seedInput,
     el.triggerInput,
@@ -411,7 +402,7 @@
     el.matchWholeWordsInput,
     el.useGroupScoringInput,
     el.alertOnOverflowInput,
-    el.characterBookInput,
+    el.lastHumanMessageInput,
     el.forceText,
     el.stickyText,
     el.cooldownText,
@@ -517,7 +508,6 @@
     if (message.language) applyLanguageState(message, false);
     state.worldbookPath = message.worldbookPath || '';
     state.scenario = message.scenario || {};
-    state.characterCard = message.characterCard || null;
     state.history = message.history || null;
     state.selectedEntryIds.clear();
     state.lastPreview = null;
@@ -529,7 +519,6 @@
     el.worldbookMeta.textContent = state.worldbookPath;
     el.worldbookMeta.title = state.worldbookPath;
     renderScenario(state.scenario);
-    renderCharacterCard();
     renderHistory();
     renderBatchResults();
     renderPreview(null);
@@ -551,7 +540,6 @@
     renderEntryEditor();
     renderBatchResults();
     renderScenarioMessages();
-    renderCharacterCard();
     renderHistory();
     renderPreview(state.lastPreview);
     renderUndoControls();
@@ -1133,6 +1121,7 @@
       : [];
     source.personaDescription = String(source.personaDescription || '');
     source.characterDepthPrompt = String(source.characterDepthPrompt || '');
+    source.lastHumanMessage = String(source.lastHumanMessage || '');
     source.timedState = isObject(source.timedState) ? source.timedState : {};
     source.timedState.sticky = Array.isArray(source.timedState.sticky)
       ? source.timedState.sticky.map(value => String(value)).filter(Boolean)
@@ -1145,13 +1134,13 @@
     el.seedInput.value = source.seed || '';
     el.triggerInput.value = source.trigger || 'normal';
     el.tokenizerInput.value = settings.tokenizerProfile || 'estimate';
-    el.depthInput.value = settings.worldInfoDepth ?? 4;
+    el.depthInput.value = settings.worldInfoDepth ?? 2;
     el.contextSizeInput.value = settings.maxContextTokens ?? 0;
     el.budgetPercentInput.value = settings.budgetPercent ?? 100;
     el.budgetCapInput.value = settings.budgetCap ?? 0;
     el.minActivationsInput.value = settings.minActivations ?? 0;
     el.minActivationsDepthMaxInput.value = settings.minActivationsDepthMax ?? 0;
-    el.maxRecursionStepsInput.value = settings.maxRecursionSteps ?? 2;
+    el.maxRecursionStepsInput.value = settings.maxRecursionSteps ?? 0;
     el.insertionStrategyInput.value = settings.worldInfoInsertionStrategy || 'character-first';
     el.includeNamesInput.checked = settings.includeNames === true;
     el.recursiveInput.checked = settings.recursive !== false;
@@ -1159,12 +1148,12 @@
     el.matchWholeWordsInput.checked = settings.matchWholeWords === true;
     el.useGroupScoringInput.checked = settings.useGroupScoring === true;
     el.alertOnOverflowInput.checked = settings.alertOnOverflow === true;
-    el.characterBookInput.checked = source.includeCharacterBook !== false;
     el.forceText.value = source.forceActivate.join('\n');
     el.stickyText.value = source.timedState.sticky.join('\n');
     el.cooldownText.value = source.timedState.cooldown.join('\n');
     el.personaDescriptionInput.value = source.personaDescription;
     el.characterDepthPromptInput.value = source.characterDepthPrompt;
+    el.lastHumanMessageInput.value = source.lastHumanMessage;
     for (const input of [el.forceText, el.stickyText, el.cooldownText]) input.removeAttribute('aria-invalid');
     el.scenarioStructuredFields.disabled = false;
     updateActivationControlState();
@@ -1303,40 +1292,24 @@
     el.minActivationsDepthMaxInput.disabled = !minActivationsEnabled;
   }
 
-  function applyActivationPreset(preset) {
-    if (preset === 'sillytavern-1.18') {
-      el.depthInput.value = '2';
-      el.budgetPercentInput.value = '25';
-      el.budgetCapInput.value = '0';
-      el.minActivationsInput.value = '0';
-      el.minActivationsDepthMaxInput.value = '0';
-      el.maxRecursionStepsInput.value = '0';
-      el.insertionStrategyInput.value = 'character-first';
-      el.includeNamesInput.checked = true;
-      el.recursiveInput.checked = false;
-      el.caseSensitiveInput.checked = false;
-      el.matchWholeWordsInput.checked = false;
-      el.useGroupScoringInput.checked = false;
-      el.alertOnOverflowInput.checked = false;
-    } else {
-      el.depthInput.value = '4';
-      el.contextSizeInput.value = '0';
-      el.budgetPercentInput.value = '100';
-      el.budgetCapInput.value = '0';
-      el.minActivationsInput.value = '0';
-      el.minActivationsDepthMaxInput.value = '0';
-      el.maxRecursionStepsInput.value = '2';
-      el.insertionStrategyInput.value = 'character-first';
-      el.includeNamesInput.checked = false;
-      el.recursiveInput.checked = true;
-      el.caseSensitiveInput.checked = false;
-      el.matchWholeWordsInput.checked = false;
-      el.useGroupScoringInput.checked = false;
-      el.alertOnOverflowInput.checked = false;
-    }
+  function applyActivationDefaults() {
+    el.depthInput.value = '2';
+    el.contextSizeInput.value = '0';
+    el.budgetPercentInput.value = '100';
+    el.budgetCapInput.value = '0';
+    el.minActivationsInput.value = '0';
+    el.minActivationsDepthMaxInput.value = '0';
+    el.maxRecursionStepsInput.value = '0';
+    el.insertionStrategyInput.value = 'character-first';
+    el.includeNamesInput.checked = false;
+    el.recursiveInput.checked = true;
+    el.caseSensitiveInput.checked = false;
+    el.matchWholeWordsInput.checked = false;
+    el.useGroupScoringInput.checked = false;
+    el.alertOnOverflowInput.checked = false;
     renderScenarioMessages();
     handleScenarioControlsChanged();
-    setStatus(preset === 'sillytavern-1.18' ? 'SillyTavern 1.18 defaults applied.' : 'Workbench defaults applied.');
+    setStatus('Workbench defaults applied.');
   }
 
   function handleScenarioControlsChanged() {
@@ -1353,18 +1326,6 @@
     el.scenarioJsonText.removeAttribute('aria-invalid');
     state.scenarioJsonDirty = false;
     el.scenarioStructuredFields.disabled = false;
-  }
-
-  function renderCharacterCard() {
-    const card = state.characterCard;
-    if (!card) {
-      el.cardMeta.textContent = t('No card');
-      return;
-    }
-    const parts = [card.name || t('Character')];
-    if (card.hasCharacterBook) parts.push(t('book'));
-    if (card.alternateGreetingCount) parts.push(t(card.alternateGreetingCount === 1 ? '{count} greeting' : '{count} greetings', { count: card.alternateGreetingCount }));
-    el.cardMeta.textContent = parts.join(' | ');
   }
 
   function applyHistory(history) {
@@ -1611,17 +1572,17 @@
         userName: '{{user}}',
         personaDescription: el.personaDescriptionInput.value,
         characterDepthPrompt: el.characterDepthPromptInput.value,
-        includeCharacterBook: el.characterBookInput.checked,
+        lastHumanMessage: el.lastHumanMessageInput.value,
         settings: {
           ...previousSettings,
           tokenizerProfile: el.tokenizerInput.value,
-          worldInfoDepth: Math.max(0, numberValue(el.depthInput.value, 4)),
+          worldInfoDepth: Math.max(0, numberValue(el.depthInput.value, 2)),
           maxContextTokens: Math.max(0, numberValue(el.contextSizeInput.value, 0)),
           budgetPercent: clamp(numberValue(el.budgetPercentInput.value, 100), 0, 100),
           budgetCap: Math.max(0, numberValue(el.budgetCapInput.value, 0)),
           minActivations: Math.max(0, numberValue(el.minActivationsInput.value, 0)),
           minActivationsDepthMax: Math.max(0, numberValue(el.minActivationsDepthMaxInput.value, 0)),
-          maxRecursionSteps: Math.max(0, numberValue(el.maxRecursionStepsInput.value, 2)),
+          maxRecursionSteps: Math.max(0, numberValue(el.maxRecursionStepsInput.value, 0)),
           worldInfoInsertionStrategy: el.insertionStrategyInput.value || 'character-first',
           includeNames: el.includeNamesInput.checked,
           recursive: el.recursiveInput.checked,
@@ -1715,7 +1676,7 @@
   function strategyLabel(strategy) {
     if (strategy === 'constant') return t('Constant');
     if (strategy === 'vectorized') return t('Vectorized');
-    return t('Normal');
+    return t('WI_Entry_Status_Normal');
   }
 
   function reasonLabel(reason) {
@@ -1728,8 +1689,8 @@
 
   function localizedPositionLabel(entry) {
     if (Number(entry?.position) === 4) {
-      const role = ['System', 'User', 'Assistant'][numberValue(entry.role, 0)] || 'System';
-      return `${t(role)} @ ${t('Depth')} ${numberValue(entry.depth, 4)}`;
+      const position = ['at Depth System', 'at Depth User', 'at Depth AI'][numberValue(entry.role, 0)] || 'at Depth System';
+      return `${t(position)} ${numberValue(entry.depth, 4)}`;
     }
     return t(worldbook.positionLabel(entry?.position ?? 0, entry?.role, entry?.depth));
   }

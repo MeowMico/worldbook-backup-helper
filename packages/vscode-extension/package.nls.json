@@ -1,6 +1,5 @@
 {
   "command.openWorkbench": "Worldbook Workbench: Open Worldbook Workbench",
-  "command.importCharacterCard": "Worldbook Workbench: Import Character Card",
   "command.openPromptPreview": "Worldbook Workbench: Open Prompt Preview",
   "command.saveScenario": "Worldbook Workbench: Save Preview Setup",
   "command.exportWorldbookJson": "Worldbook Workbench: Export Worldbook JSON",

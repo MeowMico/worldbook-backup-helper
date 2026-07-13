@@ -2,7 +2,7 @@
   "name": "worldbook-workbench-vscode",
   "displayName": "Worldbook Workbench",
   "description": "Edit, batch-manage, version, and preview SillyTavern worldbooks in VS Code or Cursor.",
-  "version": "0.2.10",
+  "version": "0.2.13",
   "publisher": "meowmico",
   "private": true,
   "license": "MIT",
@@ -36,7 +36,6 @@
     "sillytavern",
     "worldbook",
     "lorebook",
-    "character card",
     "prompt preview",
     "prompt engineering",
     "snapshot",
@@ -47,7 +46,6 @@
   ],
   "activationEvents": [
     "onCommand:worldbookWorkbench.openWorkbench",
-    "onCommand:worldbookWorkbench.importCharacterCard",
     "onCommand:worldbookWorkbench.openPromptPreview",
     "onCommand:worldbookWorkbench.saveScenario",
     "onCommand:worldbookWorkbench.exportWorldbookJson",
@@ -59,10 +57,6 @@
       {
         "command": "worldbookWorkbench.openWorkbench",
         "title": "%command.openWorkbench%"
-      },
-      {
-        "command": "worldbookWorkbench.importCharacterCard",
-        "title": "%command.importCharacterCard%"
       },
       {
         "command": "worldbookWorkbench.openPromptPreview",

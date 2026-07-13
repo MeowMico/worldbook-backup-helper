@@ -854,6 +854,10 @@ label,
   gap: 8px;
 }
 
+.scenario-last-human-section textarea {
+  min-height: 96px;
+}
+
 .scenario-message-row {
   min-width: 0;
   display: grid;

@@ -111,17 +111,6 @@ const worldbook = {
   },
 };
 
-const characterCard = {
-  data: {
-    name: 'Mira Vale',
-    description: 'Mira Vale is a field archivist who maps the shifting routes beneath Lumenport.',
-    personality: 'Observant, concise, and quietly curious.',
-    scenario: 'Mira is helping Rowan cross the city before the midnight archive bell.',
-    creator_notes: 'Demonstration character for Worldbook Workbench screenshots.',
-    first_mes: 'The midnight line leaves in twelve minutes. Which district are we starting from?',
-  },
-};
-
 const scenario = {
   ...core.createDefaultScenario('/Users/demo/Lumenport Worldbook.json'),
   seed: 'lumenport-demo',
@@ -142,7 +131,6 @@ const scenario = {
 
 const preview = core.compilePromptPreview({
   worldbooks: [{ name: 'Lumenport Worldbook', path: scenario.worldbookPath, data: worldbook }],
-  characterCard,
   scenario,
 });
 
@@ -152,14 +140,6 @@ const state = {
   worldbookPath: scenario.worldbookPath,
   worldbookText: `${JSON.stringify(worldbook, null, 2)}\n`,
   scenario,
-  characterCard: {
-    name: 'Mira Vale',
-    description: characterCard.data.description,
-    scenario: characterCard.data.scenario,
-    format: 'json',
-    hasCharacterBook: false,
-    alternateGreetingCount: 0,
-  },
 };
 
 const previewMessage = {

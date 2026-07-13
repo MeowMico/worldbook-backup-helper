@@ -77,9 +77,14 @@ test('scenario JSON round trip normalizes defaults', () => {
   assert.equal(parsed.worldbookPath, '/tmp/book.json');
   assert.equal(parsed.includeCharacterBook, true);
   assert.equal(parsed.trigger, 'normal');
+  assert.equal(parsed.settings.worldInfoDepth, 2);
   assert.equal(parsed.settings.maxContextTokens, 0);
   assert.equal(parsed.settings.budgetPercent, 100);
+  assert.equal(parsed.settings.recursive, true);
+  assert.equal(parsed.settings.maxRecursionSteps, 0);
+  assert.equal(parsed.settings.includeNames, false);
   assert.equal(parsed.settings.worldInfoInsertionStrategy, 'character-first');
+  assert.equal(parsed.lastHumanMessage, '');
 });
 
 test('scenario JSON preserves unknown scenario and message fields', () => {
@@ -228,6 +233,38 @@ test('compilePromptPreview activates constants and depth entries in timeline ord
   assert.deepEqual(result.activatedEntries.map(entry => entry.title), ['Depth', 'Before']);
   assert.ok(result.timeline.some(item => item.title === 'Depth' && item.bucket === 'world_info_depth_1'));
   assert.ok(result.timeline.some(item => item.title === 'Before' && item.bucket === 'world_info_before_character'));
+});
+
+test('last human message is scanned and appended after chat history before depth zero', () => {
+  const result = compilePromptPreview({
+    worldbooks: [{
+      name: 'book',
+      data: {
+        entries: {
+          match: {
+            comment: 'Catgirl match',
+            content: 'Matched the current user turn.',
+            key: ['catgirl'],
+            position: POSITION.AT_DEPTH,
+            depth: 0,
+            role: 0,
+          },
+        },
+      },
+    }],
+    scenario: {
+      ...createDefaultScenario(),
+      messages: [{ role: 'assistant', content: 'Previous reply.' }],
+      lastHumanMessage: 'Please introduce a catgirl.',
+    },
+  });
+
+  assert.deepEqual(result.activatedEntries.map(entry => entry.title), ['Catgirl match']);
+  assert.deepEqual(
+    result.timeline.map(item => item.bucket),
+    ['chat', 'last_human_message', 'world_info_depth_0'],
+  );
+  assert.equal(result.timeline[1].content, 'Please introduce a catgirl.');
 });
 
 test('compilePromptPreview reports tokens and applies an optional scenario budget', () => {

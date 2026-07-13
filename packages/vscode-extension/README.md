@@ -29,7 +29,6 @@ Install from your editor's marketplace to receive normal extension updates. Manu
 - Preview ST-style world-info placement as a system/user/assistant timeline.
 - See why each entry activated or did not activate.
 - Display token estimates for every entry, all entries, active world info, and the complete timeline.
-- Import character cards from JSON or PNG metadata, including embedded character books.
 - Edit chat messages as ordered system/user/assistant rows and inspect the synchronized full preview-setup JSON.
 - Save reusable preview setups beside the worldbook while keeping `{{user}}` portable.
 - Create snapshots and named experiments, compare them in VS Code's native Diff editor, and restore earlier versions.
@@ -50,7 +49,7 @@ The language menu in the Workbench toolbar offers **Follow VS Code/Cursor**, **E
 
 ## Prompt Preview
 
-The preview combines the selected worldbook, optional character card, and local Preview Setup. It shows the resulting message skeleton without pretending to reproduce a provider-specific API request wrapper.
+The preview combines the selected worldbook and local Preview Setup. It shows the resulting message skeleton without pretending to reproduce a provider-specific API request wrapper.
 
 ![Prompt timeline with triggered and not-triggered entries](https://raw.githubusercontent.com/MeowMico/worldbook-backup-helper/main/packages/vscode-extension/media/screenshots/prompt-preview.png)
 
@@ -66,9 +65,10 @@ Token profiles identify whether their result is exact for the selected tokenizer
 
 ## Preview Setup Files
 
-The **Preview Setup** tab is a local test environment, not the character card's Scenario field. Its settings are stored next to the worldbook as `<worldbook>.wbh.json` and can include:
+The **Preview Setup** tab is a local test environment stored next to the worldbook as `<worldbook>.wbh.json`. It can include:
 
 - ordered system, user, and assistant chat messages
+- an optional last human message appended as the current user turn
 - the portable `{{user}}` macro
 - preview generation type
 - deterministic probability seed
@@ -78,9 +78,8 @@ The **Preview Setup** tab is a local test environment, not the character card's 
 - optional persona description, Character's Note, sticky state, and cooldown state
 - tokenizer profile
 - manually forced entry IDs
-- an optional character-card path
 
-The sidecar file does not modify or add workbench metadata to the worldbook itself. Imported character cards are read-only. Unknown preview-setup and message fields are retained when the structured editor updates the file.
+The sidecar file does not modify or add workbench metadata to the worldbook itself. Unknown preview-setup and message fields are retained when the structured editor updates the file.
 
 ## History Files
 
@@ -99,7 +98,6 @@ Vector search, automation hooks, and external outlet runtimes require SillyTaver
 ## Commands
 
 - `Worldbook Workbench: Open Worldbook Workbench`
-- `Worldbook Workbench: Import Character Card`
 - `Worldbook Workbench: Open Prompt Preview`
 - `Worldbook Workbench: Save Preview Setup`
 - `Worldbook Workbench: Export Worldbook JSON`
@@ -107,7 +105,7 @@ Vector search, automation hooks, and external outlet runtimes require SillyTaver
 
 ## Privacy
 
-Worldbooks, character cards, preview setups, and previews are processed locally. The extension does not upload their contents.
+Worldbooks, preview setups, and previews are processed locally. The extension does not upload their contents.
 
 ## Support
 

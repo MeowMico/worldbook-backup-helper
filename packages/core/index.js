@@ -81,14 +81,14 @@ const ENTRY_DEFAULTS = Object.freeze({
 });
 
 const DEFAULT_SETTINGS = Object.freeze({
-  worldInfoDepth: 4,
+  worldInfoDepth: 2,
   minActivations: 0,
   minActivationsDepthMax: 0,
   maxContextTokens: 0,
   budgetPercent: 100,
   budgetCap: 0,
   recursive: true,
-  maxRecursionSteps: 2,
+  maxRecursionSteps: 0,
   includeNames: false,
   caseSensitive: false,
   matchWholeWords: false,
@@ -146,6 +146,7 @@ function createDefaultScenario(worldbookPath = '') {
     charName: '',
     personaDescription: '',
     characterDepthPrompt: '',
+    lastHumanMessage: '',
     settings: { ...DEFAULT_SETTINGS },
     messages: [
       { role: 'user', content: '' },
@@ -168,6 +169,7 @@ function normalizeScenario(input) {
     charName: cleanText(source.charName),
     personaDescription: cleanText(source.personaDescription),
     characterDepthPrompt: cleanText(source.characterDepthPrompt),
+    lastHumanMessage: cleanText(source.lastHumanMessage),
     settings: normalizeSettings(source.settings),
     messages: normalizeMessages(source.messages),
     forceActivate: normalizeStringArray(source.forceActivate),
@@ -436,7 +438,11 @@ function compilePromptPreview(input = {}) {
   const scenario = normalizeScenario(input.scenario || {});
   const settings = normalizeSettings({ ...scenario.settings, ...(input.settings || {}) });
   const characterCard = input.characterCard ? parseCharacterCard(input.characterCard) : null;
-  const messages = normalizeMessages(input.messages || scenario.messages);
+  const messages = buildPreviewMessages(
+    input.messages || scenario.messages,
+    input.lastHumanMessage !== undefined ? input.lastHumanMessage : scenario.lastHumanMessage,
+    scenario.userName,
+  );
   const forceActivate = new Set(normalizeStringArray(input.forceActivate || scenario.forceActivate));
   const timedState = normalizeTimedState(input.timedState || scenario.timedState);
   const seed = cleanText(input.seed || scenario.seed) || 'worldbook-workbench';
@@ -993,10 +999,11 @@ function buildTimeline(buckets, messages, characterCard, scenario, settings) {
     }
     if (index < messages.length) {
       const message = messages[index];
+      const isLastHumanMessage = message.previewKind === 'last-human-message';
       timeline.push({
-        id: `chat:${index}`,
+        id: isLastHumanMessage ? 'last-human-message' : `chat:${index}`,
         role: message.role,
-        bucket: 'chat',
+        bucket: isLastHumanMessage ? 'last_human_message' : 'chat',
         title: message.name || message.role,
         content: message.content,
         sourceIds: [],
@@ -1170,6 +1177,21 @@ function normalizeMessages(messages) {
       content: cleanText(source.content),
     };
   }).filter(message => message.content || message.name);
+}
+
+function buildPreviewMessages(messages, lastHumanMessage, userName) {
+  const normalized = normalizeMessages(messages);
+  const content = cleanText(lastHumanMessage);
+  if (!content) return normalized;
+  return [
+    ...normalized,
+    {
+      role: 'user',
+      name: cleanText(userName),
+      content,
+      previewKind: 'last-human-message',
+    },
+  ];
 }
 
 function normalizeTimedState(value) {

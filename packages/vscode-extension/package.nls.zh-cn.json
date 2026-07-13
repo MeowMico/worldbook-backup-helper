@@ -1,6 +1,5 @@
 {
   "command.openWorkbench": "世界书工作台：打开世界书工作台",
-  "command.importCharacterCard": "世界书工作台：导入角色卡",
   "command.openPromptPreview": "世界书工作台：打开提示词预览",
   "command.saveScenario": "世界书工作台：保存预览设置",
   "command.exportWorldbookJson": "世界书工作台：导出世界书 JSON",

@@ -51,7 +51,7 @@ Some fields require a SillyTavern runtime to have an effect, including vector se
 
 ## Preview Setup
 
-**Preview Setup is a local test environment.** It is not the character card's `scenario` text field and it is not exported into the worldbook.
+**Preview Setup is a local test environment.** It is stored separately and is not exported into the worldbook.
 
 Use it to provide the context needed to answer these questions:
 
@@ -62,17 +62,15 @@ Use it to provide the context needed to answer these questions:
 
 ### Chat Messages
 
-Add ordered system, user, and assistant messages that represent the recent conversation. Keyword matching scans these messages according to **Scan Depth**.
+Add ordered system, user, and assistant messages that represent the conversation before the current turn. Keyword matching scans these messages according to **Scan Depth**.
+
+Use **Last Human Message** for the optional current user turn. It is appended after Chat Messages for activation scanning and prompt-order preview, so a Depth 0 entry appears after it at the bottom of the prompt.
 
 Keep portable macros such as `{{user}}` in worldbook content. The Workbench does not require a custom user name for preview setup.
 
-### Character Card
-
-Choose **Import Card** to read a character card from JSON or PNG metadata. Character fields can participate in preview matching, and an embedded character book can be enabled or disabled. Imported cards are read-only.
-
 ### Global Activation Settings
 
-These controls model SillyTavern-style world-info activation. **Workbench defaults** are intended for unconstrained authoring inspection. **ST 1.18 defaults** provide a native-like starting point for comparison.
+These controls model SillyTavern-style world-info activation. **Workbench defaults** restore the recommended authoring setup: Scan Depth 2, Context 100%, Recursive Scan enabled, and optional caps disabled.
 
 Token counts are descriptive by default. Context percentage and budget cap only restrict preview activation when you deliberately configure them.
 
@@ -145,4 +143,4 @@ If the right-click command is missing, trust the workspace, run **Developer: Rel
 
 When testing a local `.vsix`, close existing Workbench tabs after installation, reload the editor window, and reopen the worldbook. Microsoft VS Code normally disables marketplace auto-update for an extension installed manually from VSIX.
 
-Worldbooks, character cards, preview setup files, and history are processed locally and are not uploaded by the extension.
+Worldbooks, preview setup files, and history are processed locally and are not uploaded by the extension.

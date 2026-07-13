@@ -2,6 +2,21 @@
 
 All notable changes to the VS Code and Cursor extension are documented here.
 
+## 0.2.13 - 2026-07-12
+
+- Aligned SillyTavern-origin Simplified Chinese labels with the official SillyTavern 1.18.0 locale, including entry status, insertion positions, keyword logic, recursion, groups, generation triggers, and global activation settings.
+- Kept the Normal generation trigger distinct from the green keyword entry status so both use the same terminology as SillyTavern.
+
+## 0.2.12 - 2026-07-12
+
+- Focused the public extension workflow on worldbook JSON editing and preview by removing the character-card import command, toolbar action, card status, and embedded-book toggle.
+- Kept character-card parsing in the shared core for future experimental use, while existing preview sidecar fields remain compatible and are ignored by the extension.
+
+## 0.2.11 - 2026-07-12
+
+- Added an optional Last Human Message field that is appended after chat history for activation scanning and prompt-order preview.
+- Simplified activation presets to one recommended Workbench default: Scan Depth 2, Context 100%, Recursive Scan enabled, and optional limits disabled.
+
 ## 0.2.10 - 2026-07-12
 
 - Added a prominent stale-preview banner with a direct refresh action so recent keyword and preview-setup edits are not mistaken for failed activation.
