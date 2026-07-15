@@ -11,6 +11,7 @@ It is designed for creators who test roleplay output while actively revising wor
 ## Features
 
 - Edit SillyTavern worldbooks directly in an in-Tavern workbench.
+- Use focused `Worldbooks`, `Entries`, `Edit`, and `History` views on phones and narrow screens, without changing the desktop three-column workspace.
 - Automatically save an `Origin` snapshot the first time a worldbook is opened.
 - Create named experiments with baseline/after snapshots for testing a specific change.
 - Compare current, previous, baseline, after, and saved versions with highlighted diffs.

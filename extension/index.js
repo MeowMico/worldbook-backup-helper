@@ -7,6 +7,10 @@ import {
   normalizeEntryCharacterFilter,
   setEntryFieldValue,
 } from './entry-fields.mjs';
+import {
+  normalizeMobileWorkbenchPane,
+  resolveMobileWorkbenchState,
+} from './mobile-layout.mjs';
 
 const PLUGIN_ROOT = '/api/plugins/worldbook-backup-helper';
 const PLUGIN_EXTENSION_KEY = 'worldbookBackupHelper';
@@ -71,6 +75,7 @@ const THEME_MODES = ['auto', 'light', 'dark'];
 const THEME_QUERY = window.matchMedia?.('(prefers-color-scheme: dark)');
 const THEME_BACKGROUND_VARS = ['--SmartThemeBodyColor', '--SmartThemeBlurTintColor', '--SmartThemeChatTintColor'];
 const LANGUAGE_MODES = ['auto', 'en', 'zh'];
+const MOBILE_WORKBENCH_QUERY = window.matchMedia?.('(max-width: 900px)');
 const TAURITAVERN_SURFACES = {
   backdrop: 'backdrop',
   fullscreenWindow: 'fullscreen-window',
@@ -979,6 +984,7 @@ const app = {
   pendingInputHistoryKey: '',
   pendingMvuInputHistoryKey: '',
   diffChangeIndex: -1,
+  mobilePane: 'entries',
   booksCollapsed: readBooleanSetting('wbh-books-collapsed'),
   historyCollapsed: readBooleanSetting('wbh-history-collapsed'),
   findCollapsed: readBooleanSetting('wbh-find-collapsed'),
@@ -997,6 +1003,7 @@ async function init() {
   await waitForTauriTavernReady();
   installThemeListener();
   installLanguageListener();
+  installMobileLayoutListener();
   installWorkbenchButton();
   installWorldbookEditInterceptor();
   if (app.mvuAutoInjectEnabled) startMvuAutoInjectMonitor();
@@ -1053,6 +1060,15 @@ function installLanguageListener() {
   });
 }
 
+function installMobileLayoutListener() {
+  const render = () => renderMobileLayout();
+  if (MOBILE_WORKBENCH_QUERY && typeof MOBILE_WORKBENCH_QUERY.addEventListener === 'function') {
+    MOBILE_WORKBENCH_QUERY.addEventListener('change', render);
+  } else if (MOBILE_WORKBENCH_QUERY && typeof MOBILE_WORKBENCH_QUERY.addListener === 'function') {
+    MOBILE_WORKBENCH_QUERY.addListener(render);
+  }
+}
+
 function installWorkbenchButton() {
   const add = () => {
     const menu = document.querySelector('#extensionsMenu');
@@ -1082,6 +1098,7 @@ async function openWorkbench() {
   await detectServerHistoryStorage();
   ensureLocalWorkbench();
   await refreshLocalWorkbench();
+  renderMobileLayout();
   document.querySelector('#wbh-workbench').classList.add('open');
   updateMvuOpeningsWatchMonitor();
 }
@@ -1289,6 +1306,12 @@ function ensureLocalWorkbench() {
           <button id="wbh-close" type="button" data-wbh-i18n="action.close">${t('action.close')}</button>
         </div>
       </header>
+      <nav class="wbh-mobile-nav" aria-label="${t('app.title')}">
+        <button type="button" data-wbh-mobile-pane="books" data-wbh-i18n="section.worldbooks">${t('section.worldbooks')}</button>
+        <button type="button" data-wbh-mobile-pane="entries" data-wbh-i18n="section.entries">${t('section.entries')}</button>
+        <button type="button" data-wbh-mobile-pane="editor" data-wbh-i18n="action.edit">${t('action.edit')}</button>
+        <button type="button" data-wbh-mobile-pane="history" data-wbh-i18n="action.history">${t('action.history')}</button>
+      </nav>
       <main class="wbh-grid">
         <section id="wbh-book-pane" class="wbh-pane wbh-book-pane">
           <div class="wbh-pane-head wbh-book-head">
@@ -1727,6 +1750,9 @@ function ensureLocalWorkbench() {
   root.querySelectorAll('[data-wbh-language]').forEach(button => {
     button.addEventListener('click', () => setLanguageMode(button.dataset.wbhLanguage));
   });
+  root.querySelectorAll('[data-wbh-mobile-pane]').forEach(button => {
+    button.addEventListener('click', () => setMobilePane(button.dataset.wbhMobilePane));
+  });
   root.querySelector('#wbh-create-book').addEventListener('click', createWorldbook);
   root.querySelector('#wbh-toggle-books').addEventListener('click', toggleBooksPane);
   root.querySelector('#wbh-toggle-history').addEventListener('click', toggleHistoryPane);
@@ -1805,6 +1831,7 @@ function ensureLocalWorkbench() {
   renderLanguageMode();
   renderThemeMode();
   renderLayoutMode();
+  renderMobileLayout();
   renderMvuAutoInjectState(root);
   if (app.mvuAutoInjectEnabled) startMvuAutoInjectMonitor();
   updateMvuOpeningsWatchMonitor();
@@ -2016,6 +2043,7 @@ async function selectWorldbook(book) {
   await loadEditorWorldbook({ force: true });
   renderBooks();
   await loadLocalSnapshots({ restoreOpenExperiment: true });
+  if (isMobileWorkbench()) setMobilePane('entries');
 }
 
 function renderBooks() {
@@ -2044,12 +2072,20 @@ function renderBooks() {
 }
 
 function toggleBooksPane() {
+  if (isMobileWorkbench()) {
+    setMobilePane('books');
+    return;
+  }
   app.booksCollapsed = !app.booksCollapsed;
   writeBooleanSetting('wbh-books-collapsed', app.booksCollapsed);
   renderBooksPane();
 }
 
 function toggleHistoryPane() {
+  if (isMobileWorkbench()) {
+    setMobilePane('history');
+    return;
+  }
   app.historyCollapsed = !app.historyCollapsed;
   writeBooleanSetting('wbh-history-collapsed', app.historyCollapsed);
   renderLayoutMode();
@@ -2059,6 +2095,42 @@ function toggleFindPane() {
   app.findCollapsed = !app.findCollapsed;
   writeBooleanSetting('wbh-find-collapsed', app.findCollapsed);
   renderLayoutMode();
+}
+
+function isMobileWorkbench() {
+  if (MOBILE_WORKBENCH_QUERY) return MOBILE_WORKBENCH_QUERY.matches;
+  return window.innerWidth <= 900;
+}
+
+function setMobilePane(pane, { preserveMainTab = false } = {}) {
+  const nextState = resolveMobileWorkbenchState(app, pane, { preserveMainTab });
+  if (!nextState) return;
+
+  const mainTabChanged = app.mainTab !== nextState.mainTab;
+  app.mobilePane = nextState.mobilePane;
+  app.mainTab = nextState.mainTab;
+  if (mainTabChanged) {
+    renderEditorState();
+    updateMvuOpeningsWatchMonitor();
+    return;
+  }
+
+  renderMobileLayout();
+}
+
+function renderMobileLayout() {
+  const root = document.querySelector('#wbh-workbench');
+  if (!root) return;
+
+  root.dataset.mobilePane = normalizeMobileWorkbenchPane(app.mobilePane);
+  const nav = root.querySelector('.wbh-mobile-nav');
+  nav?.setAttribute('aria-label', t('app.title'));
+  root.querySelectorAll('[data-wbh-mobile-pane]').forEach(button => {
+    const active = button.dataset.wbhMobilePane === root.dataset.mobilePane;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+    button.tabIndex = 0;
+  });
 }
 
 function setThemeMode(mode) {
@@ -2343,6 +2415,7 @@ function renderLanguageMode() {
   });
   renderStaticTranslations(root);
   document.querySelector('#wbh-open-workbench')?.replaceChildren(document.createTextNode(t('menu.open')));
+  renderMobileLayout();
 }
 
 function renderThemeMode() {
@@ -2403,6 +2476,7 @@ function renderLayoutMode() {
     find.textContent = app.findCollapsed ? t('action.find') : t('action.hideFind');
     find.setAttribute('aria-pressed', String(!app.findCollapsed));
   }
+  renderMobileLayout();
 }
 
 function renderActiveBook() {
@@ -2638,6 +2712,7 @@ function renderExperiments() {
     button.addEventListener('click', async () => {
       app.activeView = 'experiment';
       app.mainTab = 'diff';
+      if (isMobileWorkbench()) setMobilePane('editor', { preserveMainTab: true });
       app.activeExperiment = experiment;
       app.activeSnapshot = await getSnapshotById(experiment.afterSnapshotId || experiment.baselineSnapshotId) || app.activeSnapshot;
       renderActiveBook();
@@ -2808,6 +2883,7 @@ async function loadSnapshotIntoEditor(snapshot, sourceName = t('label.version'))
   app.activeView = 'snapshot';
   const showChanges = sourceName === 'Version' || sourceName === t('label.version');
   app.mainTab = showChanges ? 'diff' : 'edit';
+  if (isMobileWorkbench()) app.mobilePane = 'editor';
   if (showChanges) {
     app.diffMode = 'previous';
     app.diffChangeIndex = -1;
@@ -2827,6 +2903,7 @@ async function loadSnapshotIntoEditor(snapshot, sourceName = t('label.version'))
 
 function setMainTab(tab) {
   app.mainTab = tab;
+  if (isMobileWorkbench() && tab !== 'edit') app.mobilePane = 'editor';
   if (tab === 'mvu') {
     app.mvuTouched = true;
     refreshMvuOpenings({ render: false });
@@ -2962,10 +3039,12 @@ function renderEntryList() {
       : entryMeta(record.entry);
     button.addEventListener('click', () => {
       app.activeEntryId = record.id;
+      app.mainTab = 'edit';
       const firstMatch = app.findMatches.findIndex(match => match.entryId === record.id);
       if (firstMatch >= 0) app.activeFindIndex = firstMatch;
       renderEntryList();
       renderEntryEditor();
+      if (isMobileWorkbench()) setMobilePane('editor');
       if (firstMatch >= 0) queueFocusActiveFindMatch();
     });
     row.append(selectWrap, button);
@@ -3272,6 +3351,7 @@ function openActiveFindMatch() {
 
   app.activeEntryId = match.entryId;
   app.mainTab = 'edit';
+  if (isMobileWorkbench()) app.mobilePane = 'editor';
   renderEditor();
   queueFocusActiveFindMatch();
   setStatus(t('status.matches', { current: app.activeFindIndex + 1, total: app.findMatches.length }));
@@ -3736,6 +3816,7 @@ function createEntry() {
   const entry = createEntryTemplate(uid, t('action.new'));
   insertEntry(app.activeData, entry);
   app.activeEntryId = String(uid);
+  if (isMobileWorkbench()) app.mobilePane = 'editor';
   setEditorDirty(true);
   renderEditor();
 }
@@ -3754,6 +3835,7 @@ function duplicateEntry() {
   };
   insertEntry(app.activeData, entry);
   app.activeEntryId = String(uid);
+  if (isMobileWorkbench()) app.mobilePane = 'editor';
   setEditorDirty(true);
   renderEditor();
 }
@@ -6186,6 +6268,7 @@ async function createExperimentFromSnapshot(snapshot) {
   await putExperiment(experiment);
   app.activeView = 'experiment';
   app.mainTab = 'diff';
+  if (isMobileWorkbench()) setMobilePane('editor', { preserveMainTab: true });
   app.activeExperiment = experiment;
   app.activeSnapshot = snapshot;
   await loadLocalSnapshots();
@@ -6874,6 +6957,7 @@ async function restoreSnapshot(snapshot, label = 'version') {
   await loadEditorWorldbook({ force: true });
   app.activeView = 'snapshot';
   app.mainTab = 'edit';
+  if (isMobileWorkbench()) setMobilePane('editor');
   app.activeExperiment = null;
   app.activeSnapshot = snapshot;
   await loadLocalSnapshots();

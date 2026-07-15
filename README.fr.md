@@ -11,6 +11,7 @@ Elle est conçue pour les créateurs qui testent leurs sorties de jeu de rôle t
 ## Fonctionnalités
 
 - Modifier des worldbooks SillyTavern directement dans un espace de travail intégré à Tavern.
+- Utiliser des vues séparées `Worldbooks`, `Entrées`, `Modifier` et `Historique` sur téléphone et écran étroit, sans modifier l'espace de travail à trois colonnes sur ordinateur.
 - Enregistrer automatiquement un instantané `Origin` la première fois qu'un worldbook est ouvert.
 - Créer des expériences nommées avec des instantanés avant/après pour tester un changement précis.
 - Comparer la version actuelle, la version précédente, la base, le résultat et les versions enregistrées avec des différences surlignées.
