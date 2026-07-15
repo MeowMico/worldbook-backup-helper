@@ -2,6 +2,11 @@
 
 All notable changes to the VS Code and Cursor extension are documented here.
 
+## 0.2.14 - 2026-07-15
+
+- Fixed the entry browser to sort strictly by ascending Order, regardless of Normal, Constant, disabled, or preview activation state.
+- Kept entries with the same Order in their original JSON order without rewriting the worldbook file.
+
 ## 0.2.13 - 2026-07-12
 
 - Aligned SillyTavern-origin Simplified Chinese labels with the official SillyTavern 1.18.0 locale, including entry status, insertion positions, keyword logic, recursion, groups, generation triggers, and global activation settings.

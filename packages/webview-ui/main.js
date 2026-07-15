@@ -688,7 +688,8 @@
 
   function visibleEntryRecords() {
     const query = el.entrySearch.value.trim().toLowerCase();
-    return state.records.filter(record => entrySearchText(record.entry).includes(query));
+    const filtered = state.records.filter(record => entrySearchText(record.entry).includes(query));
+    return worldbook.sortEntryRecordsByOrder(filtered);
   }
 
   function toggleEntryTools() {

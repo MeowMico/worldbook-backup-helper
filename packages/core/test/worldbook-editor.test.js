@@ -30,6 +30,44 @@ test('worldbook editor supports array entries and stable add/delete operations',
   assert.equal(editor.getEntryRecords(data)[0].id, '5');
 });
 
+test('entry browser records sort by order without strategy or activation-state priority', () => {
+  const data = editor.parseWorldbookText(JSON.stringify({
+    entries: {
+      green61: { uid: 61, comment: 'Green 61', order: 61 },
+      blue17: { uid: 17, comment: 'Blue 17', order: 17, constant: true, disable: true },
+      blue12: { uid: 12, comment: 'Blue 12', order: 12, constant: true },
+      green90: { uid: 90, comment: 'Green 90', order: 90 },
+      blue2: { uid: 2, comment: 'Blue 2', order: 2, constant: true },
+      defaultOrder: { uid: 100, comment: 'Default order' },
+      green49: { uid: 49, comment: 'Green 49', order: 49 },
+      tied49: { uid: 149, comment: 'Tied 49', order: 49, constant: true },
+    },
+  }));
+  const records = editor.getEntryRecords(data);
+  const sorted = editor.sortEntryRecordsByOrder(records);
+
+  assert.deepEqual(sorted.map(record => record.entry.comment), [
+    'Blue 2',
+    'Blue 12',
+    'Blue 17',
+    'Green 49',
+    'Tied 49',
+    'Green 61',
+    'Green 90',
+    'Default order',
+  ]);
+  assert.deepEqual(records.map(record => record.entry.comment), [
+    'Green 61',
+    'Blue 17',
+    'Blue 12',
+    'Green 90',
+    'Blue 2',
+    'Default order',
+    'Green 49',
+    'Tied 49',
+  ]);
+});
+
 test('worldbook editor maps strategies, positions, lists, and token estimates', () => {
   const entry = { custom: 'kept', selective: true };
   editor.applyEntryStrategy(entry, 'constant');

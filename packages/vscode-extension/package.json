@@ -2,7 +2,7 @@
   "name": "worldbook-workbench-vscode",
   "displayName": "Worldbook Workbench",
   "description": "Edit, batch-manage, version, and preview SillyTavern worldbooks in VS Code or Cursor.",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "publisher": "meowmico",
   "private": true,
   "license": "MIT",

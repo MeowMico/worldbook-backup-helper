@@ -98,6 +98,17 @@
     }));
   }
 
+  function sortEntryRecordsByOrder(records) {
+    return (Array.isArray(records) ? records : [])
+      .map((record, index) => ({ record, index }))
+      .sort((left, right) => {
+        const orderDiff = numberValue(left.record?.entry?.order, 100)
+          - numberValue(right.record?.entry?.order, 100);
+        return orderDiff || left.index - right.index;
+      })
+      .map(item => item.record);
+  }
+
   function createEntry(data, template) {
     const id = nextEntryId(data);
     const entry = template ? deepClone(template) : deepClone(DEFAULT_ENTRY);
@@ -429,6 +440,7 @@
     parseWorldbookText,
     serializeWorldbook,
     getEntryRecords,
+    sortEntryRecordsByOrder,
     createEntry,
     deleteEntry,
     deleteEntries,
